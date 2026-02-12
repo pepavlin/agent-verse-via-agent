@@ -57,6 +57,16 @@ export default function AuthForm({ mode }: AuthFormProps) {
         }
       }
     } catch (err: any) {
+      // Enhanced error logging
+      console.error('[AUTH_FORM_ERROR]', err)
+      console.error('[AUTH_FORM_ERROR_DETAILS]', {
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+        mode,
+        timestamp: new Date().toISOString()
+      })
+
       setError(err.message || 'Something went wrong')
     } finally {
       setLoading(false)
