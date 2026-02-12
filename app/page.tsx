@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -9,10 +11,25 @@ export default function Home() {
           <p className="text-2xl text-gray-700 mb-8">
             Create and manage AI agents powered by Claude
           </p>
-          <p className="text-lg text-gray-600 mb-12 max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
             Build custom AI assistants with different personalities and capabilities.
             Chat with multiple agents, each powered by Anthropic's Claude AI.
           </p>
+
+          <div className="flex gap-4 justify-center mb-12">
+            <Link
+              href="/register"
+              className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+            >
+              Get Started
+            </Link>
+            <Link
+              href="/login"
+              className="px-8 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-gray-50 transition-colors shadow-md border-2 border-blue-600"
+            >
+              Sign In
+            </Link>
+          </div>
 
           <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
             <div className="bg-white p-6 rounded-lg shadow-md">
