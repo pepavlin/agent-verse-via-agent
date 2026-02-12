@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       if (error.message.includes("Unique constraint")) {
         return new NextResponse("Email already exists", { status: 400 })
       }
-      if (error.message.includes("database")) {
+      if (error.message.toLowerCase().includes("database")) {
         return new NextResponse("Database connection error", { status: 503 })
       }
     }
