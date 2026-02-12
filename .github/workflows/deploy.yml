@@ -20,6 +20,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_SSH_PORT || 22 }}
+          known_hosts: ${{ secrets.SERVER_KNOWN_HOSTS }}
           script: |
             set -e
 
