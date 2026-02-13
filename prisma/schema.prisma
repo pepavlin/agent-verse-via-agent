@@ -74,6 +74,11 @@ model Agent {
   department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   tasksAssigned  Task[]   @relation("AssignedTasks")
   tasksCreated   Task[]   @relation("CreatedTasks")
+
+  @@index([userId])
+  @@index([role])
+  @@index([departmentId])
+  @@index([userId, role])
 }
 
 model Message {
@@ -90,6 +95,13 @@ model Message {
   type      String?  // query, response, notification, task
   agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([agentId])
+  @@index([createdAt])
+  @@index([agentId, createdAt])
+  @@index([taskId])
+  @@index([fromAgent])
+  @@index([toAgent])
 }
 
 model Department {
@@ -119,4 +131,11 @@ model Task {
   createdByAgent Agent? @relation("CreatedTasks", fields: [createdBy], references: [id], onDelete: SetNull)
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   messages     Message[]
+
+  @@index([assignedTo])
+  @@index([createdBy])
+  @@index([departmentId])
+  @@index([status])
+  @@index([priority])
+  @@index([status, priority])
 }
