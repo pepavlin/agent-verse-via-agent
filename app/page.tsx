@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import DeployInfo from '@/components/DeployInfo'
 
 export default function Home() {
   return (
@@ -64,6 +65,10 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      <footer className="py-4">
+        <DeployInfo />
+      </footer>
     </div>
   )
 }
