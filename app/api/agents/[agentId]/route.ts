@@ -8,20 +8,13 @@ export async function GET(
   { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
-    const session = await auth()
     const { agentId } = await params
-
-    if (!session?.user?.id) {
-      return authenticationError(
-        "Unauthorized",
-        "You must be logged in to view agents"
-      )
-    }
+    const fakeUserId = "fake-user"
 
     const agent = await prisma.agent.findUnique({
       where: {
         id: agentId,
-        userId: session.user.id
+        userId: fakeUserId
       },
       include: {
         messages: {
@@ -40,7 +33,7 @@ export async function GET(
     }
 
     console.log('[AGENT_GET_SUCCESS]', {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId: agent.id,
       messageCount: agent.messages.length,
       timestamp: new Date().toISOString()
@@ -57,26 +50,19 @@ export async function DELETE(
   { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
-    const session = await auth()
     const { agentId } = await params
-
-    if (!session?.user?.id) {
-      return authenticationError(
-        "Unauthorized",
-        "You must be logged in to delete agents"
-      )
-    }
+    const fakeUserId = "fake-user"
 
     // Delete will throw P2025 error if agent not found or doesn't belong to user
     await prisma.agent.delete({
       where: {
         id: agentId,
-        userId: session.user.id
+        userId: fakeUserId
       }
     })
 
     console.log('[AGENT_DELETE_SUCCESS]', {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId,
       timestamp: new Date().toISOString()
     })

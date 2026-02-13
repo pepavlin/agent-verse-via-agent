@@ -8,14 +8,7 @@ import { handleApiError } from '@/lib/error-handler'
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth()
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please sign in' },
-        { status: 401 }
-      )
-    }
+    // No authentication required - fake auth system
 
     // Return list of available departments
     const departments = [

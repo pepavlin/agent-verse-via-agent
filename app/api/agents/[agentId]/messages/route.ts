@@ -180,36 +180,14 @@ export async function GET(
   { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
-    const session = await auth()
-
-    if (!session?.user?.id) {
-      return authenticationError(
-        "Unauthorized",
-        "You must be logged in to view messages"
-      )
-    }
-
-    // Apply rate limiting
-    const rateLimitResult = applyRateLimit(
-      `messages-get:${session.user.id}`,
-      RATE_LIMITS.AGENT_LIST
-    )
-
-    if (!rateLimitResult.allowed) {
-      const headers = getRateLimitHeaders(rateLimitResult)
-      return NextResponse.json(createRateLimitError(rateLimitResult), {
-        status: 429,
-        headers,
-      })
-    }
-
+    const fakeUserId = "fake-user"
     const { agentId } = await params
 
     // Verify agent exists and belongs to user
     const agent = await prisma.agent.findUnique({
       where: {
         id: agentId,
-        userId: session.user.id,
+        userId: fakeUserId,
       },
     })
 
@@ -266,15 +244,12 @@ export async function GET(
     ])
 
     console.log("[GET_MESSAGES_SUCCESS]", {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId,
       count: messages.length,
       total: totalCount,
       timestamp: new Date().toISOString(),
     })
-
-    // Add rate limit headers to response
-    const headers = getRateLimitHeaders(rateLimitResult)
 
     return NextResponse.json(
       {
@@ -285,8 +260,7 @@ export async function GET(
           offset,
           hasMore: offset + limit < totalCount,
         },
-      },
-      { headers }
+      }
     )
   } catch (error) {
     return handleApiError(error, "GET_MESSAGES")
@@ -302,29 +276,7 @@ export async function POST(
   { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
-    const session = await auth()
-
-    if (!session?.user?.id) {
-      return authenticationError(
-        "Unauthorized",
-        "You must be logged in to send messages"
-      )
-    }
-
-    // Apply rate limiting for chat messages
-    const rateLimitResult = applyRateLimit(
-      `messages-post:${session.user.id}`,
-      RATE_LIMITS.CHAT
-    )
-
-    if (!rateLimitResult.allowed) {
-      const headers = getRateLimitHeaders(rateLimitResult)
-      return NextResponse.json(createRateLimitError(rateLimitResult), {
-        status: 429,
-        headers,
-      })
-    }
-
+    const fakeUserId = "fake-user"
     const { agentId } = await params
     const body = await request.json()
 
@@ -349,7 +301,7 @@ export async function POST(
     const agent = await prisma.agent.findUnique({
       where: {
         id: agentId,
-        userId: session.user.id,
+        userId: fakeUserId,
       },
       include: {
         messages: {
@@ -378,7 +330,7 @@ export async function POST(
     })
 
     console.log("[MESSAGE_RECEIVED]", {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId: agent.id,
       messageId: userMessage.id,
       role: agent.role,
@@ -446,23 +398,19 @@ export async function POST(
     })
 
     console.log("[MESSAGE_SENT]", {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId: agent.id,
       messageId: assistantMessage.id,
       responseLength: assistantResponse.length,
       timestamp: new Date().toISOString(),
     })
 
-    // Add rate limit headers to response
-    const headers = getRateLimitHeaders(rateLimitResult)
-
     return NextResponse.json(
       {
         userMessage,
         assistantMessage,
         response: assistantResponse,
-      },
-      { headers }
+      }
     )
   } catch (error) {
     return handleApiError(error, "SEND_MESSAGE")

@@ -21,7 +21,7 @@ interface Agent {
 
 export default function AgentsPage() {
   const router = useRouter()
-  const [user, setUser] = useState<{ username: string } | null>(null)
+  const [user, setUser] = useState<{ nickname: string } | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -107,7 +107,7 @@ export default function AgentsPage() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-purple-300">
-                {user.username}
+                {user.nickname}
               </span>
               <button
                 onClick={handleLogout}

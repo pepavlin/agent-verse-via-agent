@@ -10,14 +10,7 @@ const anthropic = new Anthropic({
 
 export async function POST(request: Request) {
   try {
-    const session = await auth()
-
-    if (!session?.user?.id) {
-      return authenticationError(
-        "Unauthorized",
-        "You must be logged in to send messages"
-      )
-    }
+    const fakeUserId = "fake-user"
 
     const body = await request.json()
     const { agentId, message } = body
@@ -60,7 +53,7 @@ export async function POST(request: Request) {
     const agent = await prisma.agent.findUnique({
       where: {
         id: agentId,
-        userId: session.user.id
+        userId: fakeUserId
       },
       include: {
         messages: {
@@ -100,7 +93,7 @@ export async function POST(request: Request) {
     })
 
     console.log('[CHAT_API_CALL]', {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId: agent.id,
       model: agent.model,
       messageCount: conversationHistory.length,
@@ -128,7 +121,7 @@ export async function POST(request: Request) {
     })
 
     console.log('[CHAT_SUCCESS]', {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId: agent.id,
       messageId: savedMessage.id,
       responseLength: assistantMessage.length,

@@ -12,32 +12,12 @@ import {
 
 export async function GET() {
   try {
-    const session = await auth()
-
-    if (!session?.user?.id) {
-      return authenticationError(
-        "Unauthorized",
-        "You must be logged in to view agents"
-      )
-    }
-
-    // Apply rate limiting
-    const rateLimitResult = applyRateLimit(
-      `agents-get:${session.user.id}`,
-      RATE_LIMITS.AGENT_LIST
-    )
-
-    if (!rateLimitResult.allowed) {
-      const headers = getRateLimitHeaders(rateLimitResult)
-      return NextResponse.json(createRateLimitError(rateLimitResult), {
-        status: 429,
-        headers,
-      })
-    }
+    // Fake user ID - no authentication required
+    const fakeUserId = "fake-user"
 
     const agents = await prisma.agent.findMany({
       where: {
-        userId: session.user.id
+        userId: fakeUserId
       },
       include: {
         _count: {
@@ -52,15 +32,12 @@ export async function GET() {
     })
 
     console.log('[AGENTS_GET_SUCCESS]', {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentCount: agents.length,
       timestamp: new Date().toISOString()
     })
 
-    // Add rate limit headers to response
-    const headers = getRateLimitHeaders(rateLimitResult)
-
-    return NextResponse.json(agents, { headers })
+    return NextResponse.json(agents)
   } catch (error) {
     return handleApiError(error, "AGENTS_GET")
   }
@@ -68,28 +45,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth()
-
-    if (!session?.user?.id) {
-      return authenticationError(
-        "Unauthorized",
-        "You must be logged in to create agents"
-      )
-    }
-
-    // Apply rate limiting for agent creation
-    const rateLimitResult = applyRateLimit(
-      `agents-post:${session.user.id}`,
-      RATE_LIMITS.AGENT_CREATE
-    )
-
-    if (!rateLimitResult.allowed) {
-      const headers = getRateLimitHeaders(rateLimitResult)
-      return NextResponse.json(createRateLimitError(rateLimitResult), {
-        status: 429,
-        headers,
-      })
-    }
+    // Fake user ID - no authentication required
+    const fakeUserId = "fake-user"
 
     const body = await request.json()
 
@@ -112,7 +69,7 @@ export async function POST(request: Request) {
 
     // Check for maximum agent limit (20 agents per user)
     const agentCount = await prisma.agent.count({
-      where: { userId: session.user.id }
+      where: { userId: fakeUserId }
     })
 
     if (agentCount >= 20) {
@@ -128,7 +85,7 @@ export async function POST(request: Request) {
     // Check for duplicate agent name
     const existingAgent = await prisma.agent.findFirst({
       where: {
-        userId: session.user.id,
+        userId: fakeUserId,
         name: name
       }
     })
@@ -154,21 +111,18 @@ export async function POST(request: Request) {
         departmentId: departmentId || null,
         color: color || "#a855f7",
         size: size || 20,
-        userId: session.user.id
+        userId: fakeUserId
       }
     })
 
     console.log('[AGENTS_POST_SUCCESS]', {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId: agent.id,
       agentName: agent.name,
       timestamp: new Date().toISOString()
     })
 
-    // Add rate limit headers to response
-    const headers = getRateLimitHeaders(rateLimitResult)
-
-    return NextResponse.json(agent, { headers })
+    return NextResponse.json(agent)
   } catch (error) {
     return handleApiError(error, "AGENTS_POST")
   }
