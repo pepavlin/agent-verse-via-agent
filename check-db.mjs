@@ -1,5 +1,15 @@
 import { PrismaClient } from '@prisma/client'
-const prisma = new PrismaClient({ datasources: { db: { url: 'file:./dev.db' } } })
+import { PrismaLibSql } from '@prisma/adapter-libsql'
+
+const adapter = new PrismaLibSql({
+  url: process.env.DATABASE_URL || 'file:./dev.db'
+})
+
+const prisma = new PrismaClient({
+  adapter,
+  log: ['error', 'warn'],
+})
+
 try {
   const agents = await prisma.agent.findMany({ take: 5 })
   const agentCount = await prisma.agent.count()
@@ -11,8 +21,10 @@ try {
   console.log('\nSample agents:')
   agents.forEach(a => console.log(`  - ${a.name} (${a.role}) - color: ${a.color}, size: ${a.size}`))
   console.log('\nAll tables:', tables.map(t => t.name).join(', '))
+  console.log('\n✅ Database is functional')
 } catch (error) {
-  console.error('Error:', error.message)
+  console.error('❌ Database error:', error.message)
+  process.exit(1)
 } finally {
   await prisma.$disconnect()
 }
