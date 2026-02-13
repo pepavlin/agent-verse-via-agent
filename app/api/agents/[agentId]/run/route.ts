@@ -33,15 +33,8 @@ export async function POST(
   { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
-    const session = await auth()
+    const fakeUserId = "fake-user"
     const { agentId } = await params
-
-    if (!session?.user?.id) {
-      return authenticationError(
-        "Unauthorized",
-        "You must be logged in to run agents"
-      )
-    }
 
     // Parse request body
     const body = await request.json()
@@ -59,7 +52,7 @@ export async function POST(
     const agent = await prisma.agent.findUnique({
       where: {
         id: agentId,
-        userId: session.user.id
+        userId: fakeUserId
       },
       include: {
         messages: {
@@ -121,7 +114,7 @@ export async function POST(
     }
 
     console.log('[AGENT_RUN_SUCCESS]', {
-      userId: session.user.id,
+      userId: fakeUserId,
       agentId: agent.id,
       agentRole: agent.role,
       executionTime: result.executionTime,

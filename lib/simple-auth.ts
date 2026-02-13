@@ -1,15 +1,15 @@
 'use client'
 
 export interface SimpleUser {
-  username: string
+  nickname: string
   loginTime: string
 }
 
 export const simpleAuth = {
-  login: (username: string): void => {
+  login: (nickname: string): void => {
     if (typeof window !== 'undefined') {
       const user: SimpleUser = {
-        username: username.trim(),
+        nickname: nickname.trim(),
         loginTime: new Date().toISOString()
       }
       localStorage.setItem('currentUser', JSON.stringify(user))
@@ -38,5 +38,10 @@ export const simpleAuth = {
 
   isLoggedIn: (): boolean => {
     return simpleAuth.getUser() !== null
+  },
+
+  getNickname: (): string => {
+    const user = simpleAuth.getUser()
+    return user?.nickname || 'Guest'
   }
 }
