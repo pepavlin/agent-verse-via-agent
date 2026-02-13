@@ -1,0 +1,136 @@
+import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { handleApiError, authenticationError, notFoundError, validationError } from "@/lib/error-handler"
+import { ResearcherAgent, StrategistAgent, CriticAgent, IdeatorAgent } from "@/app/agents"
+import { Agent } from "@/types"
+
+/**
+ * Factory function to create appropriate agent instance based on role
+ */
+function createAgentInstance(agent: Agent) {
+  switch (agent.role) {
+    case 'researcher':
+      return new ResearcherAgent(agent)
+    case 'strategist':
+      return new StrategistAgent(agent)
+    case 'critic':
+      return new CriticAgent(agent)
+    case 'ideator':
+      return new IdeatorAgent(agent)
+    default:
+      // Default to researcher if no role specified
+      return new ResearcherAgent(agent)
+  }
+}
+
+/**
+ * POST /api/agents/[agentId]/run
+ * Execute an agent with given input
+ */
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ agentId: string }> }
+) {
+  try {
+    const session = await auth()
+    const { agentId } = await params
+
+    if (!session?.user?.id) {
+      return authenticationError(
+        "Unauthorized",
+        "You must be logged in to run agents"
+      )
+    }
+
+    // Parse request body
+    const body = await request.json()
+    const { input, context } = body
+
+    if (!input || typeof input !== 'string') {
+      return validationError(
+        "Input is required",
+        "input",
+        "Please provide a valid input string for the agent"
+      )
+    }
+
+    // Fetch agent from database
+    const agent = await prisma.agent.findUnique({
+      where: {
+        id: agentId,
+        userId: session.user.id
+      },
+      include: {
+        messages: {
+          orderBy: {
+            createdAt: 'asc'
+          },
+          take: 10 // Last 10 messages for context
+        }
+      }
+    })
+
+    if (!agent) {
+      return notFoundError(
+        "Agent",
+        `No agent found with ID: ${agentId} for this user`
+      )
+    }
+
+    // Create agent instance - map database agent to Agent type
+    const agentData: Agent = {
+      id: agent.id,
+      name: agent.name,
+      description: agent.description,
+      model: agent.model,
+      createdAt: agent.createdAt,
+      updatedAt: agent.updatedAt,
+      userId: agent.userId,
+      personality: agent.personality || undefined,
+      role: agent.role as Agent['role'],
+      specialization: agent.specialization || undefined,
+      departmentId: agent.departmentId || undefined
+    }
+
+    const agentInstance = createAgentInstance(agentData)
+
+    // Execute agent
+    const result = await agentInstance.execute(input, {
+      messages: agent.messages,
+      ...context
+    })
+
+    // Save the interaction to database
+    await prisma.message.create({
+      data: {
+        content: input,
+        role: 'user',
+        agentId: agent.id
+      }
+    })
+
+    if (result.success && result.result) {
+      await prisma.message.create({
+        data: {
+          content: result.result,
+          role: 'assistant',
+          agentId: agent.id
+        }
+      })
+    }
+
+    console.log('[AGENT_RUN_SUCCESS]', {
+      userId: session.user.id,
+      agentId: agent.id,
+      agentRole: agent.role,
+      executionTime: result.executionTime,
+      success: result.success,
+      timestamp: new Date().toISOString()
+    })
+
+    return NextResponse.json(result)
+  } catch (error) {
+    return handleApiError(error, "AGENT_RUN")
+  }
+}

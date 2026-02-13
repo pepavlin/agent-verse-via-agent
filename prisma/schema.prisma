@@ -57,22 +57,66 @@ model VerificationToken {
 }
 
 model Agent {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  model       String   @default("claude-3-5-sonnet-20241022")
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages    Message[]
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  model          String   @default("claude-3-5-sonnet-20241022")
+  userId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  // AgentVerse specific fields
+  personality    String?
+  role           String?  // researcher, strategist, critic, ideator, coordinator, executor
+  specialization String?
+  departmentId   String?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       Message[]
+  department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  tasksAssigned  Task[]   @relation("AssignedTasks")
+  tasksCreated   Task[]   @relation("CreatedTasks")
 }
 
 model Message {
   id        String   @id @default(cuid())
   content   String
-  role      String   // 'user' or 'assistant'
+  role      String   // 'user', 'assistant', or 'system'
   agentId   String
   createdAt DateTime @default(now())
+  // Message metadata for inter-agent communication
+  fromAgent String?
+  toAgent   String?
+  taskId    String?
+  priority  String?  // low, medium, high, urgent
+  type      String?  // query, response, notification, task
   agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  agents      Agent[]
+  tasks       Task[]
+}
+
+model Task {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  status       String   @default("pending") // pending, in_progress, blocked, completed, failed
+  priority     String   @default("medium")  // low, medium, high, urgent
+  assignedTo   String?
+  createdBy    String?
+  departmentId String?
+  result       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  completedAt  DateTime?
+  assignedAgent Agent?  @relation("AssignedTasks", fields: [assignedTo], references: [id], onDelete: SetNull)
+  createdByAgent Agent? @relation("CreatedTasks", fields: [createdBy], references: [id], onDelete: SetNull)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  messages     Message[]
 }
