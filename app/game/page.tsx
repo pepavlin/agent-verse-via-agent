@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { simpleAuth } from '@/lib/simple-auth'
+import { simpleAuth, SimpleUser } from '@/lib/simple-auth'
 import GameCanvas from '../components/GameCanvas'
 import AgentChatDialog from '../components/AgentChatDialog'
 import CreateAgentModal from '../components/CreateAgentModal'
@@ -18,7 +18,7 @@ interface Agent {
 
 export default function GamePage() {
   const router = useRouter()
-  const [user, setUser] = useState<{ username: string } | null>(null)
+  const [user, setUser] = useState<SimpleUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
@@ -72,7 +72,7 @@ export default function GamePage() {
             </h1>
             <div className="h-6 w-px bg-purple-500/30" />
             <span className="text-purple-300 text-sm">
-              Welcome, {user?.username}
+              Welcome, {user?.nickname}
             </span>
             <div className="h-6 w-px bg-purple-500/30" />
             <span className="text-purple-300 text-sm">
