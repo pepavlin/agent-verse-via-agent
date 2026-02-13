@@ -38,18 +38,27 @@ function getAgentInstance(
   agent: {
     id: string
     name: string
-    role: string
+    role: string | null
     model: string
     personality: string | null
     specialization: string | null
   }
 ): BaseAgent | null {
-  const config = {
+  if (!agent.role) {
+    return null
+  }
+  const config: any = {
     id: agent.id,
     name: agent.name,
     model: agent.model,
-    personality: agent.personality || undefined,
-    specialization: agent.specialization || undefined,
+    role: agent.role,
+    personality: agent.personality,
+    specialization: agent.specialization,
+    description: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    userId: '',
+    departmentId: undefined
   }
 
   switch (agent.role) {
@@ -168,7 +177,7 @@ When responding:
  */
 export async function GET(
   request: Request,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
     const session = await auth()
@@ -194,7 +203,7 @@ export async function GET(
       })
     }
 
-    const { agentId } = params
+    const { agentId } = await params
 
     // Verify agent exists and belongs to user
     const agent = await prisma.agent.findUnique({
@@ -290,7 +299,7 @@ export async function GET(
  */
 export async function POST(
   request: Request,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
     const session = await auth()
@@ -316,7 +325,7 @@ export async function POST(
       })
     }
 
-    const { agentId } = params
+    const { agentId } = await params
     const body = await request.json()
 
     // Validate message using Zod schema
@@ -394,8 +403,8 @@ export async function POST(
         content: msg.content,
       }))
 
-      const result = await agentInstance.run(message, messageHistory)
-      assistantResponse = result.output
+      const result = await agentInstance.execute(message, { messages: messageHistory })
+      assistantResponse = result.result || ''
     } else {
       // Fallback to direct Claude API call with role-specific system prompt
       console.log("[USING_DIRECT_API]", {
@@ -403,7 +412,7 @@ export async function POST(
         role: agent.role,
       })
 
-      const systemPrompt = getRoleSystemPrompt(agent.role, agent.personality)
+      const systemPrompt = getRoleSystemPrompt(agent.role || 'executor', agent.personality)
 
       // Prepare conversation history
       const conversationHistory = agent.messages.map((msg) => ({

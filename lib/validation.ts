@@ -163,7 +163,7 @@ export const AgentExecutionSchema = z.object({
     .string()
     .min(1, "Input is required")
     .max(10000, "Input cannot exceed 10,000 characters"),
-  context: z.record(z.any()).optional(),
+  context: z.record(z.string(), z.any()).optional(),
 })
 
 // Department creation schema
@@ -223,8 +223,8 @@ export function formatZodErrors(error: z.ZodError): {
 } {
   const fields: Record<string, string[]> = {}
 
-  // Zod error structure has an 'issues' property, not 'errors'
-  const issues = error.issues || error.errors || []
+  // Zod error structure has an 'issues' property
+  const issues = error.issues || []
 
   issues.forEach((err) => {
     const field = err.path.join(".") || "general"
