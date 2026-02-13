@@ -2,16 +2,16 @@
 export interface Agent {
   id: string
   name: string
-  description: string | null
+  description?: string | null
   model: string
   createdAt: Date
   updatedAt: Date
   userId: string
   // AgentVerse specific fields
-  personality?: string
-  role?: AgentRole
-  specialization?: string
-  departmentId?: string
+  personality?: string | null
+  role?: AgentRole | null
+  specialization?: string | null
+  departmentId?: string | null
 }
 
 // Agent roles in AgentVerse
@@ -117,3 +117,117 @@ export type ClaudeModel =
   | 'claude-3-5-sonnet-20241022'
   | 'claude-3-opus-20240229'
   | 'claude-3-haiku-20240307'
+
+// Department workflow types
+export interface DepartmentWorkflow {
+  id: string
+  departmentId: string
+  name: string
+  description: string
+  steps: WorkflowStep[]
+  status: WorkflowStatus
+  input?: any
+  output?: any
+  createdAt: Date
+  updatedAt: Date
+  completedAt?: Date
+}
+
+export interface WorkflowStep {
+  stepNumber: number
+  agentRole: AgentRole
+  agentId?: string
+  description: string
+  input?: any
+  output?: any
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
+  startedAt?: Date
+  completedAt?: Date
+  error?: string
+}
+
+export type WorkflowStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'paused'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+// User interaction types
+export interface UserQuery {
+  id: string
+  workflowId: string
+  agentId: string
+  question: string
+  context?: any
+  answer?: string
+  status: 'pending' | 'answered' | 'timeout'
+  createdAt: Date
+  answeredAt?: Date
+  timeoutAt?: Date
+}
+
+export interface UserInteractionRequest {
+  workflowId: string
+  agentId: string
+  agentName: string
+  question: string
+  context?: any
+  timeout?: number
+}
+
+export interface UserInteractionResponse {
+  queryId: string
+  answer: string
+  timestamp: Date
+}
+
+// Agent-to-agent communication types
+export interface AgentMessage {
+  id: string
+  fromAgentId: string
+  toAgentId: string
+  workflowId?: string
+  taskId?: string
+  content: string
+  metadata?: MessageMetadata
+  status: 'sent' | 'delivered' | 'read' | 'failed'
+  createdAt: Date
+  deliveredAt?: Date
+  readAt?: Date
+}
+
+export interface MessageQueue {
+  agentId: string
+  messages: AgentMessage[]
+  lastProcessedAt?: Date
+}
+
+// Department execution types
+export interface DepartmentExecutionRequest {
+  departmentId: string
+  input: string
+  context?: any
+  userId: string
+  options?: DepartmentExecutionOptions
+}
+
+export interface DepartmentExecutionOptions {
+  enableUserInteraction?: boolean
+  timeout?: number
+  parallelExecution?: boolean
+  customWorkflow?: WorkflowStep[]
+}
+
+export interface DepartmentExecutionResult {
+  workflowId: string
+  departmentId: string
+  success: boolean
+  result?: any
+  error?: string
+  steps: WorkflowStep[]
+  userQueries?: UserQuery[]
+  executionTime: number
+  timestamp: Date
+}

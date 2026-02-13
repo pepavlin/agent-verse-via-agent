@@ -1,4 +1,4 @@
-import { Agent, Message, Task, AgentExecutionResult, Department } from "@/types"
+import { Agent, Message, Task, AgentExecutionResult, Department, AgentMessage, MessageQueue, UserQuery, UserInteractionRequest } from "@/types"
 import { BaseAgent } from "@/app/agents/BaseAgent"
 import { ResearcherAgent, StrategistAgent, CriticAgent, IdeatorAgent } from "@/app/agents"
 
@@ -10,6 +10,9 @@ export class AgentOrchestrator {
   private agents: Map<string, BaseAgent> = new Map()
   private messageQueue: Message[] = []
   private taskQueue: Task[] = []
+  private agentMessageQueues: Map<string, AgentMessage[]> = new Map()
+  private userQueryCallback?: (query: UserInteractionRequest) => Promise<string>
+  private pendingUserQueries: Map<string, UserQuery> = new Map()
 
   constructor() {
     // Initialize empty orchestrator
@@ -291,6 +294,169 @@ export class AgentOrchestrator {
     this.agents.clear()
     this.messageQueue = []
     this.taskQueue = []
+    this.agentMessageQueues.clear()
+    this.pendingUserQueries.clear()
+  }
+
+  /**
+   * Set callback for user interactions
+   */
+  setUserQueryCallback(callback: (query: UserInteractionRequest) => Promise<string>): void {
+    this.userQueryCallback = callback
+  }
+
+  /**
+   * Request user input during workflow execution
+   */
+  async requestUserInput(
+    workflowId: string,
+    agentId: string,
+    question: string,
+    context?: any
+  ): Promise<string> {
+    if (!this.userQueryCallback) {
+      throw new Error('User query callback not set. Cannot request user input.')
+    }
+
+    const agent = this.agents.get(agentId)
+    if (!agent) {
+      throw new Error(`Agent ${agentId} not found`)
+    }
+
+    const agentInfo = agent.getInfo()
+
+    const query: UserInteractionRequest = {
+      workflowId,
+      agentId,
+      agentName: agentInfo.name,
+      question,
+      context,
+      timeout: 300000 // 5 minutes default
+    }
+
+    // Store pending query
+    const queryId = `query-${Date.now()}-${Math.random()}`
+    const userQuery: UserQuery = {
+      id: queryId,
+      workflowId,
+      agentId,
+      question,
+      context,
+      status: 'pending',
+      createdAt: new Date(),
+      timeoutAt: new Date(Date.now() + (query.timeout || 300000))
+    }
+    this.pendingUserQueries.set(queryId, userQuery)
+
+    try {
+      const answer = await this.userQueryCallback(query)
+      userQuery.answer = answer
+      userQuery.status = 'answered'
+      userQuery.answeredAt = new Date()
+      return answer
+    } catch (error) {
+      userQuery.status = 'timeout'
+      throw error
+    } finally {
+      this.pendingUserQueries.delete(queryId)
+    }
+  }
+
+  /**
+   * Send message from one agent to another
+   */
+  async sendAgentMessage(
+    fromAgentId: string,
+    toAgentId: string,
+    content: string,
+    metadata?: any
+  ): Promise<AgentMessage> {
+    const message: AgentMessage = {
+      id: `msg-${Date.now()}-${Math.random()}`,
+      fromAgentId,
+      toAgentId,
+      content,
+      metadata,
+      status: 'sent',
+      createdAt: new Date()
+    }
+
+    // Add to recipient's message queue
+    const queue = this.agentMessageQueues.get(toAgentId) || []
+    queue.push(message)
+    this.agentMessageQueues.set(toAgentId, queue)
+
+    message.status = 'delivered'
+    message.deliveredAt = new Date()
+
+    return message
+  }
+
+  /**
+   * Get pending messages for an agent
+   */
+  getAgentMessages(agentId: string): AgentMessage[] {
+    return this.agentMessageQueues.get(agentId) || []
+  }
+
+  /**
+   * Process and clear messages for an agent
+   */
+  processAgentMessages(agentId: string): AgentMessage[] {
+    const messages = this.agentMessageQueues.get(agentId) || []
+    this.agentMessageQueues.set(agentId, [])
+
+    // Mark messages as read
+    messages.forEach(msg => {
+      msg.status = 'read'
+      msg.readAt = new Date()
+    })
+
+    return messages
+  }
+
+  /**
+   * Get all pending user queries
+   */
+  getPendingUserQueries(): UserQuery[] {
+    return Array.from(this.pendingUserQueries.values())
+  }
+
+  /**
+   * Broadcast message to multiple agents
+   */
+  async broadcastMessage(
+    fromAgentId: string,
+    targetAgentIds: string[],
+    content: string,
+    metadata?: any
+  ): Promise<AgentMessage[]> {
+    const messages: AgentMessage[] = []
+
+    for (const toAgentId of targetAgentIds) {
+      const message = await this.sendAgentMessage(fromAgentId, toAgentId, content, metadata)
+      messages.push(message)
+    }
+
+    return messages
+  }
+
+  /**
+   * Get message queue status
+   */
+  getMessageQueueStatus() {
+    const status: any = {}
+
+    this.agentMessageQueues.forEach((messages, agentId) => {
+      const agent = this.agents.get(agentId)
+      status[agentId] = {
+        agentName: agent?.getInfo().name || 'Unknown',
+        pendingMessages: messages.length,
+        lastMessage: messages.length > 0 ? messages[messages.length - 1] : null
+      }
+    })
+
+    return status
   }
 }
 
