@@ -45,8 +45,18 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/@libsql ./node_modules/@libsql
 
+# Copy Prisma CLI and dependencies for migrations
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
+
+# Copy startup script
+COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+
 # Create directory for database and set permissions
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+
+# Make entrypoint script executable
+RUN chmod +x /app/docker-entrypoint.sh
 
 USER nextjs
 
@@ -55,5 +65,5 @@ EXPOSE 3000
 
 ENV PORT=3000
 
-# Start the application
-CMD ["node", "server.js"]
+# Use the startup script as entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

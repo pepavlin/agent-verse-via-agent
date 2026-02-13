@@ -115,6 +115,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[Agent Creation Guide](docs/CREATING_AGENTS.md)** - How to create custom agents
 - **[Database Status Report](DATABASE_STATUS.md)** - Database schema and verification results
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Docker and production deployment
+- **[Docker Database Setup](docs/DOCKER_DATABASE_SETUP.md)** - Automatic database initialization in Docker
 
 ---
 
@@ -306,8 +307,10 @@ PORT=3000
 
 ### Docker Deployment
 
+The application includes automatic database initialization when using Docker Compose:
+
 ```bash
-# Build and start containers
+# Build and start containers (database auto-initializes on first run)
 docker-compose up -d
 
 # View logs
@@ -315,7 +318,14 @@ docker-compose logs -f
 
 # Stop containers
 docker-compose down
+
+# Reset database (remove volumes)
+docker-compose down -v
 ```
+
+**Note**: The database is automatically initialized on first startup. No manual migration steps required!
+
+For detailed information about the Docker database setup, see [docs/DOCKER_DATABASE_SETUP.md](docs/DOCKER_DATABASE_SETUP.md).
 
 ---
 
