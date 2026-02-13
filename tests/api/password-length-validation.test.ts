@@ -36,10 +36,12 @@ describe('Password Length Validation', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Password must be at least 6 characters')
+    expect(json.error.message).toBe('Password must be at least 6 characters')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('password')
   })
 
   it('should accept password with exactly 6 characters', async () => {
@@ -102,10 +104,12 @@ describe('Password Length Validation', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Password must not exceed 72 characters')
+    expect(json.error.message).toBe('Password must not exceed 72 characters')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('password')
   })
 
   it('should reject password with 100 characters', async () => {
@@ -118,10 +122,12 @@ describe('Password Length Validation', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Password must not exceed 72 characters')
+    expect(json.error.message).toBe('Password must not exceed 72 characters')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('password')
   })
 
   it('should reject password with 1000 characters', async () => {
@@ -134,10 +140,12 @@ describe('Password Length Validation', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Password must not exceed 72 characters')
+    expect(json.error.message).toBe('Password must not exceed 72 characters')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('password')
   })
 
   it('should accept password in valid range (between 6 and 72 characters)', async () => {

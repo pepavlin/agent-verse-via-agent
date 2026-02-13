@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
+import { handleApiError, validationError } from "@/lib/error-handler"
 
 export async function POST(request: Request) {
   try {
@@ -15,27 +16,46 @@ export async function POST(request: Request) {
       timestamp: new Date().toISOString()
     })
 
+    // Validation: Required fields
     if (!email || !password) {
-      return new NextResponse("Missing fields", { status: 400 })
+      return validationError(
+        "Missing required fields",
+        !email ? "email" : "password",
+        "Both email and password are required"
+      )
     }
 
-    // Validate email format
+    // Validation: Email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
-      return new NextResponse("Invalid email format", { status: 400 })
+      return validationError(
+        "Invalid email format",
+        "email",
+        "Please provide a valid email address"
+      )
     }
 
-    // Validate password strength
+    // Validation: Password length (minimum)
     if (password.length < 6) {
-      return new NextResponse("Password must be at least 6 characters", { status: 400 })
+      return validationError(
+        "Password must be at least 6 characters",
+        "password",
+        `Current password length: ${password.length}`
+      )
     }
 
+    // Validation: Password length (maximum)
     // Bcrypt has a maximum password length of 72 bytes
     // Passwords longer than this are silently truncated, which is a security issue
     if (password.length > 72) {
-      return new NextResponse("Password must not exceed 72 characters", { status: 400 })
+      return validationError(
+        "Password must not exceed 72 characters",
+        "password",
+        "Bcrypt has a maximum password length of 72 characters"
+      )
     }
 
+    // Check for existing user
     const existingUser = await prisma.user.findUnique({
       where: {
         email
@@ -43,11 +63,17 @@ export async function POST(request: Request) {
     })
 
     if (existingUser) {
-      return new NextResponse("Email already exists", { status: 400 })
+      return validationError(
+        "Email already exists",
+        "email",
+        "An account with this email address already exists"
+      )
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 12)
 
+    // Create user
     const user = await prisma.user.create({
       data: {
         email,
@@ -56,40 +82,14 @@ export async function POST(request: Request) {
       }
     })
 
-    return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } })
-  } catch (error) {
-    // Enhanced error logging
-    console.error("[REGISTER_ERROR]", error)
-
-    // Provide more specific error messages
-    if (error instanceof Error) {
-      // Log detailed error for debugging with full context
-      console.error("[REGISTER_ERROR_DETAILS]", {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-        timestamp: new Date().toISOString()
-      })
-
-      // Log full error object for debugging
-      console.error("[REGISTER_ERROR_FULL]", JSON.stringify(error, Object.getOwnPropertyNames(error), 2))
-
-      // Prisma errors
-      if (error.message.includes("Unique constraint")) {
-        return new NextResponse("Email already exists", { status: 400 })
-      }
-      if (error.message.toLowerCase().includes("database")) {
-        return new NextResponse("Database connection error", { status: 503 })
-      }
-    }
-
-    // Log unknown error types
-    console.error("[REGISTER_ERROR_UNKNOWN]", {
-      type: typeof error,
-      value: error,
+    console.log('[REGISTER_SUCCESS]', {
+      userId: user.id,
+      email: user.email,
       timestamp: new Date().toISOString()
     })
 
-    return new NextResponse("Internal server error", { status: 500 })
+    return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } })
+  } catch (error) {
+    return handleApiError(error, "REGISTER")
   }
 }

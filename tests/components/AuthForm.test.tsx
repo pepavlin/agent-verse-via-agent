@@ -124,7 +124,13 @@ describe('AuthForm Component', () => {
     it('should display error when registration fails', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
-        text: async () => 'Email already exists',
+        json: async () => ({
+          error: {
+            type: 'VALIDATION_ERROR',
+            message: 'Email already exists',
+            field: 'email'
+          }
+        }),
       } as Response)
 
       const user = userEvent.setup()
@@ -170,7 +176,13 @@ describe('AuthForm Component', () => {
     it('should clear error when submitting again', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
-        text: async () => 'Invalid email',
+        json: async () => ({
+          error: {
+            type: 'VALIDATION_ERROR',
+            message: 'Invalid email format',
+            field: 'email'
+          }
+        }),
       } as Response)
 
       const user = userEvent.setup()
@@ -181,7 +193,7 @@ describe('AuthForm Component', () => {
       await user.click(screen.getByRole('button', { name: /sign up/i }))
 
       await waitFor(() => {
-        expect(screen.getByText('Invalid email')).toBeTruthy()
+        expect(screen.getByText('Invalid email format')).toBeTruthy()
       })
 
       // Submit again
@@ -197,7 +209,7 @@ describe('AuthForm Component', () => {
       await user.click(screen.getByRole('button', { name: /sign up/i }))
 
       await waitFor(() => {
-        expect(screen.queryByText('Invalid email')).toBeNull()
+        expect(screen.queryByText('Invalid email format')).toBeNull()
       })
     })
 
@@ -226,7 +238,7 @@ describe('AuthForm Component', () => {
     it('should render login form without name field', () => {
       render(<AuthForm mode="login" />)
 
-      expect(screen.getByText('Sign In')).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Sign In' })).toBeTruthy()
       expect(screen.queryByLabelText('Name')).toBeNull()
       expect(screen.getByLabelText('Email')).toBeTruthy()
       expect(screen.getByLabelText('Password')).toBeTruthy()

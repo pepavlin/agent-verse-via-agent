@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { handleApiError, authenticationError, notFoundError } from "@/lib/error-handler"
 
 export async function GET(
   request: Request,
@@ -11,7 +12,10 @@ export async function GET(
     const { agentId } = await params
 
     if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 })
+      return authenticationError(
+        "Unauthorized",
+        "You must be logged in to view agents"
+      )
     }
 
     const agent = await prisma.agent.findUnique({
@@ -29,13 +33,22 @@ export async function GET(
     })
 
     if (!agent) {
-      return new NextResponse("Agent not found", { status: 404 })
+      return notFoundError(
+        "Agent",
+        `No agent found with ID: ${agentId} for this user`
+      )
     }
+
+    console.log('[AGENT_GET_SUCCESS]', {
+      userId: session.user.id,
+      agentId: agent.id,
+      messageCount: agent.messages.length,
+      timestamp: new Date().toISOString()
+    })
 
     return NextResponse.json(agent)
   } catch (error) {
-    console.error(error)
-    return new NextResponse("Internal error", { status: 500 })
+    return handleApiError(error, "AGENT_GET")
   }
 }
 
@@ -48,9 +61,13 @@ export async function DELETE(
     const { agentId } = await params
 
     if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 })
+      return authenticationError(
+        "Unauthorized",
+        "You must be logged in to delete agents"
+      )
     }
 
+    // Delete will throw P2025 error if agent not found or doesn't belong to user
     await prisma.agent.delete({
       where: {
         id: agentId,
@@ -58,9 +75,14 @@ export async function DELETE(
       }
     })
 
+    console.log('[AGENT_DELETE_SUCCESS]', {
+      userId: session.user.id,
+      agentId,
+      timestamp: new Date().toISOString()
+    })
+
     return new NextResponse(null, { status: 204 })
   } catch (error) {
-    console.error(error)
-    return new NextResponse("Internal error", { status: 500 })
+    return handleApiError(error, "AGENT_DELETE")
   }
 }

@@ -35,10 +35,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Missing fields')
+      expect(json.error.message).toBe('Missing required fields')
     })
 
     it('should handle missing password', async () => {
@@ -51,10 +51,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Missing fields')
+      expect(json.error.message).toBe('Missing required fields')
     })
 
     it('should handle empty email', async () => {
@@ -67,10 +67,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Missing fields')
+      expect(json.error.message).toBe('Missing required fields')
     })
 
     it('should handle empty password', async () => {
@@ -83,10 +83,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Missing fields')
+      expect(json.error.message).toBe('Missing required fields')
     })
 
     it('should handle invalid email format - no @', async () => {
@@ -99,10 +99,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Invalid email format')
+      expect(json.error.message).toBe('Invalid email format')
     })
 
     it('should handle invalid email format - no domain', async () => {
@@ -115,10 +115,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Invalid email format')
+      expect(json.error.message).toBe('Invalid email format')
     })
 
     it('should handle invalid email format - no TLD', async () => {
@@ -131,10 +131,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Invalid email format')
+      expect(json.error.message).toBe('Invalid email format')
     })
 
     it('should handle password too short', async () => {
@@ -147,10 +147,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Password must be at least 6 characters')
+      expect(json.error.message).toBe('Password must be at least 6 characters')
     })
 
     it('should handle 1 character password', async () => {
@@ -163,18 +163,22 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Password must be at least 6 characters')
+      expect(json.error.message).toBe('Password must be at least 6 characters')
     })
   })
 
   describe('Database Errors', () => {
     it('should handle database connection failure', async () => {
-      vi.mocked(prisma.user.findUnique).mockRejectedValue(
-        new Error('Failed to connect to database')
-      )
+      // Create a proper Prisma initialization error
+      const prismaError = new Error('Failed to connect to database')
+      Object.assign(prismaError, {
+        code: 'P1001',
+        clientVersion: '5.0.0'
+      })
+      vi.mocked(prisma.user.findUnique).mockRejectedValue(prismaError)
 
       const request = new Request('http://localhost:3000/api/register', {
         method: 'POST',
@@ -185,16 +189,21 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(503)
-      expect(text).toBe('Database connection error')
+      expect(json.error.type).toBe('DATABASE_ERROR')
+      expect(json.error.message).toBe('Database connection error')
     })
 
     it('should handle database timeout', async () => {
-      vi.mocked(prisma.user.findUnique).mockRejectedValue(
-        new Error('Database query timeout')
-      )
+      // Create a proper Prisma timeout error
+      const prismaError = new Error('Database query timeout')
+      Object.assign(prismaError, {
+        code: 'P1008',
+        clientVersion: '5.0.0'
+      })
+      vi.mocked(prisma.user.findUnique).mockRejectedValue(prismaError)
 
       const request = new Request('http://localhost:3000/api/register', {
         method: 'POST',
@@ -205,18 +214,25 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(503)
-      expect(text).toBe('Database connection error')
+      expect(json.error.type).toBe('DATABASE_ERROR')
+      expect(json.error.message).toBe('Database connection error')
     })
 
     it('should handle unique constraint violation during create', async () => {
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
       vi.mocked(bcrypt.hash).mockResolvedValue('hashed-password' as never)
-      vi.mocked(prisma.user.create).mockRejectedValue(
-        new Error('Unique constraint failed on the fields: (`email`)')
-      )
+
+      // Create a proper Prisma P2002 error
+      const prismaError = new Error('Unique constraint failed on the fields: (`email`)')
+      Object.assign(prismaError, {
+        code: 'P2002',
+        meta: { target: ['email'] },
+        clientVersion: '5.0.0'
+      })
+      vi.mocked(prisma.user.create).mockRejectedValue(prismaError)
 
       const request = new Request('http://localhost:3000/api/register', {
         method: 'POST',
@@ -227,10 +243,12 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Email already exists')
+      expect(json.error.type).toBe('VALIDATION_ERROR')
+      expect(json.error.message).toBe('Email already exists')
+      expect(json.error.field).toBe('email')
     })
 
     it('should handle race condition with duplicate email', async () => {
@@ -238,9 +256,15 @@ describe('Registration Error Handling Tests', () => {
       // at the same time, both find null, then both try to create
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
       vi.mocked(bcrypt.hash).mockResolvedValue('hashed-password' as never)
-      vi.mocked(prisma.user.create).mockRejectedValue(
-        new Error('Unique constraint failed')
-      )
+
+      // Create a proper Prisma P2002 error
+      const prismaError = new Error('Unique constraint failed')
+      Object.assign(prismaError, {
+        code: 'P2002',
+        meta: { target: ['email'] },
+        clientVersion: '5.0.0'
+      })
+      vi.mocked(prisma.user.create).mockRejectedValue(prismaError)
 
       const request = new Request('http://localhost:3000/api/register', {
         method: 'POST',
@@ -251,10 +275,12 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Email already exists')
+      expect(json.error.type).toBe('VALIDATION_ERROR')
+      expect(json.error.message).toBe('Email already exists')
+      expect(json.error.field).toBe('email')
     })
   })
 
@@ -272,10 +298,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(500)
-      expect(text).toBe('Internal server error')
+      expect(json.error.message).toBe('Internal server error')
     })
   })
 
@@ -283,10 +309,18 @@ describe('Registration Error Handling Tests', () => {
     it('should handle invalid JSON in request body', async () => {
       const request = new Request('http://localhost:3000/api/register', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: 'not-json',
       })
 
-      await expect(POST(request)).rejects.toThrow()
+      const response = await POST(request)
+      const json = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(json.error.type).toBe('VALIDATION_ERROR')
+      expect(json.error.message).toBe('Invalid JSON format')
     })
 
     it('should handle null email explicitly', async () => {
@@ -299,10 +333,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Missing fields')
+      expect(json.error.message).toBe('Missing required fields')
     })
 
     it('should handle null password explicitly', async () => {
@@ -315,10 +349,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Missing fields')
+      expect(json.error.message).toBe('Missing required fields')
     })
 
     it('should handle undefined email', async () => {
@@ -331,10 +365,10 @@ describe('Registration Error Handling Tests', () => {
       })
 
       const response = await POST(request)
-      const text = await response.text()
+      const json = await response.json()
 
       expect(response.status).toBe(400)
-      expect(text).toBe('Missing fields')
+      expect(json.error.message).toBe('Missing required fields')
     })
   })
 

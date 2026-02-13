@@ -75,10 +75,12 @@ describe('POST /api/register', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Missing fields')
+    expect(json.error.message).toBe('Missing required fields')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('email')
   })
 
   it('should return 400 if password is missing', async () => {
@@ -90,10 +92,12 @@ describe('POST /api/register', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Missing fields')
+    expect(json.error.message).toBe('Missing required fields')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('password')
   })
 
   it('should return 400 for invalid email format', async () => {
@@ -106,10 +110,12 @@ describe('POST /api/register', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Invalid email format')
+    expect(json.error.message).toBe('Invalid email format')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('email')
   })
 
   it('should return 400 if password is too short', async () => {
@@ -122,10 +128,12 @@ describe('POST /api/register', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Password must be at least 6 characters')
+    expect(json.error.message).toBe('Password must be at least 6 characters')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('password')
   })
 
   it('should return 400 if email already exists', async () => {
@@ -149,10 +157,12 @@ describe('POST /api/register', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Email already exists')
+    expect(json.error.message).toBe('Email already exists')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('email')
   })
 
   it('should hash password with bcrypt before storing', async () => {
@@ -196,18 +206,24 @@ describe('POST /api/register', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
-    expect(response.status).toBe(503)
-    expect(text).toBe('Database connection error')
+    expect(response.status).toBe(500)
+    expect(json.error.message).toBe('Internal server error')
+    expect(json.error.type).toBe('INTERNAL_ERROR')
   })
 
   it('should handle unique constraint violations', async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
     vi.mocked(bcrypt.hash).mockResolvedValue('hashed-password' as never)
-    vi.mocked(prisma.user.create).mockRejectedValue(
-      new Error('Unique constraint failed on the fields: (`email`)')
-    )
+
+    // Create a proper Prisma error for unique constraint violation
+    const prismaError = new Error('Unique constraint failed on the fields: (`email`)')
+    Object.assign(prismaError, {
+      code: 'P2002',
+      meta: { target: ['email'] }
+    })
+    vi.mocked(prisma.user.create).mockRejectedValue(prismaError)
 
     const request = new Request('http://localhost:3000/api/register', {
       method: 'POST',
@@ -218,10 +234,12 @@ describe('POST /api/register', () => {
     })
 
     const response = await POST(request)
-    const text = await response.text()
+    const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(text).toBe('Email already exists')
+    expect(json.error.message).toBe('Email already exists')
+    expect(json.error.type).toBe('VALIDATION_ERROR')
+    expect(json.error.field).toBe('email')
   })
 
   it('should register user without name (optional field)', async () => {

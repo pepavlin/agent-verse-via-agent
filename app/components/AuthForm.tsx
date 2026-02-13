@@ -32,8 +32,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
         })
 
         if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(errorText)
+          // Parse JSON error response
+          const errorData = await response.json()
+          throw new Error(errorData.error?.message || 'Registration failed')
         }
 
         await signIn('credentials', {
