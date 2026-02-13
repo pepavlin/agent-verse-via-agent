@@ -139,3 +139,60 @@ model Task {
   @@index([priority])
   @@index([status, priority])
 }
+
+model WorkflowExecution {
+  id           String   @id @default(cuid())
+  workflowId   String   @unique
+  departmentId String
+  userId       String
+  input        String
+  output       String?
+  status       String   @default("pending") // pending, in_progress, completed, failed, cancelled
+  error        String?
+  executionTime Int?    // in milliseconds
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  completedAt  DateTime?
+  steps        WorkflowStep[]
+
+  @@index([userId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model WorkflowStep {
+  id                String   @id @default(cuid())
+  workflowExecutionId String
+  stepNumber        Int
+  agentRole         String
+  agentId           String?
+  description       String
+  input             String?
+  output            String?
+  status            String   @default("pending") // pending, in_progress, completed, failed, skipped
+  error             String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  workflowExecution WorkflowExecution @relation(fields: [workflowExecutionId], references: [id], onDelete: Cascade)
+
+  @@index([workflowExecutionId])
+  @@index([status])
+}
+
+model UserQuery {
+  id           String   @id @default(cuid())
+  workflowId   String
+  agentId      String
+  question     String
+  answer       String?
+  context      String?  // JSON string
+  status       String   @default("pending") // pending, answered, timeout
+  createdAt    DateTime @default(now())
+  answeredAt   DateTime?
+  timeoutAt    DateTime?
+
+  @@index([workflowId])
+  @@index([agentId])
+  @@index([status])
+}

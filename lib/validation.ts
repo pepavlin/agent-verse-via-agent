@@ -178,6 +178,35 @@ export const CreateDepartmentSchema = z.object({
     .max(500, "Department description must be less than 500 characters"),
 })
 
+// Department execution schema
+export const DepartmentExecutionSchema = z.object({
+  input: z
+    .string()
+    .min(1, "Input is required")
+    .max(10000, "Input cannot exceed 10,000 characters"),
+  context: z.record(z.string(), z.any()).optional(),
+  options: z.object({
+    enableUserInteraction: z.boolean().optional(),
+    timeout: z.number().min(1000).max(600000).optional(),
+    parallelExecution: z.boolean().optional(),
+  }).optional(),
+})
+
+// Market research specific schema
+export const MarketResearchExecutionSchema = z.object({
+  query: z
+    .string()
+    .min(1, "Market research query is required")
+    .max(10000, "Query cannot exceed 10,000 characters"),
+  options: z.object({
+    targetMarket: z.string().max(200).optional(),
+    competitors: z.array(z.string().max(100)).max(20).optional(),
+    timeframe: z.string().max(100).optional(),
+    budget: z.string().max(200).optional(),
+    specificQuestions: z.array(z.string().max(500)).max(10).optional(),
+  }).optional(),
+})
+
 /**
  * Type exports for TypeScript usage
  */
@@ -197,6 +226,8 @@ export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>
 export type InterAgentMessageInput = z.infer<typeof InterAgentMessageSchema>
 export type AgentExecutionInput = z.infer<typeof AgentExecutionSchema>
 export type CreateDepartmentInput = z.infer<typeof CreateDepartmentSchema>
+export type DepartmentExecutionInput = z.infer<typeof DepartmentExecutionSchema>
+export type MarketResearchExecutionInput = z.infer<typeof MarketResearchExecutionSchema>
 
 /**
  * Helper function to validate data and return errors in a consistent format
