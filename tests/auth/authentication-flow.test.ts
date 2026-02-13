@@ -233,7 +233,7 @@ describe('Authentication Flow Tests', () => {
       }
 
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
-      vi.mocked(prisma.user.create).mockResolvedValue(createdUser)
+      vi.mocked(prisma.user.create).mockResolvedValueOnce(createdUser)
 
       const registeredUser = await prisma.user.create({
         data: {
@@ -246,7 +246,7 @@ describe('Authentication Flow Tests', () => {
       expect(registeredUser).toBeTruthy()
 
       // Step 2: Login with same credentials
-      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(createdUser)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(createdUser)
       vi.mocked(bcrypt.compare).mockResolvedValue(true as never)
 
       const loginUser = await prisma.user.findUnique({

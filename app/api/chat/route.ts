@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Anthropic from "@anthropic-ai/sdk"
+import { handleApiError, authenticationError, validationError, notFoundError } from "@/lib/error-handler"
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -12,14 +13,48 @@ export async function POST(request: Request) {
     const session = await auth()
 
     if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 })
+      return authenticationError(
+        "Unauthorized",
+        "You must be logged in to send messages"
+      )
     }
 
     const body = await request.json()
     const { agentId, message } = body
 
-    if (!agentId || !message) {
-      return new NextResponse("Missing required fields", { status: 400 })
+    // Validate required fields
+    if (!agentId) {
+      return validationError(
+        "Missing required field",
+        "agentId",
+        "Agent ID is required to send a message"
+      )
+    }
+
+    if (!message) {
+      return validationError(
+        "Missing required field",
+        "message",
+        "Message content cannot be empty"
+      )
+    }
+
+    // Validate message is a string
+    if (typeof message !== 'string') {
+      return validationError(
+        "Invalid message format",
+        "message",
+        "Message must be a string"
+      )
+    }
+
+    // Validate message length
+    if (message.trim().length === 0) {
+      return validationError(
+        "Empty message",
+        "message",
+        "Message cannot be empty or contain only whitespace"
+      )
     }
 
     const agent = await prisma.agent.findUnique({
@@ -38,7 +73,10 @@ export async function POST(request: Request) {
     })
 
     if (!agent) {
-      return new NextResponse("Agent not found", { status: 404 })
+      return notFoundError(
+        "Agent",
+        `No agent found with ID: ${agentId} for this user`
+      )
     }
 
     // Save user message
@@ -61,6 +99,14 @@ export async function POST(request: Request) {
       content: message
     })
 
+    console.log('[CHAT_API_CALL]', {
+      userId: session.user.id,
+      agentId: agent.id,
+      model: agent.model,
+      messageCount: conversationHistory.length,
+      timestamp: new Date().toISOString()
+    })
+
     // Call Claude API
     const response = await anthropic.messages.create({
       model: agent.model,
@@ -81,12 +127,19 @@ export async function POST(request: Request) {
       }
     })
 
+    console.log('[CHAT_SUCCESS]', {
+      userId: session.user.id,
+      agentId: agent.id,
+      messageId: savedMessage.id,
+      responseLength: assistantMessage.length,
+      timestamp: new Date().toISOString()
+    })
+
     return NextResponse.json({
       message: savedMessage,
       response: assistantMessage
     })
   } catch (error) {
-    console.error(error)
-    return new NextResponse("Internal error", { status: 500 })
+    return handleApiError(error, "CHAT")
   }
 }
