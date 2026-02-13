@@ -145,6 +145,9 @@ agent-verse-via-agent/
 │   │   ├── AuthForm.tsx         # Auth form component
 │   │   └── Footer.tsx           # App footer
 │   │
+│   ├── components/               # Shared Components (root level)
+│   │   └── DeployInfo.tsx       # Deploy date display
+│   │
 │   ├── departments/              # Department Pages
 │   │   ├── market-research/
 │   │   │   └── page.tsx         # Market research interface
@@ -194,7 +197,11 @@ agent-verse-via-agent/
 │   └── e2e/                     # End-to-end tests
 │
 ├── public/                       # Static Assets
-│   └── images/                  # Image files
+│   ├── images/                  # Image files
+│   └── build-info.json          # Build/deploy timestamp (auto-generated)
+
+├── scripts/                      # Build Scripts
+│   └── generate-build-info.js   # Generates build timestamp
 │
 ├── docs/                         # Documentation
 │   ├── ARCHITECTURE.md          # Architecture guide
@@ -892,6 +899,71 @@ openssl rand -base64 32
 
 # Clear session cookies in browser
 # Check NEXTAUTH_URL matches your domain
+```
+
+---
+
+## Deploy Date Display
+
+The application automatically displays the last deployment date on the homepage footer.
+
+### How It Works
+
+The deploy date feature uses a build-time script to generate a timestamp:
+
+1. **Build Script** (`scripts/generate-build-info.js`):
+   - Runs automatically before every build via the `prebuild` npm script
+   - Generates `public/build-info.json` with current ISO timestamp
+   - Example output:
+   ```json
+   {
+     "deployDate": "2026-02-13T21:14:00.413Z"
+   }
+   ```
+
+2. **DeployInfo Component** (`components/DeployInfo.tsx`):
+   - Client-side component that fetches `build-info.json`
+   - Formats timestamp to Czech format: `DD.MM.YYYY v HH:MM`
+   - Uses Czech timezone (`Europe/Prague`)
+   - Styled to match the app's purple/pink gradient theme
+
+3. **Integration**:
+   - Component is added to the footer of the main page (`app/page.tsx`)
+   - Displays as: "Poslední deploy: 13.02.2026 v 21:14"
+
+### Files Involved
+
+```
+scripts/generate-build-info.js    # Generates timestamp
+components/DeployInfo.tsx          # Display component
+public/build-info.json            # Generated timestamp (git-ignored)
+package.json                       # Includes prebuild script
+```
+
+### Testing
+
+```bash
+# Build generates new timestamp
+npm run build
+
+# Check generated file
+cat public/build-info.json
+
+# Test locally
+npm run dev
+# Visit http://localhost:3000
+```
+
+### Customization
+
+To change the date format or timezone, edit `components/DeployInfo.tsx`:
+
+```typescript
+// Change timezone
+timeZone: 'Europe/Prague'  // Change to your timezone
+
+// Change format
+const formatter = new Intl.DateTimeFormat('cs-CZ', options);
 ```
 
 ---
