@@ -69,6 +69,9 @@ model Agent {
   role           String?  // researcher, strategist, critic, ideator, coordinator, executor
   specialization String?
   departmentId   String?
+  // Visual customization for game
+  color          String?  @default("#a855f7")
+  size           Int?     @default(20)
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages       Message[]
   department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)

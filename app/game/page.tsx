@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation'
 import { simpleAuth } from '@/lib/simple-auth'
 import GameCanvas from '../components/GameCanvas'
 import AgentChatDialog from '../components/AgentChatDialog'
+import CreateAgentModal from '../components/CreateAgentModal'
 
 interface Agent {
   id: string
   name: string
   description: string | null
   model: string
+  color?: string | null
+  size?: number | null
 }
 
 export default function GamePage() {
@@ -20,6 +23,7 @@ export default function GamePage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentList, setShowAgentList] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     const currentUser = simpleAuth.getUser()
@@ -77,6 +81,12 @@ export default function GamePage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-4 py-2 bg-purple-600/80 backdrop-blur-sm text-white rounded-md hover:bg-purple-700/80 transition-colors border border-purple-500/50 font-medium"
+            >
+              + Create Agent
+            </button>
             <button
               onClick={() => setShowAgentList(!showAgentList)}
               className="px-4 py-2 bg-gray-800/80 backdrop-blur-sm text-purple-300 rounded-md hover:bg-gray-700/80 transition-colors border border-purple-500/30"
@@ -148,6 +158,16 @@ export default function GamePage() {
           onClose={() => setSelectedAgent(null)}
         />
       )}
+
+      {/* Create Agent Modal */}
+      <CreateAgentModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          fetchAgents()
+          setShowCreateModal(false)
+        }}
+      />
 
       {/* Bottom HUD */}
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-gray-900/90 to-transparent p-4">
