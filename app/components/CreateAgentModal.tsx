@@ -17,11 +17,31 @@ const roleDescriptions = {
   ideator: 'Creative and innovative, generates novel ideas and explores possibilities'
 }
 
+const agentColors = [
+  { name: 'Purple', value: '#a855f7' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Green', value: '#10b981' },
+  { name: 'Orange', value: '#f97316' },
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Yellow', value: '#eab308' },
+  { name: 'Cyan', value: '#06b6d4' },
+]
+
+const agentSizes = [
+  { name: 'Small', value: 15 },
+  { name: 'Medium', value: 20 },
+  { name: 'Large', value: 25 },
+  { name: 'Extra Large', value: 30 },
+]
+
 export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModalProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [model, setModel] = useState('claude-3-5-sonnet-20241022')
   const [role, setRole] = useState<AgentRole>('researcher')
+  const [color, setColor] = useState('#a855f7')
+  const [size, setSize] = useState(20)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -36,7 +56,7 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, description, model, role }),
+        body: JSON.stringify({ name, description, model, role, color, size }),
       })
 
       if (!response.ok) {
@@ -48,6 +68,8 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
       setDescription('')
       setModel('claude-3-5-sonnet-20241022')
       setRole('researcher')
+      setColor('#a855f7')
+      setSize(20)
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -108,6 +130,44 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
             <p className="mt-1 text-xs text-gray-500">
               {roleDescriptions[role]}
             </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Agent Color
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {agentColors.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setColor(c.value)}
+                  className={`h-10 rounded-md border-2 transition-all ${
+                    color === c.value ? 'border-blue-500 scale-110' : 'border-gray-300'
+                  }`}
+                  style={{ backgroundColor: c.value }}
+                  title={c.name}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="size" className="block text-sm font-medium text-gray-700">
+              Agent Size
+            </label>
+            <select
+              id="size"
+              value={size}
+              onChange={(e) => setSize(Number(e.target.value))}
+              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            >
+              {agentSizes.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.name} ({s.value}px)
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

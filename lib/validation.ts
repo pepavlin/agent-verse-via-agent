@@ -66,6 +66,15 @@ export const CreateAgentSchema = z.object({
     .max(200, "Specialization must be less than 200 characters")
     .optional(),
   departmentId: z.string().optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color")
+    .optional(),
+  size: z
+    .number()
+    .min(10, "Size must be at least 10px")
+    .max(50, "Size must be at most 50px")
+    .optional(),
 })
 
 // Send message schema

@@ -108,7 +108,40 @@ export async function POST(request: Request) {
       )
     }
 
-    const { name, description, model, role, personality, specialization, departmentId } = validationResult.data
+    const { name, description, model, role, personality, specialization, departmentId, color, size } = validationResult.data
+
+    // Check for maximum agent limit (20 agents per user)
+    const agentCount = await prisma.agent.count({
+      where: { userId: session.user.id }
+    })
+
+    if (agentCount >= 20) {
+      return NextResponse.json(
+        {
+          error: "AGENT_LIMIT_EXCEEDED",
+          message: "You have reached the maximum limit of 20 agents. Please delete some agents before creating new ones.",
+        },
+        { status: 400 }
+      )
+    }
+
+    // Check for duplicate agent name
+    const existingAgent = await prisma.agent.findFirst({
+      where: {
+        userId: session.user.id,
+        name: name
+      }
+    })
+
+    if (existingAgent) {
+      return NextResponse.json(
+        {
+          error: "DUPLICATE_AGENT_NAME",
+          message: "An agent with this name already exists. Please choose a different name.",
+        },
+        { status: 400 }
+      )
+    }
 
     const agent = await prisma.agent.create({
       data: {
@@ -119,6 +152,8 @@ export async function POST(request: Request) {
         personality: personality || null,
         specialization: specialization || null,
         departmentId: departmentId || null,
+        color: color || "#a855f7",
+        size: size || 20,
         userId: session.user.id
       }
     })
