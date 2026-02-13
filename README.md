@@ -113,6 +113,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[API Documentation](docs/API.md)** - Complete REST API reference
 - **[Developer Guide](docs/DEVELOPMENT.md)** - Setup, conventions, and best practices
 - **[Agent Creation Guide](docs/CREATING_AGENTS.md)** - How to create custom agents
+- **[Database Status Report](DATABASE_STATUS.md)** - Database schema and verification results
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Docker and production deployment
 
 ---

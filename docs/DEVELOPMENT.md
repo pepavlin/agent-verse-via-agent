@@ -647,6 +647,21 @@ npx prisma db seed
 npx prisma studio
 ```
 
+### Database Verification
+
+Verify database status and test operations:
+
+```bash
+# Check database status and table counts
+node verify-db.mjs
+
+# Run comprehensive database operations test
+node test-db-operations.mjs
+
+# Check migration status
+npx prisma migrate status
+```
+
 ### Schema Changes
 
 ```prisma

@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-const prisma = new PrismaClient({ datasources: { db: { url: 'file:./dev.db' } } })
+const prisma = new PrismaClient()
 try {
   const agents = await prisma.agent.findMany({ take: 5 })
   const agentCount = await prisma.agent.count()
