@@ -37,6 +37,7 @@ AgentVerse is an interactive web application that creates a universe of speciali
 - 🎭 **4 Specialized Agent Types** - Each with unique expertise and personality
 - 🏢 **Department System** - Organize agents into collaborative teams
 - 💬 **Agent Chat Interface** - Direct conversations with individual agents
+- 🗨️ **Global Project Manager Chat** - Always-available floating chat for support and guidance
 - 🔄 **Multi-Agent Workflows** - Sequential and parallel execution patterns
 - 🎨 **Interactive Visualization** - 2D agent world with physics simulation
 - 📊 **Workflow Analytics** - Track execution history and performance
