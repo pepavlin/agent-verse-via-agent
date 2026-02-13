@@ -8,10 +8,20 @@ interface CreateAgentModalProps {
   onSuccess: () => void
 }
 
+type AgentRole = 'researcher' | 'strategist' | 'critic' | 'ideator'
+
+const roleDescriptions = {
+  researcher: 'Thorough and analytical, excels at gathering comprehensive information and verifying facts',
+  strategist: 'Strategic and forward-thinking, develops plans and identifies opportunities',
+  critic: 'Discerning and quality-focused, provides constructive feedback and evaluates proposals',
+  ideator: 'Creative and innovative, generates novel ideas and explores possibilities'
+}
+
 export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateAgentModalProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [model, setModel] = useState('claude-3-5-sonnet-20241022')
+  const [role, setRole] = useState<AgentRole>('researcher')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -26,16 +36,18 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, description, model }),
+        body: JSON.stringify({ name, description, model, role }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create agent')
+        const data = await response.json()
+        throw new Error(data.message || 'Failed to create agent')
       }
 
       setName('')
       setDescription('')
       setModel('claude-3-5-sonnet-20241022')
+      setRole('researcher')
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -79,8 +91,28 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
           </div>
 
           <div>
+            <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+              Agent Role
+            </label>
+            <select
+              id="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value as AgentRole)}
+              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            >
+              <option value="researcher">Researcher</option>
+              <option value="strategist">Strategist</option>
+              <option value="critic">Critic</option>
+              <option value="ideator">Ideator</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {roleDescriptions[role]}
+            </p>
+          </div>
+
+          <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-              Description
+              Description (Optional)
             </label>
             <textarea
               id="description"
@@ -88,7 +120,7 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-              placeholder="Describe what this agent will do..."
+              placeholder="Additional customization for this agent..."
             />
           </div>
 

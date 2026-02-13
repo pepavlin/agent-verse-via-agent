@@ -18,7 +18,23 @@ interface Agent {
   name: string
   description: string | null
   model: string
+  role: string | null
+  personality: string | null
   messages: Message[]
+}
+
+const roleDescriptions: Record<string, string> = {
+  researcher: 'Thorough and analytical, excels at gathering comprehensive information',
+  strategist: 'Strategic and forward-thinking, develops plans and identifies opportunities',
+  critic: 'Discerning and quality-focused, provides constructive feedback',
+  ideator: 'Creative and innovative, generates novel ideas and explores possibilities'
+}
+
+const roleIcons: Record<string, string> = {
+  researcher: '🔍',
+  strategist: '🎯',
+  critic: '⚖️',
+  ideator: '💡'
 }
 
 export default function AgentChatPage() {
@@ -137,6 +153,9 @@ export default function AgentChatPage() {
     )
   }
 
+  const roleIcon = agent.role ? roleIcons[agent.role] || '🤖' : '🤖'
+  const roleDesc = agent.role ? roleDescriptions[agent.role] : null
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <nav className="bg-white shadow-sm border-b">
@@ -144,7 +163,7 @@ export default function AgentChatPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
-                href="/dashboard"
+                href="/agents"
                 className="text-gray-600 hover:text-gray-900"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -152,11 +171,31 @@ export default function AgentChatPage() {
                 </svg>
               </Link>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{agent.name}</h1>
-                <p className="text-sm text-gray-500">
-                  {agent.model.includes('sonnet') ? 'Claude 3.5 Sonnet' :
-                   agent.model.includes('opus') ? 'Claude 3 Opus' : 'Claude 3 Haiku'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-gray-900">{agent.name}</h1>
+                  {agent.role && (
+                    <span className="text-lg" title={roleDesc || undefined}>
+                      {roleIcon}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <span>
+                    {agent.model.includes('sonnet') ? 'Claude 3.5 Sonnet' :
+                     agent.model.includes('opus') ? 'Claude 3 Opus' : 'Claude 3 Haiku'}
+                  </span>
+                  {agent.role && (
+                    <>
+                      <span>•</span>
+                      <span className="capitalize">{agent.role}</span>
+                    </>
+                  )}
+                </div>
+                {roleDesc && (
+                  <p className="text-xs text-gray-400 mt-1 max-w-md">
+                    {roleDesc}
+                  </p>
+                )}
               </div>
             </div>
           </div>
