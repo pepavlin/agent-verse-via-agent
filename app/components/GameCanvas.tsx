@@ -14,6 +14,11 @@ interface Agent {
   vy: number
   color: string
   radius: number
+  speed: number          // Movement speed multiplier
+  isPaused: boolean      // Whether agent is currently paused
+  pauseTimer: number     // Timer for pause duration
+  maxPauseTime: number   // Max time to pause
+  directionChangeTimer: number // Timer for random direction changes
 }
 
 interface Camera {
@@ -22,13 +27,19 @@ interface Camera {
   zoom: number
 }
 
-export default function GameCanvas() {
+interface GameCanvasProps {
+  onAgentClick?: (agentId: string) => void
+}
+
+export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const router = useRouter()
   const [agents, setAgents] = useState<Agent[]>([])
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null)
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const animationFrameRef = useRef<number | undefined>(undefined)
 
   const WORLD_WIDTH = 2000
@@ -47,18 +58,27 @@ export default function GameCanvas() {
         const data = await response.json()
 
         // Convert agents to game entities with random positions and velocities
-        const gameAgents: Agent[] = data.map((agent: any, index: number) => ({
-          id: agent.id,
-          name: agent.name,
-          description: agent.description,
-          model: agent.model,
-          x: Math.random() * (WORLD_WIDTH - 200) + 100,
-          y: Math.random() * (WORLD_HEIGHT - 200) + 100,
-          vx: (Math.random() - 0.5) * 2,
-          vy: (Math.random() - 0.5) * 2,
-          color: `hsl(${(index * 137.5) % 360}, 70%, 60%)`,
-          radius: AGENT_RADIUS
-        }))
+        const gameAgents: Agent[] = data.map((agent: any, index: number) => {
+          const speed = 0.5 + Math.random() * 1.5 // Random speed between 0.5 and 2.0
+          const angle = Math.random() * Math.PI * 2
+          return {
+            id: agent.id,
+            name: agent.name,
+            description: agent.description,
+            model: agent.model,
+            x: Math.random() * (WORLD_WIDTH - 200) + 100,
+            y: Math.random() * (WORLD_HEIGHT - 200) + 100,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            color: `hsl(${(index * 137.5) % 360}, 70%, 60%)`,
+            radius: AGENT_RADIUS,
+            speed: speed,
+            isPaused: false,
+            pauseTimer: 0,
+            maxPauseTime: 60 + Math.random() * 120, // Pause for 1-3 seconds (60fps)
+            directionChangeTimer: 0
+          }
+        })
 
         setAgents(gameAgents)
       }
@@ -90,23 +110,76 @@ export default function GameCanvas() {
       // Update and draw agents
       setAgents(prevAgents => {
         const updatedAgents = prevAgents.map(agent => {
+          let newAgent = { ...agent }
+
+          // Handle pause state
+          if (newAgent.isPaused) {
+            newAgent.pauseTimer++
+            if (newAgent.pauseTimer >= newAgent.maxPauseTime) {
+              // Resume movement with new random direction
+              newAgent.isPaused = false
+              newAgent.pauseTimer = 0
+              const angle = Math.random() * Math.PI * 2
+              newAgent.vx = Math.cos(angle) * newAgent.speed
+              newAgent.vy = Math.sin(angle) * newAgent.speed
+            }
+            return newAgent
+          }
+
+          // Random chance to pause (1% per frame)
+          if (Math.random() < 0.01) {
+            newAgent.isPaused = true
+            newAgent.pauseTimer = 0
+            return newAgent
+          }
+
+          // Random direction change (0.5% per frame)
+          newAgent.directionChangeTimer++
+          if (newAgent.directionChangeTimer > 60 && Math.random() < 0.005) {
+            const angle = Math.random() * Math.PI * 2
+            newAgent.vx = Math.cos(angle) * newAgent.speed
+            newAgent.vy = Math.sin(angle) * newAgent.speed
+            newAgent.directionChangeTimer = 0
+          }
+
           // Update position
-          let newX = agent.x + agent.vx
-          let newY = agent.y + agent.vy
-          let newVx = agent.vx
-          let newVy = agent.vy
+          let newX = newAgent.x + newAgent.vx
+          let newY = newAgent.y + newAgent.vy
+          let newVx = newAgent.vx
+          let newVy = newAgent.vy
 
           // Bounce off walls
-          if (newX < agent.radius || newX > WORLD_WIDTH - agent.radius) {
+          if (newX < newAgent.radius || newX > WORLD_WIDTH - newAgent.radius) {
             newVx = -newVx
-            newX = Math.max(agent.radius, Math.min(WORLD_WIDTH - agent.radius, newX))
+            newX = Math.max(newAgent.radius, Math.min(WORLD_WIDTH - newAgent.radius, newX))
           }
-          if (newY < agent.radius || newY > WORLD_HEIGHT - agent.radius) {
+          if (newY < newAgent.radius || newY > WORLD_HEIGHT - newAgent.radius) {
             newVy = -newVy
-            newY = Math.max(agent.radius, Math.min(WORLD_HEIGHT - agent.radius, newY))
+            newY = Math.max(newAgent.radius, Math.min(WORLD_HEIGHT - newAgent.radius, newY))
           }
 
-          return { ...agent, x: newX, y: newY, vx: newVx, vy: newVy }
+          // Check collision with other agents
+          for (const other of prevAgents) {
+            if (other.id === newAgent.id) continue
+            const dx = newX - other.x
+            const dy = newY - other.y
+            const distance = Math.sqrt(dx * dx + dy * dy)
+            const minDistance = newAgent.radius + other.radius
+
+            if (distance < minDistance) {
+              // Simple collision response: bounce back
+              const angle = Math.atan2(dy, dx)
+              const targetX = other.x + Math.cos(angle) * minDistance
+              const targetY = other.y + Math.sin(angle) * minDistance
+              newX = targetX
+              newY = targetY
+              // Reverse velocity
+              newVx = -newVx * 0.8
+              newVy = -newVy * 0.8
+            }
+          }
+
+          return { ...newAgent, x: newX, y: newY, vx: newVx, vy: newVy }
         })
 
         // Draw agents
@@ -239,8 +312,12 @@ export default function GameCanvas() {
     })
 
     if (clickedAgent) {
-      // Navigate to agent chat
-      router.push(`/agents/${clickedAgent.id}`)
+      // Call the callback if provided, otherwise navigate
+      if (onAgentClick) {
+        onAgentClick(clickedAgent.id)
+      } else {
+        router.push(`/agents/${clickedAgent.id}`)
+      }
     } else {
       // Start dragging
       setIsDragging(true)
@@ -249,8 +326,6 @@ export default function GameCanvas() {
   }
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging) return
-
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -258,16 +333,35 @@ export default function GameCanvas() {
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
 
-    const dx = (mouseX - dragStart.x) / camera.zoom
-    const dy = (mouseY - dragStart.y) / camera.zoom
+    // Update mouse position for tooltip
+    setMousePos({ x: mouseX, y: mouseY })
 
-    setCamera(prev => ({
-      ...prev,
-      x: prev.x - dx,
-      y: prev.y - dy
-    }))
+    // Check if hovering over an agent
+    const hoveredAgent = agents.find(agent => {
+      const screenX = (agent.x - camera.x) * camera.zoom + canvas.width / 2
+      const screenY = (agent.y - camera.y) * camera.zoom + canvas.height / 2
+      const screenRadius = agent.radius * camera.zoom
+      const distance = Math.sqrt(
+        Math.pow(mouseX - screenX, 2) + Math.pow(mouseY - screenY, 2)
+      )
+      return distance < screenRadius
+    })
 
-    setDragStart({ x: mouseX, y: mouseY })
+    setHoveredAgent(hoveredAgent || null)
+
+    // Handle camera dragging
+    if (isDragging) {
+      const dx = (mouseX - dragStart.x) / camera.zoom
+      const dy = (mouseY - dragStart.y) / camera.zoom
+
+      setCamera(prev => ({
+        ...prev,
+        x: prev.x - dx,
+        y: prev.y - dy
+      }))
+
+      setDragStart({ x: mouseX, y: mouseY })
+    }
   }
 
   const handleMouseUp = () => {
@@ -284,14 +378,39 @@ export default function GameCanvas() {
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="w-full h-full cursor-move"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
-    />
+    <div className="relative w-full h-full">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full cursor-move"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+      />
+
+      {/* Tooltip for hovered agent */}
+      {hoveredAgent && (
+        <div
+          className="absolute pointer-events-none bg-gray-900/95 text-white px-3 py-2 rounded-lg shadow-lg border border-purple-500/30 backdrop-blur-sm"
+          style={{
+            left: mousePos.x + 15,
+            top: mousePos.y + 15,
+            zIndex: 1000
+          }}
+        >
+          <div className="font-bold text-sm">{hoveredAgent.name}</div>
+          <div className="text-xs text-gray-400 mt-1">Model: {hoveredAgent.model}</div>
+          {hoveredAgent.description && (
+            <div className="text-xs text-gray-300 mt-1 max-w-xs">
+              {hoveredAgent.description.length > 80
+                ? hoveredAgent.description.substring(0, 80) + '...'
+                : hoveredAgent.description}
+            </div>
+          )}
+          <div className="text-xs text-purple-400 mt-1">Click to chat</div>
+        </div>
+      )}
+    </div>
   )
 }
