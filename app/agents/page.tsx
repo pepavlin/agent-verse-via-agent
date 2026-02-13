@@ -98,6 +98,12 @@ export default function AgentsPage() {
               >
                 Agent List
               </Link>
+              <Link
+                href="/visualization"
+                className="text-sm font-medium text-purple-300 hover:text-purple-200 transition-colors"
+              >
+                Visualization
+              </Link>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-purple-300">
