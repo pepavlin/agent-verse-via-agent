@@ -18,6 +18,13 @@ export async function GET() {
       where: {
         userId: session.user.id
       },
+      include: {
+        _count: {
+          select: {
+            messages: true
+          }
+        }
+      },
       orderBy: {
         createdAt: 'desc'
       }
@@ -47,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { name, description, model } = body
+    const { name, description, model, role, personality } = body
 
     if (!name) {
       return validationError(
@@ -62,6 +69,8 @@ export async function POST(request: Request) {
         name,
         description,
         model: model || "claude-3-5-sonnet-20241022",
+        role: role || null,
+        personality: personality || null,
         userId: session.user.id
       }
     })
