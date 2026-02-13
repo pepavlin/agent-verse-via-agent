@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { simpleAuth } from '@/lib/simple-auth'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -37,7 +37,6 @@ interface ExecutionResult {
 }
 
 export default function MarketResearchPage() {
-  const { data: session, status } = useSession()
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [targetMarket, setTargetMarket] = useState('')
@@ -50,16 +49,13 @@ export default function MarketResearchPage() {
   const [departmentInfo, setDepartmentInfo] = useState<any>(null)
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    const user = simpleAuth.getUser()
+    if (!user) {
       router.push('/login')
-    }
-  }, [status, router])
-
-  useEffect(() => {
-    if (status === 'authenticated') {
+    } else {
       fetchDepartmentInfo()
     }
-  }, [status])
+  }, [router])
 
   const fetchDepartmentInfo = async () => {
     try {
@@ -157,20 +153,6 @@ export default function MarketResearchPage() {
     )
   }
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!session) {
-    return null
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">

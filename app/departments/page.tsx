@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { simpleAuth } from '@/lib/simple-auth'
 import { useRouter } from 'next/navigation'
 import DepartmentCard from '../components/DepartmentCard'
 import Link from 'next/link'
@@ -27,7 +27,6 @@ interface Agent {
 }
 
 export default function DepartmentsPage() {
-  const { data: session, status } = useSession()
   const router = useRouter()
   const [departments, setDepartments] = useState<Department[]>([])
   const [agents, setAgents] = useState<Agent[]>([])
@@ -35,17 +34,14 @@ export default function DepartmentsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    const user = simpleAuth.getUser()
+    if (!user) {
       router.push('/login')
-    }
-  }, [status, router])
-
-  useEffect(() => {
-    if (status === 'authenticated') {
+    } else {
       fetchDepartments()
       fetchAgents()
     }
-  }, [status])
+  }, [router])
 
   const fetchDepartments = async () => {
     try {
@@ -86,19 +82,15 @@ export default function DepartmentsPage() {
     }
   }
 
-  if (status === 'loading' || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading departments...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+          <p className="mt-4 text-purple-300">Loading departments...</p>
         </div>
       </div>
     )
-  }
-
-  if (!session) {
-    return null
   }
 
   return (
