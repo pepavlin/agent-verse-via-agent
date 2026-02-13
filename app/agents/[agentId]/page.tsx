@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
+import { simpleAuth } from '@/lib/simple-auth'
 import Link from 'next/link'
 import ChatMessage from '../../components/ChatMessage'
 
@@ -38,7 +38,6 @@ const roleIcons: Record<string, string> = {
 }
 
 export default function AgentChatPage() {
-  const { data: session, status } = useSession()
   const router = useRouter()
   const params = useParams()
   const agentId = params?.agentId as string
@@ -51,12 +50,13 @@ export default function AgentChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    const user = simpleAuth.getUser()
+    if (!user) {
       router.push('/login')
-    } else if (status === 'authenticated' && agentId) {
+    } else if (agentId) {
       fetchAgent()
     }
-  }, [status, router, agentId])
+  }, [router, agentId])
 
   useEffect(() => {
     scrollToBottom()
@@ -74,11 +74,11 @@ export default function AgentChatPage() {
         setAgent(data)
         setMessages(data.messages)
       } else {
-        router.push('/dashboard')
+        router.push('/game')
       }
     } catch (error) {
       console.error('Failed to fetch agent:', error)
-      router.push('/dashboard')
+      router.push('/game')
     } finally {
       setLoading(false)
     }
@@ -137,18 +137,18 @@ export default function AgentChatPage() {
     }
   }
 
-  if (status === 'loading' || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg text-gray-600">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-lg text-purple-300">Loading...</div>
       </div>
     )
   }
 
   if (!agent) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg text-gray-600">Agent not found</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-lg text-purple-300">Agent not found</div>
       </div>
     )
   }
@@ -157,14 +157,14 @@ export default function AgentChatPage() {
   const roleDesc = agent.role ? roleDescriptions[agent.role] : null
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm border-b">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+      <nav className="bg-gray-900/50 backdrop-blur-sm shadow-lg border-b border-purple-500/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
-                href="/agents"
-                className="text-gray-600 hover:text-gray-900"
+                href="/game"
+                className="text-purple-300 hover:text-purple-200"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -172,14 +172,14 @@ export default function AgentChatPage() {
               </Link>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold text-gray-900">{agent.name}</h1>
+                  <h1 className="text-xl font-bold text-purple-100">{agent.name}</h1>
                   {agent.role && (
                     <span className="text-lg" title={roleDesc || undefined}>
                       {roleIcon}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 text-sm text-gray-500">
+                <div className="flex items-center gap-3 text-sm text-purple-400">
                   <span>
                     {agent.model.includes('sonnet') ? 'Claude 3.5 Sonnet' :
                      agent.model.includes('opus') ? 'Claude 3 Opus' : 'Claude 3 Haiku'}
@@ -192,7 +192,7 @@ export default function AgentChatPage() {
                   )}
                 </div>
                 {roleDesc && (
-                  <p className="text-xs text-gray-400 mt-1 max-w-md">
+                  <p className="text-xs text-purple-500 mt-1 max-w-md">
                     {roleDesc}
                   </p>
                 )}
@@ -205,9 +205,9 @@ export default function AgentChatPage() {
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 ? (
-            <div className="text-center py-12">
+            <div className="text-center py-12 bg-gray-900/30 backdrop-blur-sm rounded-lg border border-purple-500/30">
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className="mx-auto h-12 w-12 text-purple-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -219,8 +219,8 @@ export default function AgentChatPage() {
                   d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                 />
               </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">Start a conversation</h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <h3 className="mt-2 text-sm font-medium text-purple-200">Start a conversation</h3>
+              <p className="mt-1 text-sm text-purple-400">
                 Send a message to begin chatting with {agent.name}
               </p>
             </div>
@@ -235,7 +235,7 @@ export default function AgentChatPage() {
         </div>
       </div>
 
-      <div className="bg-white border-t px-4 py-4">
+      <div className="bg-gray-900/50 backdrop-blur-sm border-t border-purple-500/30 px-4 py-4">
         <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto">
           <div className="flex gap-2">
             <input
@@ -244,12 +244,12 @@ export default function AgentChatPage() {
               onChange={(e) => setInput(e.target.value)}
               disabled={sending}
               placeholder="Type your message..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 bg-gray-800/50 border border-purple-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
               disabled={sending || !input.trim()}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {sending ? 'Sending...' : 'Send'}
             </button>
