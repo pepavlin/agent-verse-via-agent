@@ -5,7 +5,7 @@
   "scripts": {
     "predev": "npm run db:init",
     "dev": "next dev",
-    "prebuild": "npm run db:init && node scripts/generate-build-info.js",
+    "prebuild": "node scripts/generate-build-info.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

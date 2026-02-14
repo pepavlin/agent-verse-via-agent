@@ -4,7 +4,9 @@
 
 This document describes how the SQLite database is automatically initialized when running the application with Docker Compose.
 
-## Problem Solved
+## Problems Solved
+
+### 1. Missing Database Tables at Runtime
 
 Previously, when running the application with `docker-compose up`, the application would fail with:
 ```
@@ -12,6 +14,24 @@ SQLITE_ERROR: no such table: main.Agent
 ```
 
 This occurred because the Prisma migrations were not being run automatically during container startup.
+
+### 2. DATABASE_URL Required During Docker Build (FIXED)
+
+Previously, the Docker build would fail with:
+```
+Error: Environment variable not found: DATABASE_URL
+```
+
+This occurred because:
+- The `prebuild` script in `package.json` ran `npm run db:init`
+- This script executed `npx prisma db push`, which requires a valid `DATABASE_URL`
+- Environment variables from `docker-compose.yml` are only available at **runtime**, not during **build time**
+- The build process failed before the container could even start
+
+**Solution**: The build process now:
+1. Sets a dummy `DATABASE_URL` in the Dockerfile for Prisma client generation
+2. Removes database initialization from the `prebuild` script
+3. Defers all database operations to runtime via `docker-entrypoint.sh`
 
 ## Solution
 
@@ -45,10 +65,23 @@ The entrypoint script performs these steps in order:
 ### Dockerfile Changes
 
 The Dockerfile now:
-- Copies the Prisma CLI and dependencies needed for running migrations
+- Sets a dummy `DATABASE_URL` environment variable during the build stage for Prisma client generation
+- Does NOT run database operations during build time
+- Copies the Prisma CLI and dependencies needed for running migrations at runtime
 - Copies the `docker-entrypoint.sh` startup script
 - Sets the script as executable
 - Uses the script as the container's ENTRYPOINT
+
+Key build-time vs runtime separation:
+```dockerfile
+# Build stage - Prisma client generation only
+ENV DATABASE_URL="file:./build-dummy.db"
+RUN npx prisma generate  # Only generates client, no database access
+RUN npm run build        # prebuild no longer runs db:init
+
+# Runtime - All database operations happen here
+ENTRYPOINT ["/app/docker-entrypoint.sh"]  # Runs migrations with real DATABASE_URL
+```
 
 ### Docker Compose Configuration
 
@@ -148,6 +181,41 @@ Optional environment variables:
 - `NEXTAUTH_URL`: Base URL for authentication
 
 ## Technical Details
+
+### Build-time vs Runtime Separation
+
+**Critical Concept**: Docker builds happen in isolation without access to runtime environment variables.
+
+| Stage | DATABASE_URL Source | Purpose |
+|-------|-------------------|---------|
+| **Build** | Hardcoded dummy value in Dockerfile | Generate Prisma client only |
+| **Runtime** | From docker-compose.yml environment | Actual database operations |
+
+Files modified to fix the build issue:
+
+1. **Dockerfile** (line 21-23):
+   ```dockerfile
+   ENV DATABASE_URL="file:./build-dummy.db"
+   ```
+   - Provides dummy URL for `prisma generate` command
+   - No actual database operations occur during build
+
+2. **package.json** (line 8):
+   ```json
+   "prebuild": "node scripts/generate-build-info.js"
+   ```
+   - Removed `npm run db:init` from prebuild
+   - Database initialization moved to runtime only
+
+3. **prisma/schema.prisma** (line 10):
+   ```prisma
+   datasource db {
+     provider = "sqlite"
+     url      = env("DATABASE_URL")
+   }
+   ```
+   - Explicitly references DATABASE_URL environment variable
+   - Required for Prisma to read the variable correctly
 
 ### Migration Strategy
 
