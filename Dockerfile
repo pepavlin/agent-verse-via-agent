@@ -44,6 +44,8 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/@libsql ./node_modules/@libsql
+COPY --from=builder /app/node_modules/pg ./node_modules/pg
+COPY --from=builder /app/node_modules/pg-* ./node_modules/
 
 # Copy Prisma CLI and dependencies for migrations
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
