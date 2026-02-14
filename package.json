@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "npm run db:init",
     "dev": "next dev",
-    "prebuild": "node scripts/generate-build-info.js",
+    "prebuild": "npm run db:init && node scripts/generate-build-info.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "db:init": "tsx scripts/init-db.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "prisma": {
