@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
@@ -8,7 +7,7 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 // Determine database type from DATABASE_URL
-const databaseUrl = process.env.DATABASE_URL || 'file:./dev.db'
+const databaseUrl = process.env.DATABASE_URL || 'postgresql://agentverse:agentverse_password@localhost:5432/agentverse?schema=public'
 const isPostgreSQL = databaseUrl.startsWith('postgresql://')
 
 // Create appropriate Prisma client based on database type
@@ -20,9 +19,8 @@ export const prisma =
         adapter: new PrismaPg(new Pool({ connectionString: databaseUrl })),
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
       })
-    : // SQLite - use LibSQL adapter
+    : // Fallback to standard Prisma client without adapter for non-PostgreSQL
       new PrismaClient({
-        adapter: new PrismaLibSql({ url: databaseUrl }),
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
       }))
 
