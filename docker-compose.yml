@@ -1,22 +1,43 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-verse-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-agentverse}
+      - POSTGRES_USER=${POSTGRES_USER:-agentverse}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-agentverse_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - agent-verse-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentverse} -d ${POSTGRES_DB:-agentverse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: agent-verse-app
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL:-file:/app/data/production.db}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-agentverse}:${POSTGRES_PASSWORD:-agentverse_password}@postgres:5432/${POSTGRES_DB:-agentverse}?schema=public}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
-    volumes:
-      # Persist database data
-      - db-data:/app/data
     networks:
       - agent-verse-network
     healthcheck:
@@ -27,7 +48,7 @@ services:
       start_period: 40s
 
 volumes:
-  db-data:
+  postgres-data:
     driver: local
 
 networks:

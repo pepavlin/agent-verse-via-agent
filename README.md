@@ -287,9 +287,32 @@ npm run db:seed    # Seed database with sample data
 
 Create a `.env` file:
 
+**For Local Development (SQLite)**:
 ```env
-# Database
+# Database - SQLite for local development
 DATABASE_URL="file:./dev.db"
+
+# Anthropic API
+ANTHROPIC_API_KEY="your_api_key_here"
+
+# NextAuth
+NEXTAUTH_SECRET="your_secret_here"
+NEXTAUTH_URL="http://localhost:3000"
+
+# Application
+PORT=3000
+```
+
+**For Docker Compose (PostgreSQL)**:
+```env
+# Database - PostgreSQL for Docker deployment
+DATABASE_URL="postgresql://agentverse:agentverse_password@postgres:5432/agentverse?schema=public"
+
+# PostgreSQL Configuration
+POSTGRES_DB=agentverse
+POSTGRES_USER=agentverse
+POSTGRES_PASSWORD=agentverse_password  # Change for production!
+POSTGRES_PORT=5432
 
 # Anthropic API
 ANTHROPIC_API_KEY="your_api_key_here"
@@ -304,21 +327,38 @@ PORT=3000
 
 ### Docker Deployment
 
-The application includes automatic database initialization when using Docker Compose:
+The application uses Docker Compose with PostgreSQL database:
 
 ```bash
-# Build and start containers (database auto-initializes on first run)
+# 1. Set up environment variables
+cp .env.example .env
+# Edit .env and configure:
+# - ANTHROPIC_API_KEY (required)
+# - NEXTAUTH_SECRET (generate with: openssl rand -base64 32)
+# - POSTGRES_PASSWORD (change from default for production)
+
+# 2. Build and start containers (PostgreSQL + Application)
 docker-compose up -d
 
-# View logs
+# 3. View logs
 docker-compose logs -f
 
-# Stop containers
+# 4. View specific service logs
+docker-compose logs -f app
+docker-compose logs -f postgres
+
+# 5. Stop containers
 docker-compose down
 
-# Reset database (remove volumes)
+# 6. Reset database (remove volumes - WARNING: deletes all data)
 docker-compose down -v
 ```
+
+**Database Stack**:
+- **PostgreSQL 16**: Production-grade relational database
+- **Automatic Migrations**: Database schema is created automatically on first startup
+- **Health Checks**: Application waits for database to be ready before starting
+- **Persistent Data**: Database data is stored in a Docker volume (`postgres-data`)
 
 **Note**: The database is automatically initialized on first startup. No manual migration steps required!
 
