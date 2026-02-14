@@ -113,6 +113,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[Database Status Report](DATABASE_STATUS.md)** - Database schema and verification results
 - **[PostgreSQL Setup Guide](docs/POSTGRESQL_SETUP.md)** - Complete PostgreSQL Docker setup with switching guide
 - **[Docker Database Setup](docs/DOCKER_DATABASE_SETUP.md)** - Automatic database initialization in Docker
+- **[Disk Space Maintenance Guide](docs/DISK_SPACE_MAINTENANCE.md)** - Disk space management and database maintenance procedures
 
 ---
 
@@ -275,12 +276,21 @@ POST /api/departments/market-research/run
 ### Available Scripts
 
 ```bash
-npm run dev        # Start development server
-npm run build      # Build for production
-npm start          # Start production server
-npm run test       # Run tests
-npm run lint       # Lint code
-npm run db:seed    # Seed database with sample data
+# Development
+npm run dev              # Start development server
+npm run build            # Build for production
+npm start                # Start production server
+npm run test             # Run tests
+npm run lint             # Lint code
+
+# Database
+npm run db:init          # Initialize database schema
+npm run db:seed          # Seed database with sample data
+npm run db:maintenance   # Run database cleanup and optimization
+
+# Maintenance
+npm run cleanup:disk     # Clean up temporary files and build artifacts
+npm run monitor:disk     # Check disk space usage and health
 ```
 
 ### Environment Variables

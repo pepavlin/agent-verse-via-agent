@@ -13,7 +13,10 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "db:init": "tsx scripts/init-db.ts",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:maintenance": "node scripts/db-maintenance.mjs",
+    "cleanup:disk": "./scripts/cleanup-disk-space.sh",
+    "monitor:disk": "node scripts/monitor-disk-space.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -26,6 +29,7 @@
     "@prisma/adapter-libsql": "^7.4.0",
     "@prisma/client": "^7.4.0",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^11.8.1",
     "dotenv": "^17.2.4",
     "lucide-react": "^0.564.0",
     "next": "16.1.6",
