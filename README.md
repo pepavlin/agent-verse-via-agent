@@ -85,11 +85,7 @@ npm install
 cp .env.example .env
 # Edit .env and add your ANTHROPIC_API_KEY and NEXTAUTH_SECRET
 
-# 4. Initialize the database
-npx prisma generate
-npx prisma migrate dev
-
-# 5. Start the development server
+# 4. Start the development server (database auto-initializes)
 npm run dev
 ```
 
