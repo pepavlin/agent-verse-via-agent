@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -13,8 +15,9 @@ const isPostgreSQL = databaseUrl.startsWith('postgresql://')
 export const prisma =
   globalForPrisma.prisma ??
   (isPostgreSQL
-    ? // PostgreSQL - use default client without adapter
+    ? // PostgreSQL - use PrismaPg adapter with pg Pool
       new PrismaClient({
+        adapter: new PrismaPg(new Pool({ connectionString: databaseUrl })),
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
       })
     : // SQLite - use LibSQL adapter

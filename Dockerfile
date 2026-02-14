@@ -18,6 +18,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Set dummy DATABASE_URL for build-time Prisma generation
+# This is required for Prisma 7 which needs DATABASE_URL even though
+# the actual connection happens at runtime with the real DATABASE_URL
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+
 # Generate Prisma client
 RUN npx prisma generate
 
