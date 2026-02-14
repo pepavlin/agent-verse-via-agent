@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import GameCanvas from '@/app/components/GameCanvas'
 import AgentChatDialog from '@/app/components/AgentChatDialog'
 import CreateAgentModal from '@/app/components/CreateAgentModal'
@@ -14,11 +14,26 @@ interface Agent {
   size?: number | null
 }
 
+interface BuildInfo {
+  deployDate: string
+}
+
 export default function Home() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentList, setShowAgentList] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [deployDate, setDeployDate] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Fetch build info on component mount
+    fetch('/build-info.json')
+      .then(res => res.json())
+      .then((data: BuildInfo) => {
+        setDeployDate(data.deployDate)
+      })
+      .catch(err => console.error('Failed to fetch build info:', err))
+  }, [])
 
   const fetchAgents = async () => {
     try {
@@ -30,6 +45,17 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to fetch agents:', error)
     }
+  }
+
+  const formatDeployDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   return (
@@ -133,19 +159,30 @@ export default function Home() {
       {/* Bottom HUD */}
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-gray-900/90 to-transparent p-4">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center gap-8 text-sm text-purple-300">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
-              <span>Hover over agents for info</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-purple-300/60">
+              {deployDate && (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span>Deployed: {formatDeployDate(deployDate)}</span>
+                </>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-pink-500" />
-              <span>Click to chat</span>
+            <div className="flex items-center justify-center gap-8 text-sm text-purple-300">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
+                <span>Hover over agents for info</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-pink-500" />
+                <span>Click to chat</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                <span>Drag to move • Scroll to zoom</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
-              <span>Drag to move • Scroll to zoom</span>
-            </div>
+            <div className="w-48" />
           </div>
         </div>
       </div>
