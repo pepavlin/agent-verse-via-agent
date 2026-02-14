@@ -37,6 +37,7 @@ AgentVerse is an interactive web application that creates a universe of speciali
 - 🎭 **4 Specialized Agent Types** - Each with unique expertise and personality
 - 🏢 **Department System** - Organize agents into collaborative teams
 - 💬 **Agent Chat Interface** - Direct conversations with individual agents
+- 🗨️ **Global Project Manager Chat** - Always-available floating chat for support and guidance
 - 🔄 **Multi-Agent Workflows** - Sequential and parallel execution patterns
 - 🎨 **Interactive Visualization** - 2D agent world with physics simulation
 - 📊 **Workflow Analytics** - Track execution history and performance
@@ -84,11 +85,7 @@ npm install
 cp .env.example .env
 # Edit .env and add your ANTHROPIC_API_KEY and NEXTAUTH_SECRET
 
-# 4. Initialize the database
-npx prisma generate
-npx prisma migrate dev
-
-# 5. Start the development server
+# 4. Start the development server (database auto-initializes)
 npm run dev
 ```
 
