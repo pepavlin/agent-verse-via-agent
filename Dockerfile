@@ -32,6 +32,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Install runtime dependencies for PostgreSQL and database checking
+RUN apk add --no-cache postgresql-client netcat-openbsd
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -43,7 +46,6 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/@libsql ./node_modules/@libsql
 COPY --from=builder /app/node_modules/pg ./node_modules/pg
 COPY --from=builder /app/node_modules/pg-* ./node_modules/
 
@@ -53,9 +55,6 @@ COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
 
 # Copy startup script
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
-
-# Create directory for database and set permissions
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 
 # Make entrypoint script executable
 RUN chmod +x /app/docker-entrypoint.sh
