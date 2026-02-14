@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE "WorkflowExecution" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "workflowId" TEXT NOT NULL,
     "departmentId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -9,14 +9,16 @@ CREATE TABLE "WorkflowExecution" (
     "status" TEXT NOT NULL DEFAULT 'pending',
     "error" TEXT,
     "executionTime" INTEGER,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "completedAt" DATETIME
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "completedAt" TIMESTAMP(3),
+
+    CONSTRAINT "WorkflowExecution_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "WorkflowStep" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "workflowExecutionId" TEXT NOT NULL,
     "stepNumber" INTEGER NOT NULL,
     "agentRole" TEXT NOT NULL,
@@ -26,23 +28,26 @@ CREATE TABLE "WorkflowStep" (
     "output" TEXT,
     "status" TEXT NOT NULL DEFAULT 'pending',
     "error" TEXT,
-    "startedAt" DATETIME,
-    "completedAt" DATETIME,
-    CONSTRAINT "WorkflowStep_workflowExecutionId_fkey" FOREIGN KEY ("workflowExecutionId") REFERENCES "WorkflowExecution" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "startedAt" TIMESTAMP(3),
+    "completedAt" TIMESTAMP(3),
+
+    CONSTRAINT "WorkflowStep_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "UserQuery" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "workflowId" TEXT NOT NULL,
     "agentId" TEXT NOT NULL,
     "question" TEXT NOT NULL,
     "answer" TEXT,
     "context" TEXT,
     "status" TEXT NOT NULL DEFAULT 'pending',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "answeredAt" DATETIME,
-    "timeoutAt" DATETIME
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "answeredAt" TIMESTAMP(3),
+    "timeoutAt" TIMESTAMP(3),
+
+    CONSTRAINT "UserQuery_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -74,3 +79,6 @@ CREATE INDEX "UserQuery_agentId_idx" ON "UserQuery"("agentId");
 
 -- CreateIndex
 CREATE INDEX "UserQuery_status_idx" ON "UserQuery"("status");
+
+-- AddForeignKey
+ALTER TABLE "WorkflowStep" ADD CONSTRAINT "WorkflowStep_workflowExecutionId_fkey" FOREIGN KEY ("workflowExecutionId") REFERENCES "WorkflowExecution"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -5,8 +5,8 @@ echo "🚀 Starting Agent Verse application..."
 
 # Check if DATABASE_URL is set
 if [ -z "$DATABASE_URL" ]; then
-  echo "⚠️  WARNING: DATABASE_URL is not set, using default"
-  export DATABASE_URL="file:/app/data/production.db"
+  echo "⚠️  WARNING: DATABASE_URL is not set, using default PostgreSQL URL"
+  export DATABASE_URL="postgresql://agentverse:agentverse_password@db:5432/agentverse?schema=public"
 fi
 
 echo "📁 Database URL: $DATABASE_URL"

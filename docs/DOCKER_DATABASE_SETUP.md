@@ -1,35 +1,88 @@
-# Docker Database Setup
-
-## Automatic Database Initialization
-
-This document describes how the PostgreSQL database is automatically initialized when running the application with Docker Compose.
+# Docker Database Setup with PostgreSQL
 
 ## Overview
 
-The application uses a PostgreSQL database when running in Docker, providing:
-- **Production-grade reliability**: PostgreSQL is a robust, ACID-compliant database
-- **Better performance**: Optimized for concurrent access and large datasets
-- **Advanced features**: Full-text search, JSON support, and complex queries
-- **Data persistence**: Automatic volume management for data durability
+This document describes how the PostgreSQL database is automatically initialized and managed when running the application with Docker Compose.
 
-## Problem Solved
+## Database Migration (SQLite → PostgreSQL)
 
-Previously, when running the application with `docker-compose up`, the database setup required manual steps. Now, the PostgreSQL database is automatically configured and initialized, with all migrations applied on first startup.
+The application has been migrated from SQLite to PostgreSQL for better scalability, concurrency, and production readiness. PostgreSQL provides:
 
-## Solution
+- ✅ Better multi-user concurrency
+- ✅ ACID compliance with proper transaction isolation
+- ✅ Advanced indexing and query optimization
+- ✅ Production-ready performance
+- ✅ Better support for complex queries and relationships
 
-The application uses Docker Compose to orchestrate two services:
+## Architecture
 
-1. **PostgreSQL Database** (`postgres` service):
-   - PostgreSQL 16 Alpine image
-   - Automatic health checks
-   - Persistent data volume
-   - Network isolation
+The application uses a two-container architecture:
 
-2. **Application** (`app` service):
-   - Waits for database to be healthy
-   - Automatic migrations on startup
-   - Configured with proper DATABASE_URL
+1. **PostgreSQL Database Container** (`db`):
+   - Image: `postgres:16-alpine`
+   - Persistent storage via Docker volume
+   - Health checks for startup coordination
+
+2. **Next.js Application Container** (`app`):
+   - Waits for database to be healthy before starting
+   - Automatically runs migrations on startup
+   - Connects to PostgreSQL via internal Docker network
+
+### Docker Compose Configuration
+
+The `docker-compose.yml` defines two services:
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=agentverse
+      - POSTGRES_PASSWORD=agentverse_password
+      - POSTGRES_DB=agentverse
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentverse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://agentverse:agentverse_password@db:5432/agentverse?schema=public
+```
+
+### Startup Sequence
+
+When you run `docker-compose up`, this happens:
+
+1. **PostgreSQL Container Starts**
+   ```
+   📦 PostgreSQL 16 starting...
+   ✅ Database server is ready
+   ```
+
+2. **Health Check Passes**
+   ```
+   ❤️ pg_isready confirms database is accepting connections
+   ```
+
+3. **Application Container Starts**
+   ```
+   🚀 Starting Agent Verse application...
+   📁 Database URL: postgresql://agentverse:***@db:5432/agentverse
+   ⏳ Waiting for PostgreSQL to be ready...
+   ✅ PostgreSQL is ready!
+   🔄 Running Prisma migrations...
+   ✅ Prisma migrations completed successfully
+   🔍 Verifying database connection...
+   ✅ Database connection verified
+   🎯 Starting Next.js application...
+   ```
 
 ### Startup Script (`scripts/docker-entrypoint.sh`)
 
@@ -46,7 +99,7 @@ The startup log looks like this:
 
 ```bash
 🚀 Starting Agent Verse application...
-📁 Database URL: postgresql://agentverse:***@postgres:5432/agentverse?schema=public
+📁 Database URL: postgresql://agentverse:***@db:5432/agentverse
 🐘 PostgreSQL database detected
 ⏳ Waiting for PostgreSQL to be ready...
 ✅ PostgreSQL is ready
@@ -63,15 +116,15 @@ The startup log looks like this:
 
 ```yaml
 services:
-  postgres:
+  db:
     - PostgreSQL 16 Alpine
-    - Port 5432 (configurable)
+    - Port 5432 (configurable via POSTGRES_PORT)
     - Health checks with pg_isready
     - Persistent volume: postgres-data
 
   app:
     - Next.js application
-    - Depends on postgres (waits for healthy)
+    - Depends on db (waits for healthy)
     - Automatic migrations on startup
     - Port 3000 (configurable)
 ```
@@ -82,14 +135,14 @@ services:
 ┌─────────────────────────────────────┐
 │   Host Machine                      │
 │   └─ Port 3000 → app:3000          │
-│   └─ Port 5432 → postgres:5432     │
+│   └─ Port 5432 → db:5432           │
 └─────────────────────────────────────┘
                   │
 ┌─────────────────┴───────────────────┐
 │   Docker Network: agent-verse-network│
 │                                     │
 │   ┌─────────────┐  ┌─────────────┐ │
-│   │   postgres  │  │     app     │ │
+│   │      db     │  │     app     │ │
 │   │   (DB)      │←─│  (Next.js)  │ │
 │   │   :5432     │  │   :3000     │ │
 │   └─────────────┘  └─────────────┘ │
@@ -148,7 +201,7 @@ docker-compose logs -f
 docker-compose logs -f app
 
 # Just the database
-docker-compose logs -f postgres
+docker-compose logs -f db
 ```
 
 ### Stopping the Application
@@ -181,17 +234,17 @@ The new migrations will be automatically applied on startup.
 
 **Access PostgreSQL directly**:
 ```bash
-docker exec -it agent-verse-postgres psql -U agentverse -d agentverse
+docker exec -it agent-verse-db psql -U agentverse -d agentverse
 ```
 
 **Create a database backup**:
 ```bash
-docker exec agent-verse-postgres pg_dump -U agentverse agentverse > backup.sql
+docker exec agent-verse-db pg_dump -U agentverse agentverse > backup.sql
 ```
 
 **Restore from backup**:
 ```bash
-cat backup.sql | docker exec -i agent-verse-postgres psql -U agentverse -d agentverse
+cat backup.sql | docker exec -i agent-verse-db psql -U agentverse -d agentverse
 ```
 
 **Reset the database completely**:
@@ -207,10 +260,10 @@ PostgreSQL data is stored in a Docker volume named `postgres-data`, which persis
 
 - ✅ Data is preserved when stopping/starting containers
 - ✅ Data is preserved when rebuilding application images
-- ✅ Data survives even if the postgres container is removed
+- ✅ Data survives even if the db container is removed
 - ❌ Data is lost only when explicitly running `docker-compose down -v`
 
-**Volume location**:
+**Volume management**:
 ```bash
 # Inspect volume
 docker volume inspect agent-verse-via-agent_postgres-data
@@ -222,14 +275,88 @@ docker run --rm -v agent-verse-via-agent_postgres-data:/data -v $(pwd):/backup a
 docker run --rm -v agent-verse-via-agent_postgres-data:/data -v $(pwd):/backup alpine tar xzf /backup/postgres-backup.tar.gz -C /data
 ```
 
+## Database Configuration
+
+### Environment Variables
+
+PostgreSQL configuration (defined in `.env` or `docker-compose.yml`):
+
+```bash
+# PostgreSQL credentials
+POSTGRES_USER=agentverse
+POSTGRES_PASSWORD=agentverse_password
+POSTGRES_DB=agentverse
+POSTGRES_PORT=5432
+
+# Application database URL
+DATABASE_URL=postgresql://agentverse:agentverse_password@db:5432/agentverse?schema=public
+```
+
+### Connection URL Format
+
+For Docker Compose:
+```
+postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
+```
+
+Example:
+```
+postgresql://agentverse:agentverse_password@db:5432/agentverse?schema=public
+```
+
+For local development connecting to Docker:
+```
+postgresql://agentverse:agentverse_password@localhost:5432/agentverse?schema=public
+```
+
+## Local Development
+
+### Option 1: SQLite (Lightweight)
+
+For local development, you can still use SQLite:
+
+1. Update `.env`:
+   ```bash
+   DATABASE_URL="file:./dev.db"
+   ```
+
+2. Run the development server:
+   ```bash
+   npm run dev
+   ```
+
+### Option 2: PostgreSQL via Docker Compose
+
+To develop against PostgreSQL:
+
+1. Start only the database:
+   ```bash
+   docker-compose up db
+   ```
+
+2. Update `.env`:
+   ```bash
+   DATABASE_URL="postgresql://agentverse:agentverse_password@localhost:5432/agentverse?schema=public"
+   ```
+
+3. Run migrations:
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
 ## Troubleshooting
 
 ### "Connection refused" or "ECONNREFUSED"
 
 If the application can't connect to PostgreSQL:
 1. Check PostgreSQL health: `docker-compose ps`
-2. Ensure postgres service is healthy before app starts
-3. Verify DATABASE_URL uses `postgres` as hostname (not `localhost`)
+2. Ensure db service is healthy before app starts
+3. Verify DATABASE_URL uses `db` as hostname (not `localhost`)
 4. Check network configuration in docker-compose.yml
 
 ### "Migration failed" error
@@ -256,14 +383,6 @@ If you see "database is not ready" errors:
 3. The startup script includes additional retry logic
 4. Increase `start_period` in healthcheck if needed
 
-### Tables not being created
-
-If tables aren't created but no errors appear:
-1. Check container logs: `docker-compose logs app`
-2. Verify DATABASE_URL is correctly set in docker-compose.yml
-3. Ensure Prisma migrations exist in `prisma/migrations/`
-4. Check that migration_lock.toml has `provider = "postgresql"`
-
 ### Port conflict (port already in use)
 
 If port 5432 or 3000 is already in use:
@@ -274,28 +393,113 @@ If port 5432 or 3000 is already in use:
    ```
 2. Rebuild: `docker-compose up -d`
 
-## Environment Variables
+### Permission Denied Errors
 
-### Required Variables
+If you see permission errors:
 
-- `POSTGRES_DB`: Database name (default: `agentverse`)
-- `POSTGRES_USER`: Database user (default: `agentverse`)
-- `POSTGRES_PASSWORD`: Database password (default: `agentverse_password`, **CHANGE IN PRODUCTION**)
-- `ANTHROPIC_API_KEY`: API key for Anthropic Claude
-- `NEXTAUTH_SECRET`: Secret for NextAuth.js (generate with: `openssl rand -base64 32`)
+1. Check volume permissions:
+   ```bash
+   docker-compose down
+   docker volume inspect agent-verse-via-agent_postgres-data
+   ```
 
-### Optional Variables
+2. Recreate the volume:
+   ```bash
+   docker-compose down -v
+   docker-compose up
+   ```
 
-- `PORT`: Application port (default: `3000`)
-- `POSTGRES_PORT`: PostgreSQL port (default: `5432`)
-- `NEXTAUTH_URL`: Base URL for authentication (default: `http://localhost:3000`)
-- `DATABASE_URL`: Full PostgreSQL connection string (auto-generated from other vars if not set)
+### Connection Pool Exhausted
+
+If you see connection pool errors:
+
+1. Restart the application:
+   ```bash
+   docker-compose restart app
+   ```
+
+2. Check for connection leaks in application code
+3. Consider increasing connection pool size in Prisma client configuration
+
+## Database Access
+
+### Accessing PostgreSQL Shell
+
+To access the PostgreSQL command line:
+
+```bash
+# Connect to the database
+docker-compose exec db psql -U agentverse agentverse
+
+# Run queries
+agentverse=# \dt          # List tables
+agentverse=# \d Agent     # Describe Agent table
+agentverse=# SELECT COUNT(*) FROM "Agent";
+agentverse=# \q           # Quit
+```
+
+### Using Prisma Studio
+
+Prisma Studio provides a GUI for database exploration:
+
+```bash
+# Start Prisma Studio (ensure DATABASE_URL is set correctly)
+npx prisma studio
+```
+
+This opens a web interface at http://localhost:5555
+
+## File Structure
+
+```
+agent-verse-via-agent/
+├── Dockerfile                          # Multi-stage build with PostgreSQL support
+├── docker-compose.yml                  # PostgreSQL + App service definition
+├── scripts/
+│   └── docker-entrypoint.sh           # DB initialization (PostgreSQL/SQLite aware)
+├── prisma/
+│   ├── schema.prisma                   # Database schema (provider: postgresql)
+│   └── migrations/                     # Migration files
+│       ├── migration_lock.toml         # Provider lock (postgresql)
+│       ├── 20260212115750_init/
+│       ├── 20260213004146_add_agentverse_fields/
+│       └── ...
+└── .env.example                        # Environment template with PostgreSQL config
+```
+
+## Migration from SQLite to PostgreSQL
+
+If migrating an existing SQLite database:
+
+1. **Export Data from SQLite**:
+   ```bash
+   npx prisma db pull  # Generate schema from SQLite
+   npx prisma generate # Generate client
+   # Export data using a migration script
+   ```
+
+2. **Update Configuration**:
+   - Change `datasource.provider` to `"postgresql"` in `prisma/schema.prisma`
+   - Update `DATABASE_URL` in `.env`
+   - Update `migration_lock.toml` to `provider = "postgresql"`
+
+3. **Convert Migrations**:
+   - Update migration SQL files from SQLite to PostgreSQL syntax
+   - Change `DATETIME` to `TIMESTAMP(3)`
+   - Change `PRIMARY KEY` inline to `CONSTRAINT ... PRIMARY KEY`
+   - Move foreign keys to separate `ALTER TABLE` statements
+
+4. **Test Migration**:
+   ```bash
+   docker-compose up db
+   npx prisma migrate deploy
+   ```
 
 ## Technical Details
 
 ### Migration Strategy
 
-The startup script uses a two-tier approach:
+The startup script uses a two-phase approach:
 
 1. **Primary**: `prisma migrate deploy`
    - Applies all pending migrations from `prisma/migrations/`
@@ -348,23 +552,22 @@ EOF
 done
 ```
 
-### File Structure
+## Environment Variables
 
-```
-agent-verse-via-agent/
-├── Dockerfile                          # Multi-stage build with Prisma support
-├── docker-compose.yml                  # Two-service stack (postgres + app)
-├── scripts/
-│   └── docker-entrypoint.sh           # DB initialization (PostgreSQL/SQLite aware)
-├── prisma/
-│   ├── schema.prisma                   # Database schema (provider: postgresql)
-│   └── migrations/                     # Migration files
-│       ├── migration_lock.toml         # Provider lock (postgresql)
-│       ├── 20260212115750_init/
-│       ├── 20260213004146_add_agentverse_fields/
-│       └── ...
-└── .env.example                        # Environment template with PostgreSQL config
-```
+### Required Variables
+
+- `POSTGRES_DB`: Database name (default: `agentverse`)
+- `POSTGRES_USER`: Database user (default: `agentverse`)
+- `POSTGRES_PASSWORD`: Database password (default: `agentverse_password`, **CHANGE IN PRODUCTION**)
+- `ANTHROPIC_API_KEY`: API key for Anthropic Claude
+- `NEXTAUTH_SECRET`: Secret for NextAuth.js (generate with: `openssl rand -base64 32`)
+
+### Optional Variables
+
+- `PORT`: Application port (default: `3000`)
+- `POSTGRES_PORT`: PostgreSQL port (default: `5432`)
+- `NEXTAUTH_URL`: Base URL for authentication (default: `http://localhost:3000`)
+- `DATABASE_URL`: Full PostgreSQL connection string (auto-generated from other vars if not set)
 
 ## Best Practices
 
@@ -379,30 +582,24 @@ agent-verse-via-agent/
 9. **Limit exposed ports**: Only expose ports needed for your use case
 10. **Monitor database health**: Set up monitoring for PostgreSQL in production
 
-## Local Development vs Docker
+## Production Considerations
 
-### Local Development (SQLite)
-```env
-DATABASE_URL="file:./dev.db"
-```
-- Fast setup
-- No additional services
-- Good for development
-- Limited to single process
+For production deployments:
 
-### Docker (PostgreSQL)
-```env
-DATABASE_URL="postgresql://agentverse:password@postgres:5432/agentverse?schema=public"
-```
-- Production-like environment
-- Better performance for concurrent users
-- Full SQL feature set
-- Requires Docker Compose
-
-To switch between environments, update the Prisma schema `provider` and DATABASE_URL.
+1. **Use a managed PostgreSQL service** (AWS RDS, Google Cloud SQL, etc.)
+2. **Set strong, unique passwords** (never use defaults)
+3. **Enable SSL/TLS** for database connections
+4. **Configure proper backup schedules**
+5. **Set up monitoring and alerting**
+6. **Use read replicas** for scalability
+7. **Implement connection pooling** (PgBouncer, Prisma Data Proxy)
+8. **Review and optimize indexes** for your query patterns
+9. **Set up automated backups** with point-in-time recovery
+10. **Use secrets management** for credentials (AWS Secrets Manager, etc.)
 
 ## References
 
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [Prisma with PostgreSQL](https://www.prisma.io/docs/concepts/database-connectors/postgresql)
 - [Prisma Migrate Documentation](https://www.prisma.io/docs/concepts/components/prisma-migrate)
 - [Docker Compose Healthchecks](https://docs.docker.com/compose/compose-file/#healthcheck)
