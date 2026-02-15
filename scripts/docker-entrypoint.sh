@@ -16,17 +16,19 @@ if echo "$DATABASE_URL" | grep -q "^postgresql://"; then
   echo "🐘 PostgreSQL database detected"
 
   # Wait for PostgreSQL to be ready (extra safety beyond depends_on healthcheck)
-  echo "⏳ Waiting for PostgreSQL to be ready..."
+  # Extract host and port from DATABASE_URL
+  DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):\([0-9]*\)/.*|\1|p')
+  DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):\([0-9]*\)/.*|\2|p')
+  DB_USER=$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')
+
+  echo "⏳ Waiting for PostgreSQL to be ready at ${DB_HOST}:${DB_PORT}..."
   for i in 1 2 3 4 5; do
-    if npx prisma db execute --stdin <<EOF 2>/dev/null
-SELECT 1;
-EOF
-    then
+    if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q 2>/dev/null; then
       echo "✅ PostgreSQL is ready"
       break
     else
       echo "   Attempt $i/5 - PostgreSQL not ready yet, waiting..."
-      sleep 2
+      sleep 3
     fi
   done
 
