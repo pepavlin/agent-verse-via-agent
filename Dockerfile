@@ -52,31 +52,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/pg ./node_modules/pg
-COPY --from=builder /app/node_modules/pg-* ./node_modules/
+COPY --from=builder /app/node_modules ./node_modules
 
-# Copy Prisma CLI and dependencies for migrations
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
-
-# Copy valibot - required by Prisma 7 at runtime
-COPY --from=builder /app/node_modules/valibot ./node_modules/valibot
-
-# Copy additional Prisma 7 runtime dependencies
-COPY --from=builder /app/node_modules/pathe ./node_modules/pathe
-COPY --from=builder /app/node_modules/foreground-child ./node_modules/foreground-child
-COPY --from=builder /app/node_modules/get-port-please ./node_modules/get-port-please
-COPY --from=builder /app/node_modules/hono ./node_modules/hono
-COPY --from=builder /app/node_modules/proper-lockfile ./node_modules/proper-lockfile
-COPY --from=builder /app/node_modules/remeda ./node_modules/remeda
-COPY --from=builder /app/node_modules/std-env ./node_modules/std-env
-COPY --from=builder /app/node_modules/zeptomatch ./node_modules/zeptomatch
-COPY --from=builder /app/node_modules/graphmatch ./node_modules/graphmatch
-COPY --from=builder /app/node_modules/grammex ./node_modules/grammex
-COPY --from=builder /app/node_modules/signal-exit ./node_modules/signal-exit
-COPY --from=builder /app/node_modules/lru-cache ./node_modules/lru-cache
 
 # Copy startup script
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
