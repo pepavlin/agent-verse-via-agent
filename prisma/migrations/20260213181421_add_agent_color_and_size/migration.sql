@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "Agent" ADD COLUMN "color" TEXT DEFAULT '#a855f7';
-ALTER TABLE "Agent" ADD COLUMN "size" INTEGER DEFAULT 20;

@@ -174,7 +174,7 @@ describe('Authentication Flow Tests', () => {
         password: 'password123',
       }
 
-      const user = await prisma.user.findUnique({
+      await prisma.user.findUnique({
         where: { email: credentials.email },
       })
 
