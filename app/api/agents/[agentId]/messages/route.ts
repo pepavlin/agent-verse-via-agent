@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import type { Prisma, Agent } from "@/types"
 import Anthropic from "@anthropic-ai/sdk"
 import {
   handleApiError,
@@ -25,42 +25,20 @@ const anthropic = new Anthropic({
 })
 
 // Helper function to get agent instance based on role
-function getAgentInstance(
-  agent: {
-    id: string
-    name: string
-    role: string | null
-    model: string
-    personality: string | null
-    specialization: string | null
-  }
-): BaseAgent | null {
+function getAgentInstance(agent: Agent): BaseAgent | null {
   if (!agent.role) {
     return null
-  }
-  const config: Record<string, unknown> = {
-    id: agent.id,
-    name: agent.name,
-    model: agent.model,
-    role: agent.role,
-    personality: agent.personality,
-    specialization: agent.specialization,
-    description: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    userId: '',
-    departmentId: undefined
   }
 
   switch (agent.role) {
     case "researcher":
-      return new ResearcherAgent(config)
+      return new ResearcherAgent(agent)
     case "strategist":
-      return new StrategistAgent(config)
+      return new StrategistAgent(agent)
     case "critic":
-      return new CriticAgent(config)
+      return new CriticAgent(agent)
     case "ideator":
-      return new IdeatorAgent(config)
+      return new IdeatorAgent(agent)
     default:
       return null
   }
@@ -347,7 +325,7 @@ export async function POST(
       }))
 
       const result = await agentInstance.execute(message, { messages: messageHistory })
-      assistantResponse = result.result || ''
+      assistantResponse = (result.result as string) || ''
     } else {
       // Fallback to direct Claude API call with role-specific system prompt
       console.log("[USING_DIRECT_API]", {

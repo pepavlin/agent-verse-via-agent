@@ -1,4 +1,4 @@
-import { Agent, Message, Task, AgentExecutionResult, Department, AgentMessage, MessageQueue, UserQuery, UserInteractionRequest } from "@/types"
+import { Agent, Message, Task, AgentExecutionResult, AgentMessage, UserQuery, UserInteractionRequest } from "@/types"
 import { BaseAgent } from "@/app/agents/BaseAgent"
 import { ResearcherAgent, StrategistAgent, CriticAgent, IdeatorAgent } from "@/app/agents"
 

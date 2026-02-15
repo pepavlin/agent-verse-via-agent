@@ -20,13 +20,14 @@ export default function AgentVisualization({
   const canvasRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<PIXI.Application | null>(null)
   const agentsRef = useRef<VisualAgent[]>(initialAgents)
-  const [selectedAgents, setSelectedAgents] = useState<VisualAgent[]>([])
+  const [, setSelectedAgents] = useState<VisualAgent[]>([])
 
   // Graphics objects
   const agentGraphicsRef = useRef<Map<string, PIXI.Container>>(new Map())
   const selectionRectGraphicRef = useRef<PIXI.Graphics | null>(null)
 
-  // Viewport state
+  // Viewport state - not used currently but kept for future features
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const viewportRef = useRef<ViewportState>({
     x: 0,
     y: 0,
@@ -76,14 +77,7 @@ export default function AgentVisualization({
       agent.selected = false
     })
     updateSelectedAgents()
-  }, [])
-
-  // Update selected agents state
-  const updateSelectedAgents = useCallback(() => {
-    const selected = agentsRef.current.filter((a) => a.selected)
-    setSelectedAgents(selected)
-    onSelectionChange?.(selected)
-  }, [onSelectionChange])
+  }, [updateSelectedAgents])
 
   // Draw selection rectangle
   const drawSelectionRect = useCallback(() => {
@@ -329,7 +323,7 @@ export default function AgentVisualization({
       drawSelectionRect()
     }
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = () => {
       if (interactionRef.current.isSelecting && interactionRef.current.selectionRect) {
         selectAgentsInRect(interactionRef.current.selectionRect)
         clearSelectionRect()
