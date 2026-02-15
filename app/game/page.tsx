@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { simpleAuth, SimpleUser } from '@/lib/simple-auth'
 import GameCanvas from '../components/GameCanvas'
@@ -25,28 +25,31 @@ export default function GamePage() {
   const [showAgentList, setShowAgentList] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
-  const fetchAgents = useCallback(async () => {
-    try {
-      const response = await fetch('/api/agents')
-      if (response.ok) {
-        const data = await response.json()
-        setAgents(data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch agents:', error)
-    }
-  }, [])
-
   useEffect(() => {
     const currentUser = simpleAuth.getUser()
     if (!currentUser) {
       router.push('/login')
-    } else {
-      setUser(currentUser)
-      setLoading(false)
-      fetchAgents()
+      return
     }
-  }, [router, fetchAgents])
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUser(currentUser)
+    setLoading(false)
+
+    const fetchAgents = async () => {
+      try {
+        const response = await fetch('/api/agents')
+        if (response.ok) {
+          const data = await response.json()
+          setAgents(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error)
+      }
+    }
+
+    fetchAgents()
+  }, [router])
 
   const handleLogout = () => {
     simpleAuth.logout()

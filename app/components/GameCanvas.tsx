@@ -107,6 +107,71 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
     }
   }, [camera.zoom, camera.x, camera.y])
 
+  const drawAgent = useCallback((
+    ctx: CanvasRenderingContext2D,
+    agent: Agent,
+    canvasWidth: number,
+    canvasHeight: number
+  ) => {
+    // Transform world coordinates to screen coordinates
+    const screenX = (agent.x - camera.x) * camera.zoom + canvasWidth / 2
+    const screenY = (agent.y - camera.y) * camera.zoom + canvasHeight / 2
+    const screenRadius = agent.radius * camera.zoom
+
+    // Don't draw if off-screen
+    if (
+      screenX < -screenRadius ||
+      screenX > canvasWidth + screenRadius ||
+      screenY < -screenRadius ||
+      screenY > canvasHeight + screenRadius
+    ) {
+      return
+    }
+
+    // Draw outer glow
+    const gradient = ctx.createRadialGradient(
+      screenX,
+      screenY,
+      screenRadius * 0.5,
+      screenX,
+      screenY,
+      screenRadius * 1.5
+    )
+    gradient.addColorStop(0, agent.color + 'AA')
+    gradient.addColorStop(0.5, agent.color + '44')
+    gradient.addColorStop(1, agent.color + '00')
+
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(screenX, screenY, screenRadius * 1.5, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Draw main circle
+    ctx.fillStyle = agent.color
+    ctx.beginPath()
+    ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Draw border
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // Draw pulsing inner circle
+    const pulse = Math.sin(Date.now() / 500) * 0.2 + 0.8
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
+    ctx.beginPath()
+    ctx.arc(screenX, screenY, screenRadius * 0.5 * pulse, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Draw name
+    ctx.fillStyle = '#ffffff'
+    ctx.font = `${12 * camera.zoom}px sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+    ctx.fillText(agent.name, screenX, screenY + screenRadius + 5)
+  }, [camera.x, camera.y, camera.zoom])
+
   // Animation loop
   useEffect(() => {
     const canvas = canvasRef.current
@@ -221,97 +286,10 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
       }
     }
   }, [camera, drawGrid, drawAgent])
-    const gridSize = 50 * camera.zoom
-    const offsetX = camera.x % gridSize
-    const offsetY = camera.y % gridSize
-
-    ctx.strokeStyle = '#1a1a2e'
-    ctx.lineWidth = 1
-
-    // Vertical lines
-    for (let x = -offsetX; x < width; x += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(x, 0)
-      ctx.lineTo(x, height)
-      ctx.stroke()
-    }
-
-    // Horizontal lines
-    for (let y = -offsetY; y < height; y += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(width, y)
-      ctx.stroke()
-    }
-  }, [camera.zoom, camera.x, camera.y])
-
-  const drawAgent = useCallback((
-    ctx: CanvasRenderingContext2D,
-    agent: Agent,
-    canvasWidth: number,
-    canvasHeight: number
-  ) => {
-    // Transform world coordinates to screen coordinates
-    const screenX = (agent.x - camera.x) * camera.zoom + canvasWidth / 2
-    const screenY = (agent.y - camera.y) * camera.zoom + canvasHeight / 2
-    const screenRadius = agent.radius * camera.zoom
-
-    // Don't draw if off-screen
-    if (
-      screenX < -screenRadius ||
-      screenX > canvasWidth + screenRadius ||
-      screenY < -screenRadius ||
-      screenY > canvasHeight + screenRadius
-    ) {
-      return
-    }
-
-    // Draw outer glow
-    const gradient = ctx.createRadialGradient(
-      screenX,
-      screenY,
-      screenRadius * 0.5,
-      screenX,
-      screenY,
-      screenRadius * 1.5
-    )
-    gradient.addColorStop(0, agent.color + 'AA')
-    gradient.addColorStop(0.5, agent.color + '44')
-    gradient.addColorStop(1, agent.color + '00')
-
-    ctx.fillStyle = gradient
-    ctx.beginPath()
-    ctx.arc(screenX, screenY, screenRadius * 1.5, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Draw main circle
-    ctx.fillStyle = agent.color
-    ctx.beginPath()
-    ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Draw border
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 2
-    ctx.stroke()
-
-    // Draw pulsing inner circle
-    const pulse = Math.sin(Date.now() / 500) * 0.2 + 0.8
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
-    ctx.beginPath()
-    ctx.arc(screenX, screenY, screenRadius * 0.5 * pulse, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Draw name
-    ctx.fillStyle = '#ffffff'
-    ctx.font = `${12 * camera.zoom}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'top'
-    ctx.fillText(agent.name, screenX, screenY + screenRadius + 5)
-  }, [camera.x, camera.y, camera.zoom])
 
   // Fetch agents on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAgents()
   }, [fetchAgents])
 

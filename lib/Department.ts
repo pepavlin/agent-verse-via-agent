@@ -1,9 +1,5 @@
-import { Agent, AgentRole, WorkflowStep, WorkflowStatus, DepartmentExecutionResult, UserQuery, UserInteractionRequest } from '@/types'
+import { Agent, AgentRole, WorkflowStep, DepartmentExecutionResult, UserQuery, UserInteractionRequest } from '@/types'
 import { AgentOrchestrator } from './orchestrator'
-import { ResearcherAgent } from '@/app/agents/ResearcherAgent'
-import { StrategistAgent } from '@/app/agents/StrategistAgent'
-import { CriticAgent } from '@/app/agents/CriticAgent'
-import { IdeatorAgent } from '@/app/agents/IdeatorAgent'
 
 export interface DepartmentConfig {
   id: string
@@ -131,8 +127,7 @@ export class Department {
    */
   async execute(
     input: string,
-    context?: Record<string, unknown>,
-    enableUserInteraction: boolean = false
+    context?: Record<string, unknown>
   ): Promise<DepartmentExecutionResult> {
     const startTime = Date.now()
     const workflowId = `workflow-${this.id}-${Date.now()}`
@@ -150,7 +145,7 @@ export class Department {
       }
     }
 
-    const steps: WorkflowStep[] = this.config.workflowTemplate.map((template, index) => ({
+    const steps: WorkflowStep[] = this.config.workflowTemplate.map((template) => ({
       ...template,
       agentId: this.agents.get(template.agentRole)?.id,
       status: 'pending' as const
@@ -214,7 +209,6 @@ export class Department {
       }
 
       // Compile final result from all steps
-      const successfulSteps = steps.filter(s => s.status === 'completed')
       const failedSteps = steps.filter(s => s.status === 'failed')
 
       const finalResult = {

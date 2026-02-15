@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import * as PIXI from 'pixi.js'
-import { VisualAgent, SelectionRect, ViewportState, InteractionState, AGENT_RADIUS, SELECTION_COLOR, SELECTION_ALPHA, SELECTED_OUTLINE_COLOR, SELECTED_OUTLINE_WIDTH } from '@/types/visualization'
+import { VisualAgent, SelectionRect, InteractionState, AGENT_RADIUS, SELECTION_COLOR, SELECTION_ALPHA, SELECTED_OUTLINE_COLOR, SELECTED_OUTLINE_WIDTH } from '@/types/visualization'
 
 interface AgentVisualizationProps {
   agents: VisualAgent[]
@@ -321,7 +321,7 @@ export default function AgentVisualization({
       drawSelectionRect()
     }
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = () => {
       if (interactionRef.current.isSelecting && interactionRef.current.selectionRect) {
         selectAgentsInRect(interactionRef.current.selectionRect)
         clearSelectionRect()
