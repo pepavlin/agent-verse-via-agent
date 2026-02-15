@@ -51,6 +51,7 @@ The new color scheme prioritizes:
 
 ### Core Styling
 - **app/globals.css**: Updated CSS custom properties with new color palette
+- **tailwind.config.ts**: New Tailwind configuration file properly mapping CSS variables to Tailwind's theme system
 
 ### Component Updates
 - **app/components/AgentCard.tsx**: Updated role badge colors
@@ -67,6 +68,19 @@ The new color scheme prioritizes:
 - **lib/orchestrator.ts**: Resolved merge conflicts (not color-related)
 
 ## Implementation Details
+
+### Tailwind Configuration
+A comprehensive `tailwind.config.ts` file has been created that:
+- Maps all CSS custom properties to Tailwind's theme system
+- Extends the color palette with primary, secondary, accent, success, warning, and danger colors
+- Provides light and dark variants for each color
+- Includes a complete neutral scale (50-900)
+- Integrates seamlessly with the existing `@tailwindcss/postcss` plugin setup
+
+This allows developers to use standard Tailwind classes like:
+```tsx
+className="bg-primary dark:bg-neutral-800 text-white dark:text-neutral-50"
+```
 
 ### Dark Mode Support
 All colors include dark mode variants using Tailwind's `dark:` prefix:
