@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 import Anthropic from "@anthropic-ai/sdk"
 import {
   handleApiError,
@@ -350,7 +351,7 @@ export async function POST(
       })
 
       // Convert message history to the format expected by BaseAgent
-      const messageHistory = agent.messages.map((msg: any) => ({
+      const messageHistory = agent.messages.map((msg: Prisma.MessageGetPayload<object>) => ({
         role: msg.role as "user" | "assistant" | "system",
         content: msg.content,
       }))
@@ -367,7 +368,7 @@ export async function POST(
       const systemPrompt = getRoleSystemPrompt(agent.role || 'executor', agent.personality)
 
       // Prepare conversation history
-      const conversationHistory = agent.messages.map((msg: any) => ({
+      const conversationHistory = agent.messages.map((msg: Prisma.MessageGetPayload<object>) => ({
         role: msg.role as "user" | "assistant",
         content: msg.content,
       }))

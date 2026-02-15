@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 import Anthropic from "@anthropic-ai/sdk"
 import { handleApiError, authenticationError, validationError, notFoundError } from "@/lib/error-handler"
 
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
     })
 
     // Prepare conversation history for Claude
-    const conversationHistory = agent.messages.map((msg: any) => ({
+    const conversationHistory = agent.messages.map((msg: Prisma.MessageGetPayload<object>) => ({
       role: msg.role as 'user' | 'assistant',
       content: msg.content
     }))

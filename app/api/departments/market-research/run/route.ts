@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { MarketResearchDepartment } from '@/lib/MarketResearchDepartment'
 import { MarketResearchExecutionSchema, validateSchema, formatZodErrors } from '@/lib/validation'
 import { handleApiError } from '@/lib/error-handler'
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     // Check if we have all required roles
     const requiredRoles = ['researcher', 'strategist', 'critic', 'ideator']
-    const availableRoles = new Set(agents.map((a: any) => a.role))
+    const availableRoles = new Set(agents.map((a: Prisma.AgentGetPayload<object>) => a.role))
     const missingRoles = requiredRoles.filter(role => !availableRoles.has(role))
 
     if (missingRoles.length > 0) {
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
           error: 'Missing required agents',
           message: `You need to create agents with the following roles: ${missingRoles.join(', ')}`,
           missingRoles,
-          availableAgents: agents.map((a: any) => ({ id: a.id, name: a.name, role: a.role }))
+          availableAgents: agents.map((a: Prisma.AgentGetPayload<object>) => ({ id: a.id, name: a.name, role: a.role }))
         },
         { status: 400 }
       )
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
         steps: result.steps,
         executionTime: result.executionTime,
         timestamp: result.timestamp,
-        agentsUsed: agents.map((a: any) => ({
+        agentsUsed: agents.map((a: Prisma.AgentGetPayload<object>) => ({
           id: a.id,
           name: a.name,
           role: a.role
@@ -146,7 +147,7 @@ export async function GET(req: NextRequest) {
     })
 
     const requiredRoles = ['researcher', 'strategist', 'critic', 'ideator']
-    const availableRoles = new Set(agents.map((a: any) => a.role))
+    const availableRoles = new Set(agents.map((a: Prisma.AgentGetPayload<object>) => a.role))
     const missingRoles = requiredRoles.filter(role => !availableRoles.has(role))
 
     // Create temporary department to get info
@@ -161,7 +162,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ...departmentInfo,
-      availableAgents: agents.map((a: any) => ({
+      availableAgents: agents.map((a: Prisma.AgentGetPayload<object>) => ({
         id: a.id,
         name: a.name,
         role: a.role,
