@@ -84,31 +84,31 @@ export default function DepartmentsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-purple-300">Loading departments...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-primary-light">Loading departments...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Departments</h1>
-              <p className="mt-2 text-gray-600">
+              <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-50">Departments</h1>
+              <p className="mt-2 text-neutral-600 dark:text-neutral-400">
                 Multi-agent collaboration workflows for complex tasks
               </p>
             </div>
             <div className="flex gap-3">
               <Link
                 href="/agents"
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
               >
                 Manage Agents
               </Link>
@@ -118,15 +118,15 @@ export default function DepartmentsPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-red-800">{error}</p>
+          <div className="mb-6 p-4 bg-danger/10 dark:bg-danger/20 border border-danger/30 dark:border-danger/50 rounded-md">
+            <p className="text-danger dark:text-danger">{error}</p>
           </div>
         )}
 
         {/* Info Banner */}
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
-          <h3 className="text-sm font-medium text-blue-900 mb-1">What are Departments?</h3>
-          <p className="text-sm text-blue-800">
+        <div className="mb-6 p-4 bg-primary/10 dark:bg-primary/20 border border-primary/30 dark:border-primary/50 rounded-md">
+          <h3 className="text-sm font-medium text-primary-dark dark:text-primary-light mb-1">What are Departments?</h3>
+          <p className="text-sm text-primary-dark dark:text-primary-light/80">
             Departments are pre-configured multi-agent workflows that coordinate multiple AI agents to
             tackle complex tasks. Each department requires specific agent roles and follows a structured
             workflow to deliver comprehensive results.
@@ -149,27 +149,27 @@ export default function DepartmentsPage() {
             })}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-            <p className="text-gray-600">No departments available</p>
+          <div className="text-center py-12 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <p className="text-neutral-600 dark:text-neutral-400">No departments available</p>
           </div>
         )}
 
         {/* Getting Started Guide */}
         {agents.length === 0 && (
-          <div className="mt-8 p-6 bg-white border border-gray-200 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Getting Started</h3>
-            <p className="text-gray-600 mb-4">
+          <div className="mt-8 p-6 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50 mb-3">Getting Started</h3>
+            <p className="text-neutral-600 dark:text-neutral-400 mb-4">
               To use departments, you need to create agents with specific roles. Here&apos;s how:
             </p>
-            <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-              <li>Go to the <Link href="/agents" className="text-blue-600 hover:underline">Agents page</Link></li>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-neutral-700 dark:text-neutral-300">
+              <li>Go to the <Link href="/agents" className="text-primary hover:text-primary-dark dark:hover:text-primary-light underline">Agents page</Link></li>
               <li>Create agents with the required roles (researcher, strategist, critic, ideator)</li>
               <li>Return here to run department workflows</li>
             </ol>
             <div className="mt-6">
               <Link
                 href="/agents"
-                className="inline-block px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
+                className="inline-block px-6 py-3 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors font-medium"
               >
                 Create Your First Agent
               </Link>

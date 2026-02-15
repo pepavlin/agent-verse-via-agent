@@ -23,7 +23,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-dark via-secondary-dark to-accent-dark dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-cyan-600 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
       <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-neutral-800 backdrop-blur-sm rounded-lg shadow-2xl border border-neutral-200 dark:border-primary/30">
         <h2 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-primary-dark to-accent">
           Welcome to AgentVerse

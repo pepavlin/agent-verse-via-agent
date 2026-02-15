@@ -1,38 +1,41 @@
 @import "tailwindcss";
 
 :root {
-  /* Light theme */
-  --background: #ffffff;
-  --foreground: #0f172a;
+  /* Light theme - Modern & Professional */
+  --background: #fafbfc;
+  --foreground: #0d1117;
 
-  /* Modern color palette */
-  --primary: #2563eb;      /* Blue 600 */
-  --primary-light: #3b82f6; /* Blue 500 */
-  --primary-dark: #1e40af;  /* Blue 700 */
+  /* Modern Primary Color - Deep Indigo (professional tech look) */
+  --primary: #4f46e5;        /* Indigo 600 */
+  --primary-light: #6366f1;  /* Indigo 500 */
+  --primary-dark: #4338ca;   /* Indigo 700 */
 
-  --secondary: #7c3aed;    /* Violet 600 */
-  --secondary-light: #a78bfa; /* Violet 400 */
-  --secondary-dark: #6d28d9; /* Violet 700 */
+  /* Modern Secondary Color - Purple (creative/ai feel) */
+  --secondary: #9333ea;      /* Purple 600 */
+  --secondary-light: #a855f7; /* Purple 500 */
+  --secondary-dark: #7e22ce;  /* Purple 700 */
 
-  --accent: #06b6d4;       /* Cyan 500 */
-  --accent-light: #22d3ee;  /* Cyan 400 */
-  --accent-dark: #0891b2;   /* Cyan 700 */
+  /* Modern Accent Color - Cyan (modern tech) */
+  --accent: #0891b2;         /* Cyan 700 */
+  --accent-light: #06b6d4;   /* Cyan 600 */
+  --accent-dark: #0e7490;    /* Cyan 800 */
 
-  --success: #10b981;      /* Emerald 500 */
-  --warning: #f59e0b;      /* Amber 500 */
-  --danger: #ef4444;       /* Red 500 */
+  /* Semantic Colors */
+  --success: #059669;        /* Emerald 600 */
+  --warning: #d97706;        /* Amber 600 */
+  --danger: #dc2626;         /* Red 600 */
 
-  /* Neutral grays */
-  --neutral-50: #f9fafb;   /* Gray 50 */
-  --neutral-100: #f3f4f6;  /* Gray 100 */
-  --neutral-200: #e5e7eb;  /* Gray 200 */
-  --neutral-300: #d1d5db;  /* Gray 300 */
-  --neutral-400: #9ca3af;  /* Gray 400 */
-  --neutral-500: #6b7280;  /* Gray 500 */
-  --neutral-600: #4b5563;  /* Gray 600 */
-  --neutral-700: #374151;  /* Gray 700 */
-  --neutral-800: #1f2937;  /* Gray 800 */
-  --neutral-900: #111827;  /* Gray 900 */
+  /* Neutral grays - Modern minimalist palette */
+  --neutral-50: #f8fafc;     /* Slate 50 */
+  --neutral-100: #f1f5f9;    /* Slate 100 */
+  --neutral-200: #e2e8f0;    /* Slate 200 */
+  --neutral-300: #cbd5e1;    /* Slate 300 */
+  --neutral-400: #94a3b8;    /* Slate 400 */
+  --neutral-500: #64748b;    /* Slate 500 */
+  --neutral-600: #475569;    /* Slate 600 */
+  --neutral-700: #334155;    /* Slate 700 */
+  --neutral-800: #1e293b;    /* Slate 800 */
+  --neutral-900: #0f172a;    /* Slate 900 */
 }
 
 @theme inline {
