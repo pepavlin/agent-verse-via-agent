@@ -40,11 +40,14 @@ export default function GamePage() {
   useEffect(() => {
     const currentUser = simpleAuth.getUser()
     if (!currentUser) {
-      router.push('/login')
+      void router.push('/login')
     } else {
-      setUser(currentUser)
-      setLoading(false)
-      fetchAgents()
+      // Use Promise to defer state updates to next microtask
+      Promise.resolve().then(() => {
+        setUser(currentUser)
+        setLoading(false)
+        void fetchAgents()
+      })
     }
   }, [router, fetchAgents])
 

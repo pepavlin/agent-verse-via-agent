@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
@@ -77,19 +77,19 @@ class ValidatingPrismaClient {
   get message() {
     const originalMessage = this.client.message
     return {
-      create: async (args: any) => {
+      create: async (args: Prisma.MessageCreateArgs) => {
         // Validate message content
         if (args.data?.content === '') {
           throw new Error('Message content cannot be empty')
         }
         return originalMessage.create(args)
       },
-      findUnique: (args: any) => originalMessage.findUnique(args),
-      findMany: (args: any) => originalMessage.findMany(args),
-      update: (args: any) => originalMessage.update(args),
-      delete: (args: any) => originalMessage.delete(args),
-      deleteMany: (args: any) => originalMessage.deleteMany(args),
-      count: (args: any) => originalMessage.count(args),
+      findUnique: (args: Prisma.MessageFindUniqueArgs) => originalMessage.findUnique(args),
+      findMany: (args: Prisma.MessageFindManyArgs) => originalMessage.findMany(args),
+      update: (args: Prisma.MessageUpdateArgs) => originalMessage.update(args),
+      delete: (args: Prisma.MessageDeleteArgs) => originalMessage.delete(args),
+      deleteMany: (args: Prisma.MessageDeleteManyArgs) => originalMessage.deleteMany(args),
+      count: (args: Prisma.MessageCountArgs) => originalMessage.count(args),
     }
   }
 
@@ -102,4 +102,7 @@ class ValidatingPrismaClient {
   }
 }
 
-export const prisma = new ValidatingPrismaClient() as any
+export const prisma = new ValidatingPrismaClient() as ValidatingPrismaClient & {
+  $disconnect: () => Promise<void>
+  $transaction: PrismaClient['$transaction']
+}

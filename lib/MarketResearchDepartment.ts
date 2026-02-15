@@ -90,7 +90,7 @@ export class MarketResearchDepartment extends Department {
     const enhancedQuery = this.buildEnhancedQuery(marketQuery, options)
 
     // Execute the workflow
-    return await this.execute(enhancedQuery, context, false)
+    return await this.execute(enhancedQuery, context)
   }
 
   /**

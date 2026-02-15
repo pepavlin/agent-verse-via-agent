@@ -174,7 +174,8 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
 
   // Fetch agents on mount
   useEffect(() => {
-    fetchAgents()
+    // Use Promise to defer state update to next microtask
+    Promise.resolve().then(() => fetchAgents())
   }, [fetchAgents])
 
   // Animation loop

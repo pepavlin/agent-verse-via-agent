@@ -4,9 +4,7 @@ import {
   Task,
   AgentExecutionResult,
   AgentStatus,
-  Department,
   AgentMessage,
-  MessageQueue,
   UserQuery,
   UserInteractionRequest,
 } from '@/types'
