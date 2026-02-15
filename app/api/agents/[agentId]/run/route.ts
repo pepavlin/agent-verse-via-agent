@@ -105,7 +105,7 @@ export async function POST(
     if (result.success && result.result) {
       await prisma.message.create({
         data: {
-          content: result.result,
+          content: String(result.result),
           role: 'assistant',
           agentId: agent.id
         }

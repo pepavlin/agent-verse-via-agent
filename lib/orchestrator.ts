@@ -1,6 +1,22 @@
-import { Agent, Message, Task, AgentExecutionResult, AgentMessage, UserQuery, UserInteractionRequest } from "@/types"
-import { BaseAgent } from "@/app/agents/BaseAgent"
-import { ResearcherAgent, StrategistAgent, CriticAgent, IdeatorAgent } from "@/app/agents"
+import {
+  Agent,
+  Message,
+  Task,
+  AgentExecutionResult,
+  AgentStatus,
+  Department,
+  AgentMessage,
+  MessageQueue,
+  UserQuery,
+  UserInteractionRequest,
+} from '@/types'
+import { BaseAgent } from '@/app/agents/BaseAgent'
+import {
+  ResearcherAgent,
+  StrategistAgent,
+  CriticAgent,
+  IdeatorAgent,
+} from '@/app/agents'
 
 /**
  * AgentOrchestrator - Manages communication and coordination between multiple agents
@@ -93,11 +109,14 @@ export class AgentOrchestrator {
 
       // Pass successful output to next agent
       if (result.success && result.result) {
-        currentInput = result.result
+        currentInput = String(result.result)
         // Accumulate context
         currentContext = {
           ...currentContext,
-          previousResults: [...(currentContext.previousResults || []), result]
+          previousResults: [
+            ...((currentContext.previousResults as unknown[]) || []),
+            result,
+          ],
         }
       } else {
         // Stop pipeline on failure
@@ -117,7 +136,7 @@ export class AgentOrchestrator {
     input: string,
     context?: Record<string, unknown>
   ): Promise<AgentExecutionResult[]> {
-    const promises = agentIds.map(agentId => {
+    const promises = agentIds.map((agentId) => {
       const agent = this.agents.get(agentId)
 
       if (!agent) {
@@ -154,7 +173,13 @@ export class AgentOrchestrator {
     critique?: AgentExecutionResult
     finalOutput: string
   }> {
-    const workflow: Record<string, unknown> = {}
+    const workflow: {
+      research?: AgentExecutionResult
+      ideas?: AgentExecutionResult
+      strategy?: AgentExecutionResult
+      critique?: AgentExecutionResult
+      finalOutput?: string
+    } = {}
 
     // Phase 1: Research (if researcher available)
     if (agents.researcher) {
@@ -205,22 +230,27 @@ export class AgentOrchestrator {
           ...context,
           research: workflow.research,
           ideas: workflow.ideas,
-          strategy: workflow.strategy
+          strategy: workflow.strategy,
         }
       )
       workflow.critique = critiqueResult
     }
 
     // Compile final output
-    workflow.finalOutput = this.compileWorkflowOutput(workflow)
+    const finalOutput = this.compileWorkflowOutput(workflow)
 
-    return workflow
+    return { ...workflow, finalOutput }
   }
 
   /**
    * Compile workflow results into a cohesive output
    */
-  private compileWorkflowOutput(workflow: Record<string, unknown>): string {
+  private compileWorkflowOutput(workflow: {
+    research?: AgentExecutionResult
+    ideas?: AgentExecutionResult
+    strategy?: AgentExecutionResult
+    critique?: AgentExecutionResult
+  }): string {
     const sections: string[] = []
 
     if (workflow.research?.result) {
@@ -249,7 +279,7 @@ export class AgentOrchestrator {
     const targetAgentId = message.metadata?.toAgent
 
     if (!targetAgentId) {
-      throw new Error("Message must have a target agent (metadata.toAgent)")
+      throw new Error('Message must have a target agent (metadata.toAgent)')
     }
 
     const agent = this.agents.get(targetAgentId)
@@ -265,7 +295,7 @@ export class AgentOrchestrator {
    * Get status of all registered agents
    */
   getAllAgentStatuses() {
-    const statuses: Record<string, unknown>[] = []
+    const statuses: AgentStatus[] = []
 
     this.agents.forEach((agent) => {
       statuses.push(agent.getStatus())
@@ -301,7 +331,9 @@ export class AgentOrchestrator {
   /**
    * Set callback for user interactions
    */
-  setUserQueryCallback(callback: (query: UserInteractionRequest) => Promise<string>): void {
+  setUserQueryCallback(
+    callback: (query: UserInteractionRequest) => Promise<string>
+  ): void {
     this.userQueryCallback = callback
   }
 
@@ -331,7 +363,7 @@ export class AgentOrchestrator {
       agentName: agentInfo.name,
       question,
       context,
-      timeout: 300000 // 5 minutes default
+      timeout: 300000, // 5 minutes default
     }
 
     // Store pending query
@@ -344,7 +376,7 @@ export class AgentOrchestrator {
       context,
       status: 'pending',
       createdAt: new Date(),
-      timeoutAt: new Date(Date.now() + (query.timeout || 300000))
+      timeoutAt: new Date(Date.now() + (query.timeout || 300000)),
     }
     this.pendingUserQueries.set(queryId, userQuery)
 
@@ -378,7 +410,7 @@ export class AgentOrchestrator {
       content,
       metadata,
       status: 'sent',
-      createdAt: new Date()
+      createdAt: new Date(),
     }
 
     // Add to recipient's message queue
@@ -407,7 +439,7 @@ export class AgentOrchestrator {
     this.agentMessageQueues.set(agentId, [])
 
     // Mark messages as read
-    messages.forEach(msg => {
+    messages.forEach((msg) => {
       msg.status = 'read'
       msg.readAt = new Date()
     })
@@ -434,7 +466,12 @@ export class AgentOrchestrator {
     const messages: AgentMessage[] = []
 
     for (const toAgentId of targetAgentIds) {
-      const message = await this.sendAgentMessage(fromAgentId, toAgentId, content, metadata)
+      const message = await this.sendAgentMessage(
+        fromAgentId,
+        toAgentId,
+        content,
+        metadata
+      )
       messages.push(message)
     }
 
@@ -452,7 +489,7 @@ export class AgentOrchestrator {
       status[agentId] = {
         agentName: agent?.getInfo().name || 'Unknown',
         pendingMessages: messages.length,
-        lastMessage: messages.length > 0 ? messages[messages.length - 1] : null
+        lastMessage: messages.length > 0 ? messages[messages.length - 1] : null,
       }
     })
 

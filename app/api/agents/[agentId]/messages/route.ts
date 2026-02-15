@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import type { Message } from "@prisma/client"
 import Anthropic from "@anthropic-ai/sdk"
 import {
   handleApiError,
@@ -13,6 +13,7 @@ import {
   IdeatorAgent,
 } from "@/app/agents"
 import type { BaseAgent } from "@/app/agents/BaseAgent"
+import type { Agent } from "@/types"
 import {
   SendMessageSchema,
   validateSchema,
@@ -37,11 +38,11 @@ function getAgentInstance(
   if (!agent.role) {
     return null
   }
-  const config: Record<string, unknown> = {
+  const config: Agent = {
     id: agent.id,
     name: agent.name,
     model: agent.model,
-    role: agent.role,
+    role: agent.role as Agent['role'],
     personality: agent.personality,
     specialization: agent.specialization,
     description: null,
@@ -340,13 +341,13 @@ export async function POST(
       })
 
       // Convert message history to the format expected by BaseAgent
-      const messageHistory = agent.messages.map((msg: Prisma.MessageGetPayload<object>) => ({
+      const messageHistory = agent.messages.map((msg: Message) => ({
         role: msg.role as "user" | "assistant" | "system",
         content: msg.content,
       }))
 
       const result = await agentInstance.execute(message, { messages: messageHistory })
-      assistantResponse = result.result || ''
+      assistantResponse = String(result.result || '')
     } else {
       // Fallback to direct Claude API call with role-specific system prompt
       console.log("[USING_DIRECT_API]", {
@@ -357,7 +358,7 @@ export async function POST(
       const systemPrompt = getRoleSystemPrompt(agent.role || 'executor', agent.personality)
 
       // Prepare conversation history
-      const conversationHistory = agent.messages.map((msg: Prisma.MessageGetPayload<object>) => ({
+      const conversationHistory = agent.messages.map((msg: Message) => ({
         role: msg.role as "user" | "assistant",
         content: msg.content,
       }))

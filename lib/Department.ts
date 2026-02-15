@@ -176,7 +176,8 @@ export class Department {
 
         try {
           // Prepare input for this step (includes previous step output)
-          const stepInput = i === 0 ? workflowInput : steps[i - 1].output
+          const prevOutput = steps[i - 1]?.output
+          const stepInput = i === 0 ? workflowInput : (typeof prevOutput === 'string' ? prevOutput : JSON.stringify(prevOutput ?? ''))
 
           // Execute agent with context
           const result = await this.orchestrator.executeAgent(
@@ -193,7 +194,7 @@ export class Department {
             }
           )
 
-          step.output = result.result
+          step.output = result.result as Record<string, unknown> | undefined
           step.status = 'completed'
           step.completedAt = new Date()
 

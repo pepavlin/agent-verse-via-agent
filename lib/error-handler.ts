@@ -77,7 +77,7 @@ export function handleApiError(error: unknown, context?: string): NextResponse<E
     })
 
     // Handle Prisma errors (duck-typing for known request errors)
-    if ((error as Record<string, unknown>).code) {
+    if ((error as unknown as Record<string, unknown>).code) {
       return handlePrismaError(error as Error & { code?: string; meta?: unknown }, contextPrefix)
     }
 
@@ -178,8 +178,8 @@ function handlePrismaError(
   error: Error & { code?: string; meta?: unknown },
   contextPrefix: string
 ): NextResponse<ErrorResponse> {
-  const code = (error as Record<string, unknown>).code
-  const meta = (error as Record<string, unknown>).meta
+  const code = error.code
+  const meta = error.meta
 
   console.error(`${contextPrefix}_PRISMA`, {
     code,
@@ -190,7 +190,7 @@ function handlePrismaError(
   switch (code) {
     case "P2002":
       // Unique constraint violation
-      const field = meta?.target as string[] | undefined
+      const field = (meta as Record<string, unknown> | undefined)?.target as string[] | undefined
       const fieldName = field?.[0] || "field"
       return createErrorResponse(
         ErrorType.VALIDATION,
