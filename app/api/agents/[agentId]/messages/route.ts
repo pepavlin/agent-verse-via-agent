@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import type { Prisma } from "@prisma/client"
 import Anthropic from "@anthropic-ai/sdk"
 import {
   handleApiError,
-  authenticationError,
-  validationError,
   notFoundError,
-  authorizationError,
 } from "@/lib/error-handler"
 import {
   ResearcherAgent,
@@ -23,12 +19,6 @@ import {
   validateSchema,
   formatZodErrors,
 } from "@/lib/validation"
-import {
-  applyRateLimit,
-  getRateLimitHeaders,
-  createRateLimitError,
-  RATE_LIMITS,
-} from "@/lib/rate-limit"
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -48,7 +38,7 @@ function getAgentInstance(
   if (!agent.role) {
     return null
   }
-  const config: any = {
+  const config: Record<string, unknown> = {
     id: agent.id,
     name: agent.name,
     model: agent.model,

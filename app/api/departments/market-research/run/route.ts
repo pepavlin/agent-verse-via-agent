@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
  * GET /api/departments/market-research/run
  * Get information about the market research department
  */
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await auth()
 

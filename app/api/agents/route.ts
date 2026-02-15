@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { handleApiError, authenticationError, validationError } from "@/lib/error-handler"
+import { handleApiError } from "@/lib/error-handler"
 import { CreateAgentSchema, validateSchema, formatZodErrors } from "@/lib/validation"
-import {
-  applyRateLimit,
-  getRateLimitHeaders,
-  createRateLimitError,
-  RATE_LIMITS,
-} from "@/lib/rate-limit"
 
 export async function GET() {
   try {

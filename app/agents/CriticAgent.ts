@@ -28,7 +28,7 @@ As a Critic, you should:
 Your criticism should be honest, fair, and focused on improvement rather than just finding fault.`
   }
 
-  protected async processTask(input: string, context?: any): Promise<string> {
+  protected async processTask(input: string, context?: Record<string, unknown>): Promise<string> {
     // Add critic-specific context
     const enhancedInput = `Critical Evaluation Task: ${input}
 

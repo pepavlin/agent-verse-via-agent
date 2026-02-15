@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { simpleAuth } from '@/lib/simple-auth'
 import Link from 'next/link'
@@ -49,24 +49,7 @@ export default function AgentChatPage() {
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const user = simpleAuth.getUser()
-    if (!user) {
-      router.push('/login')
-    } else if (agentId) {
-      fetchAgent()
-    }
-  }, [router, agentId])
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  const fetchAgent = async () => {
+  const fetchAgent = useCallback(async () => {
     try {
       const response = await fetch(`/api/agents/${agentId}`)
       if (response.ok) {
@@ -82,6 +65,23 @@ export default function AgentChatPage() {
     } finally {
       setLoading(false)
     }
+  }, [agentId, router])
+
+  useEffect(() => {
+    const user = simpleAuth.getUser()
+    if (!user) {
+      router.push('/login')
+    } else if (agentId) {
+      fetchAgent()
+    }
+  }, [router, agentId, fetchAgent])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   const handleSendMessage = async (e: React.FormEvent) => {

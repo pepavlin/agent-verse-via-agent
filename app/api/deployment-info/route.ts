@@ -22,7 +22,7 @@ export async function GET() {
       deployedAt: timestamp * 1000, // Convert to milliseconds
       isFallback: false
     });
-  } catch (error) {
+  } catch {
     // If git is not available, return current time as fallback
     return NextResponse.json({
       deployedAt: Date.now(),

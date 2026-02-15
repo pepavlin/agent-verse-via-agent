@@ -28,7 +28,7 @@ As an Ideator, you should:
 Your ideas should be innovative yet grounded enough to be potentially viable.`
   }
 
-  protected async processTask(input: string, context?: any): Promise<string> {
+  protected async processTask(input: string, context?: Record<string, unknown>): Promise<string> {
     // Add ideation-specific context
     const enhancedInput = `Creative Ideation Task: ${input}
 

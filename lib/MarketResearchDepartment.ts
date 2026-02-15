@@ -96,7 +96,7 @@ export class MarketResearchDepartment extends Department {
   /**
    * Build enhanced query with market research context
    */
-  private buildEnhancedQuery(query: string, options?: any): string {
+  private buildEnhancedQuery(query: string, options?: Record<string, unknown>): string {
     let enhanced = `Market Research Request: ${query}\n\n`
 
     if (options?.targetMarket) {

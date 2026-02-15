@@ -44,7 +44,7 @@ export default function GamePage() {
     } else {
       setUser(currentUser)
       setLoading(false)
-      void fetchAgents()
+      fetchAgents()
     }
   }, [router, fetchAgents])
 

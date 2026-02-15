@@ -77,8 +77,8 @@ export function handleApiError(error: unknown, context?: string): NextResponse<E
     })
 
     // Handle Prisma errors (duck-typing for known request errors)
-    if ((error as any).code) {
-      return handlePrismaError(error as any, contextPrefix)
+    if ((error as Record<string, unknown>).code) {
+      return handlePrismaError(error as Error & { code?: string; meta?: unknown }, contextPrefix)
     }
 
     // Check for Prisma validation errors by name
@@ -175,11 +175,11 @@ export function handleApiError(error: unknown, context?: string): NextResponse<E
 
 // Handle Prisma-specific errors
 function handlePrismaError(
-  error: Error & { code?: string; meta?: any },
+  error: Error & { code?: string; meta?: unknown },
   contextPrefix: string
 ): NextResponse<ErrorResponse> {
-  const code = (error as any).code
-  const meta = (error as any).meta
+  const code = (error as Record<string, unknown>).code
+  const meta = (error as Record<string, unknown>).meta
 
   console.error(`${contextPrefix}_PRISMA`, {
     code,

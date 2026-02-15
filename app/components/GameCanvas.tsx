@@ -174,7 +174,7 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
 
   // Fetch agents on mount
   useEffect(() => {
-    void fetchAgents()
+    fetchAgents()
   }, [fetchAgents])
 
   // Animation loop
