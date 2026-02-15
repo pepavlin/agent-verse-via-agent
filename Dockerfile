@@ -61,6 +61,9 @@ COPY --from=builder /app/node_modules/pg-* ./node_modules/
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
 
+# Copy valibot - required by Prisma 7 at runtime
+COPY --from=builder /app/node_modules/valibot ./node_modules/valibot
+
 # Copy startup script
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 
