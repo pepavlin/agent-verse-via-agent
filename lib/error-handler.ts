@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server"
-import { Prisma } from "@prisma/client"
 
 // Check if we're in development mode
 const isDevelopment = process.env.NODE_ENV === "development"
@@ -77,12 +76,13 @@ export function handleApiError(error: unknown, context?: string): NextResponse<E
       timestamp: new Date().toISOString(),
     })
 
-    // Handle Prisma errors (both instanceof checks and duck-typing for mocked errors)
-    if (error instanceof Prisma.PrismaClientKnownRequestError || (error as any).code) {
+    // Handle Prisma errors (duck-typing for known request errors)
+    if ((error as any).code) {
       return handlePrismaError(error as any, contextPrefix)
     }
 
-    if (error instanceof Prisma.PrismaClientValidationError) {
+    // Check for Prisma validation errors by name
+    if (error.name === "PrismaClientValidationError") {
       console.error(`${contextPrefix}_PRISMA_VALIDATION`, error.message)
       return createErrorResponse(
         ErrorType.VALIDATION,
@@ -94,7 +94,8 @@ export function handleApiError(error: unknown, context?: string): NextResponse<E
       )
     }
 
-    if (error instanceof Prisma.PrismaClientInitializationError) {
+    // Check for Prisma initialization errors by name
+    if (error.name === "PrismaClientInitializationError") {
       console.error(`${contextPrefix}_PRISMA_INIT`, error.message)
       return createErrorResponse(
         ErrorType.DATABASE,
@@ -174,7 +175,7 @@ export function handleApiError(error: unknown, context?: string): NextResponse<E
 
 // Handle Prisma-specific errors
 function handlePrismaError(
-  error: Prisma.PrismaClientKnownRequestError | (Error & { code?: string; meta?: any }),
+  error: Error & { code?: string; meta?: any },
   contextPrefix: string
 ): NextResponse<ErrorResponse> {
   const code = (error as any).code

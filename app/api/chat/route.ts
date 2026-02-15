@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     })
 
     // Prepare conversation history for Claude
-    const conversationHistory = agent.messages.map(msg => ({
+    const conversationHistory = agent.messages.map((msg: any) => ({
       role: msg.role as 'user' | 'assistant',
       content: msg.content
     }))

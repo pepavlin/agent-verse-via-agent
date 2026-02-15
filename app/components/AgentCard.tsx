@@ -18,12 +18,12 @@ interface AgentCardProps {
 }
 
 const roleColors: Record<string, string> = {
-  researcher: 'bg-blue-100 text-blue-800',
-  strategist: 'bg-purple-100 text-purple-800',
-  critic: 'bg-orange-100 text-orange-800',
-  ideator: 'bg-green-100 text-green-800',
-  coordinator: 'bg-pink-100 text-pink-800',
-  executor: 'bg-indigo-100 text-indigo-800'
+  researcher: 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300',
+  strategist: 'bg-violet-100 dark:bg-violet-900/30 text-violet-900 dark:text-violet-300',
+  critic: 'bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-300',
+  ideator: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-300',
+  coordinator: 'bg-pink-100 dark:bg-pink-900/30 text-pink-900 dark:text-pink-300',
+  executor: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-300'
 }
 
 const roleIcons: Record<string, string> = {
@@ -50,23 +50,23 @@ export default function AgentCard({ agent, onDelete }: AgentCardProps) {
   return (
     <Link
       href={`/agents/${agent.id}`}
-      className="block p-6 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+      className="block p-6 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm hover:shadow-md dark:hover:shadow-lg transition-all hover:border-primary/50 dark:hover:border-primary-light/50"
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-xl font-semibold text-gray-900">{agent.name}</h3>
+            <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">{agent.name}</h3>
             {agent.role && (
               <span className={`px-2 py-1 text-xs font-medium rounded ${roleColor}`}>
                 {roleIcon} {agent.role.charAt(0).toUpperCase() + agent.role.slice(1)}
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-600 mb-3">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
             {agent.description || 'No description provided'}
           </p>
-          <div className="flex items-center gap-4 text-xs text-gray-500">
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+          <div className="flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
+            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 rounded">
               {agent.model.includes('sonnet') ? 'Sonnet' :
                agent.model.includes('opus') ? 'Opus' : 'Haiku'}
             </span>
@@ -83,7 +83,7 @@ export default function AgentCard({ agent, onDelete }: AgentCardProps) {
         </div>
         <button
           onClick={handleDelete}
-          className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+          className="ml-4 p-2 text-danger hover:bg-danger/10 dark:hover:bg-danger/20 rounded-md transition-colors"
           title="Delete agent"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

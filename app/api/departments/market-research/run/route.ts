@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 
     // Check if we have all required roles
     const requiredRoles = ['researcher', 'strategist', 'critic', 'ideator']
-    const availableRoles = new Set(agents.map(a => a.role))
+    const availableRoles = new Set(agents.map((a: any) => a.role))
     const missingRoles = requiredRoles.filter(role => !availableRoles.has(role))
 
     if (missingRoles.length > 0) {
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
           error: 'Missing required agents',
           message: `You need to create agents with the following roles: ${missingRoles.join(', ')}`,
           missingRoles,
-          availableAgents: agents.map(a => ({ id: a.id, name: a.name, role: a.role }))
+          availableAgents: agents.map((a: any) => ({ id: a.id, name: a.name, role: a.role }))
         },
         { status: 400 }
       )
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
         steps: result.steps,
         executionTime: result.executionTime,
         timestamp: result.timestamp,
-        agentsUsed: agents.map(a => ({
+        agentsUsed: agents.map((a: any) => ({
           id: a.id,
           name: a.name,
           role: a.role
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
     })
 
     const requiredRoles = ['researcher', 'strategist', 'critic', 'ideator']
-    const availableRoles = new Set(agents.map(a => a.role))
+    const availableRoles = new Set(agents.map((a: any) => a.role))
     const missingRoles = requiredRoles.filter(role => !availableRoles.has(role))
 
     // Create temporary department to get info
@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ...departmentInfo,
-      availableAgents: agents.map(a => ({
+      availableAgents: agents.map((a: any) => ({
         id: a.id,
         name: a.name,
         role: a.role,

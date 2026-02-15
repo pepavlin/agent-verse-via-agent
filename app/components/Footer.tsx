@@ -18,9 +18,9 @@ export default function Footer() {
   };
 
   return (
-    <footer className="mt-auto py-6 bg-white/50 backdrop-blur-sm border-t border-gray-200">
+    <footer className="mt-auto py-6 bg-white dark:bg-neutral-800/50 backdrop-blur-sm border-t border-neutral-200 dark:border-neutral-700">
       <div className="container mx-auto px-4">
-        <div className="text-center text-sm text-gray-600">
+        <div className="text-center text-sm text-neutral-600 dark:text-neutral-400">
           <p>Poslední deploy: {formatDate(buildTime)}</p>
         </div>
       </div>
