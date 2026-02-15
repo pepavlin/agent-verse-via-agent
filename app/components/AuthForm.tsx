@@ -57,18 +57,19 @@ export default function AuthForm({ mode }: AuthFormProps) {
           router.push('/dashboard')
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Enhanced error logging
       console.error('[AUTH_FORM_ERROR]', err)
+      const error = err instanceof Error ? err : new Error(String(err))
       console.error('[AUTH_FORM_ERROR_DETAILS]', {
-        message: err.message,
-        stack: err.stack,
-        name: err.name,
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
         mode,
         timestamp: new Date().toISOString()
       })
 
-      setError(err.message || 'Something went wrong')
+      setError(error.message || 'Something went wrong')
     } finally {
       setLoading(false)
     }
@@ -142,7 +143,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
       <p className="text-sm text-center text-gray-600">
         {mode === 'login' ? (
           <>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <a href="/register" className="text-blue-600 hover:underline">
               Sign up
             </a>

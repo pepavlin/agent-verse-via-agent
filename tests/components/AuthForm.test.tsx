@@ -31,7 +31,7 @@ describe('AuthForm Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(useRouter).mockReturnValue(mockRouter as any)
+    vi.mocked(useRouter).mockReturnValue(mockRouter as Record<string, unknown>)
     vi.mocked(fetch).mockClear()
   })
 
@@ -82,7 +82,7 @@ describe('AuthForm Component', () => {
         error: null,
         status: 200,
         url: null,
-      } as any)
+      } as Record<string, unknown>)
 
       const user = userEvent.setup()
       render(<AuthForm mode="register" />)
@@ -202,7 +202,7 @@ describe('AuthForm Component', () => {
         json: async () => ({ user: { id: '1' } }),
       } as Response)
 
-      vi.mocked(signIn).mockResolvedValueOnce({ ok: true } as any)
+      vi.mocked(signIn).mockResolvedValueOnce({ ok: true } as Record<string, unknown>)
 
       await user.clear(screen.getByLabelText('Email'))
       await user.type(screen.getByLabelText('Email'), 'valid@example.com')
@@ -219,7 +219,7 @@ describe('AuthForm Component', () => {
         json: async () => ({ user: { id: '1' } }),
       } as Response)
 
-      vi.mocked(signIn).mockResolvedValueOnce({ ok: true } as any)
+      vi.mocked(signIn).mockResolvedValueOnce({ ok: true } as Record<string, unknown>)
 
       const user = userEvent.setup()
       render(<AuthForm mode="register" />)
@@ -259,7 +259,7 @@ describe('AuthForm Component', () => {
         error: null,
         status: 200,
         url: null,
-      } as any)
+      } as Record<string, unknown>)
 
       const user = userEvent.setup()
       render(<AuthForm mode="login" />)
@@ -287,7 +287,7 @@ describe('AuthForm Component', () => {
         error: 'Invalid credentials',
         status: 401,
         url: null,
-      } as any)
+      } as Record<string, unknown>)
 
       const user = userEvent.setup()
       render(<AuthForm mode="login" />)
@@ -302,7 +302,7 @@ describe('AuthForm Component', () => {
     })
 
     it('should not call register API in login mode', async () => {
-      vi.mocked(signIn).mockResolvedValueOnce({ ok: true } as any)
+      vi.mocked(signIn).mockResolvedValueOnce({ ok: true } as Record<string, unknown>)
 
       const user = userEvent.setup()
       render(<AuthForm mode="login" />)

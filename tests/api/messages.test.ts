@@ -8,8 +8,8 @@ import bcrypt from "bcryptjs"
  */
 
 describe("/api/agents/[agentId]/messages API", () => {
-  let testUser: any
-  let testAgent: any
+  let testUser: Record<string, unknown>
+  let testAgent: Record<string, unknown>
   const testPassword = "password123"
 
   beforeAll(async () => {

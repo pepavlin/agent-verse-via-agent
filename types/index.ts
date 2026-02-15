@@ -107,7 +107,7 @@ export interface AgentExecutionResult {
   agentId: string
   taskId?: string
   success: boolean
-  result?: any
+  result?: unknown
   error?: string
   executionTime: number
   timestamp: Date
@@ -126,8 +126,8 @@ export interface DepartmentWorkflow {
   description: string
   steps: WorkflowStep[]
   status: WorkflowStatus
-  input?: any
-  output?: any
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
   createdAt: Date
   updatedAt: Date
   completedAt?: Date
@@ -138,8 +138,8 @@ export interface WorkflowStep {
   agentRole: AgentRole
   agentId?: string
   description: string
-  input?: any
-  output?: any
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
   startedAt?: Date
   completedAt?: Date
@@ -160,7 +160,7 @@ export interface UserQuery {
   workflowId: string
   agentId: string
   question: string
-  context?: any
+  context?: Record<string, unknown>
   answer?: string
   status: 'pending' | 'answered' | 'timeout'
   createdAt: Date
@@ -173,7 +173,7 @@ export interface UserInteractionRequest {
   agentId: string
   agentName: string
   question: string
-  context?: any
+  context?: Record<string, unknown>
   timeout?: number
 }
 
@@ -208,7 +208,7 @@ export interface MessageQueue {
 export interface DepartmentExecutionRequest {
   departmentId: string
   input: string
-  context?: any
+  context?: Record<string, unknown>
   userId: string
   options?: DepartmentExecutionOptions
 }
@@ -224,7 +224,7 @@ export interface DepartmentExecutionResult {
   workflowId: string
   departmentId: string
   success: boolean
-  result?: any
+  result?: unknown
   error?: string
   steps: WorkflowStep[]
   userQueries?: UserQuery[]

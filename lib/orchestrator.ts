@@ -57,7 +57,7 @@ export class AgentOrchestrator {
   async executeAgent(
     agentId: string,
     input: string,
-    context?: any
+    context?: Record<string, unknown>
   ): Promise<AgentExecutionResult> {
     const agent = this.agents.get(agentId)
 
@@ -75,7 +75,7 @@ export class AgentOrchestrator {
   async executePipeline(
     agentIds: string[],
     initialInput: string,
-    context?: any
+    context?: Record<string, unknown>
   ): Promise<AgentExecutionResult[]> {
     const results: AgentExecutionResult[] = []
     let currentInput = initialInput
@@ -115,7 +115,7 @@ export class AgentOrchestrator {
   async executeParallel(
     agentIds: string[],
     input: string,
-    context?: any
+    context?: Record<string, unknown>
   ): Promise<AgentExecutionResult[]> {
     const promises = agentIds.map(agentId => {
       const agent = this.agents.get(agentId)
@@ -146,7 +146,7 @@ export class AgentOrchestrator {
       critic?: string
     },
     task: string,
-    context?: any
+    context?: Record<string, unknown>
   ): Promise<{
     research?: AgentExecutionResult
     ideas?: AgentExecutionResult
@@ -154,7 +154,7 @@ export class AgentOrchestrator {
     critique?: AgentExecutionResult
     finalOutput: string
   }> {
-    const workflow: any = {}
+    const workflow: Record<string, unknown> = {}
 
     // Phase 1: Research (if researcher available)
     if (agents.researcher) {
@@ -220,7 +220,7 @@ export class AgentOrchestrator {
   /**
    * Compile workflow results into a cohesive output
    */
-  private compileWorkflowOutput(workflow: any): string {
+  private compileWorkflowOutput(workflow: Record<string, unknown>): string {
     const sections: string[] = []
 
     if (workflow.research?.result) {
@@ -265,9 +265,9 @@ export class AgentOrchestrator {
    * Get status of all registered agents
    */
   getAllAgentStatuses() {
-    const statuses: any[] = []
+    const statuses: Array<Record<string, unknown>> = []
 
-    this.agents.forEach((agent, agentId) => {
+    this.agents.forEach((agent) => {
       statuses.push(agent.getStatus())
     })
 
@@ -278,9 +278,9 @@ export class AgentOrchestrator {
    * Get information about all registered agents
    */
   getRegisteredAgents() {
-    const agentInfo: any[] = []
+    const agentInfo: Array<Record<string, unknown>> = []
 
-    this.agents.forEach((agent, agentId) => {
+    this.agents.forEach((agent) => {
       agentInfo.push(agent.getInfo())
     })
 
@@ -312,7 +312,7 @@ export class AgentOrchestrator {
     workflowId: string,
     agentId: string,
     question: string,
-    context?: any
+    context?: Record<string, unknown>
   ): Promise<string> {
     if (!this.userQueryCallback) {
       throw new Error('User query callback not set. Cannot request user input.')
@@ -369,7 +369,7 @@ export class AgentOrchestrator {
     fromAgentId: string,
     toAgentId: string,
     content: string,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<AgentMessage> {
     const message: AgentMessage = {
       id: `msg-${Date.now()}-${Math.random()}`,
@@ -429,7 +429,7 @@ export class AgentOrchestrator {
     fromAgentId: string,
     targetAgentIds: string[],
     content: string,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<AgentMessage[]> {
     const messages: AgentMessage[] = []
 
@@ -445,7 +445,7 @@ export class AgentOrchestrator {
    * Get message queue status
    */
   getMessageQueueStatus() {
-    const status: any = {}
+    const status: Record<string, unknown> = {}
 
     this.agentMessageQueues.forEach((messages, agentId) => {
       const agent = this.agents.get(agentId)

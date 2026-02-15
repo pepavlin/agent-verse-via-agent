@@ -28,7 +28,7 @@ As a Researcher, you should:
 Your research should be thorough, objective, and well-organized.`
   }
 
-  protected async processTask(input: string, context?: any): Promise<string> {
+  protected async processTask(input: string, context?: Record<string, unknown>): Promise<string> {
     // Add research-specific context
     const enhancedInput = `Research Task: ${input}
 

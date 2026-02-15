@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { handleApiError, authenticationError, notFoundError } from "@/lib/error-handler"
+import { handleApiError, notFoundError } from "@/lib/error-handler"
 
 export async function GET(
   request: Request,

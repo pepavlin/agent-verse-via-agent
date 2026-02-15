@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { simpleAuth, SimpleUser } from '@/lib/simple-auth'
 import GameCanvas from '../components/GameCanvas'
@@ -25,18 +25,7 @@ export default function GamePage() {
   const [showAgentList, setShowAgentList] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
-  useEffect(() => {
-    const currentUser = simpleAuth.getUser()
-    if (!currentUser) {
-      router.push('/login')
-    } else {
-      setUser(currentUser)
-      setLoading(false)
-      fetchAgents()
-    }
-  }, [router])
-
-  const fetchAgents = async () => {
+  const fetchAgents = useCallback(async () => {
     try {
       const response = await fetch('/api/agents')
       if (response.ok) {
@@ -46,7 +35,18 @@ export default function GamePage() {
     } catch (error) {
       console.error('Failed to fetch agents:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const currentUser = simpleAuth.getUser()
+    if (!currentUser) {
+      router.push('/login')
+    } else {
+      setUser(currentUser)
+      setLoading(false)
+      fetchAgents()
+    }
+  }, [router, fetchAgents])
 
   const handleLogout = () => {
     simpleAuth.logout()

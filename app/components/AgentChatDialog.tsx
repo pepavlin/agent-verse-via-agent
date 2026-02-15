@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface Agent {
   id: string
@@ -31,6 +31,24 @@ export default function AgentChatDialog({ agent, onClose }: AgentChatDialogProps
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const loadChatHistory = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/agents/${agent.id}/messages`)
+      if (response.ok) {
+        const data = await response.json()
+        const formattedMessages = data.map((msg: Record<string, unknown>) => ({
+          id: msg.id,
+          content: msg.content,
+          role: msg.role,
+          timestamp: new Date(msg.createdAt as string)
+        }))
+        setMessages(formattedMessages)
+      }
+    } catch (error) {
+      console.error('Failed to load chat history:', error)
+    }
+  }, [agent.id])
+
   useEffect(() => {
     scrollToBottom()
   }, [messages])
@@ -38,25 +56,7 @@ export default function AgentChatDialog({ agent, onClose }: AgentChatDialogProps
   useEffect(() => {
     // Load chat history
     loadChatHistory()
-  }, [agent.id])
-
-  const loadChatHistory = async () => {
-    try {
-      const response = await fetch(`/api/agents/${agent.id}/messages`)
-      if (response.ok) {
-        const data = await response.json()
-        const formattedMessages = data.map((msg: any) => ({
-          id: msg.id,
-          content: msg.content,
-          role: msg.role,
-          timestamp: new Date(msg.createdAt)
-        }))
-        setMessages(formattedMessages)
-      }
-    } catch (error) {
-      console.error('Failed to load chat history:', error)
-    }
-  }
+  }, [agent.id, loadChatHistory])
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return

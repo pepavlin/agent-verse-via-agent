@@ -72,8 +72,9 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
       setSize(20)
       onSuccess()
       onClose()
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong')
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      setError(error.message || 'Something went wrong')
     } finally {
       setLoading(false)
     }

@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
 import Anthropic from "@anthropic-ai/sdk"
-import { handleApiError, authenticationError, validationError, notFoundError } from "@/lib/error-handler"
+import { handleApiError, validationError } from "@/lib/error-handler"
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,

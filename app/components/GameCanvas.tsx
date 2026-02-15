@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Agent {
@@ -46,19 +46,14 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
   const WORLD_HEIGHT = 1500
   const AGENT_RADIUS = 20
 
-  // Fetch agents from API
-  useEffect(() => {
-    fetchAgents()
-  }, [])
-
-  const fetchAgents = async () => {
+  const fetchAgents = useCallback(async () => {
     try {
       const response = await fetch('/api/agents')
       if (response.ok) {
         const data = await response.json()
 
         // Convert agents to game entities with random positions and velocities
-        const gameAgents: Agent[] = data.map((agent: any, index: number) => {
+        const gameAgents: Agent[] = data.map((agent: Record<string, unknown>, index: number) => {
           const speed = 0.5 + Math.random() * 1.5 // Random speed between 0.5 and 2.0
           const angle = Math.random() * Math.PI * 2
           return {
@@ -85,124 +80,9 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
     } catch (error) {
       console.error('Failed to fetch agents:', error)
     }
-  }
+  }, [])
 
-  // Animation loop
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const animate = () => {
-      // Update canvas size
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
-
-      // Clear canvas
-      ctx.fillStyle = '#0a0a0f'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-      // Draw grid
-      drawGrid(ctx, canvas.width, canvas.height)
-
-      // Update and draw agents
-      setAgents(prevAgents => {
-        const updatedAgents = prevAgents.map(agent => {
-          let newAgent = { ...agent }
-
-          // Handle pause state
-          if (newAgent.isPaused) {
-            newAgent.pauseTimer++
-            if (newAgent.pauseTimer >= newAgent.maxPauseTime) {
-              // Resume movement with new random direction
-              newAgent.isPaused = false
-              newAgent.pauseTimer = 0
-              const angle = Math.random() * Math.PI * 2
-              newAgent.vx = Math.cos(angle) * newAgent.speed
-              newAgent.vy = Math.sin(angle) * newAgent.speed
-            }
-            return newAgent
-          }
-
-          // Random chance to pause (1% per frame)
-          if (Math.random() < 0.01) {
-            newAgent.isPaused = true
-            newAgent.pauseTimer = 0
-            return newAgent
-          }
-
-          // Random direction change (0.5% per frame)
-          newAgent.directionChangeTimer++
-          if (newAgent.directionChangeTimer > 60 && Math.random() < 0.005) {
-            const angle = Math.random() * Math.PI * 2
-            newAgent.vx = Math.cos(angle) * newAgent.speed
-            newAgent.vy = Math.sin(angle) * newAgent.speed
-            newAgent.directionChangeTimer = 0
-          }
-
-          // Update position
-          let newX = newAgent.x + newAgent.vx
-          let newY = newAgent.y + newAgent.vy
-          let newVx = newAgent.vx
-          let newVy = newAgent.vy
-
-          // Bounce off walls
-          if (newX < newAgent.radius || newX > WORLD_WIDTH - newAgent.radius) {
-            newVx = -newVx
-            newX = Math.max(newAgent.radius, Math.min(WORLD_WIDTH - newAgent.radius, newX))
-          }
-          if (newY < newAgent.radius || newY > WORLD_HEIGHT - newAgent.radius) {
-            newVy = -newVy
-            newY = Math.max(newAgent.radius, Math.min(WORLD_HEIGHT - newAgent.radius, newY))
-          }
-
-          // Check collision with other agents
-          for (const other of prevAgents) {
-            if (other.id === newAgent.id) continue
-            const dx = newX - other.x
-            const dy = newY - other.y
-            const distance = Math.sqrt(dx * dx + dy * dy)
-            const minDistance = newAgent.radius + other.radius
-
-            if (distance < minDistance) {
-              // Simple collision response: bounce back
-              const angle = Math.atan2(dy, dx)
-              const targetX = other.x + Math.cos(angle) * minDistance
-              const targetY = other.y + Math.sin(angle) * minDistance
-              newX = targetX
-              newY = targetY
-              // Reverse velocity
-              newVx = -newVx * 0.8
-              newVy = -newVy * 0.8
-            }
-          }
-
-          return { ...newAgent, x: newX, y: newY, vx: newVx, vy: newVy }
-        })
-
-        // Draw agents
-        updatedAgents.forEach(agent => {
-          drawAgent(ctx, agent, canvas.width, canvas.height)
-        })
-
-        return updatedAgents
-      })
-
-      animationFrameRef.current = requestAnimationFrame(animate)
-    }
-
-    animate()
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
-    }
-  }, [camera])
-
-  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+  const drawGrid = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
     const gridSize = 50 * camera.zoom
     const offsetX = camera.x % gridSize
     const offsetY = camera.y % gridSize
@@ -225,9 +105,9 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
       ctx.lineTo(width, y)
       ctx.stroke()
     }
-  }
+  }, [camera.zoom, camera.x, camera.y])
 
-  const drawAgent = (
+  const drawAgent = useCallback((
     ctx: CanvasRenderingContext2D,
     agent: Agent,
     canvasWidth: number,
@@ -290,7 +170,131 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     ctx.fillText(agent.name, screenX, screenY + screenRadius + 5)
-  }
+  }, [camera.x, camera.y, camera.zoom])
+
+  // Fetch agents on mount
+  useEffect(() => {
+    fetchAgents()
+  }, [fetchAgents])
+
+  // Animation loop
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const animate = () => {
+      // Update canvas size
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+
+      // Clear canvas
+      ctx.fillStyle = '#0a0a0f'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Draw grid
+      drawGrid(ctx, canvas.width, canvas.height)
+
+      // Update and draw agents
+      setAgents(prevAgents => {
+        const updatedAgents = prevAgents.map(agent => {
+          const newAgent = { ...agent }
+
+          // Handle pause state
+          if (newAgent.isPaused) {
+            const updatedPauseTimer = newAgent.pauseTimer + 1
+            if (updatedPauseTimer >= newAgent.maxPauseTime) {
+              // Resume movement with new random direction
+              const angle = Math.random() * Math.PI * 2
+              return {
+                ...newAgent,
+                isPaused: false,
+                pauseTimer: 0,
+                vx: Math.cos(angle) * newAgent.speed,
+                vy: Math.sin(angle) * newAgent.speed
+              }
+            }
+            return { ...newAgent, pauseTimer: updatedPauseTimer }
+          }
+
+          // Random chance to pause (1% per frame)
+          if (Math.random() < 0.01) {
+            return { ...newAgent, isPaused: true, pauseTimer: 0 }
+          }
+
+          // Random direction change (0.5% per frame)
+          const updatedDirectionTimer = newAgent.directionChangeTimer + 1
+          if (updatedDirectionTimer > 60 && Math.random() < 0.005) {
+            const angle = Math.random() * Math.PI * 2
+            return {
+              ...newAgent,
+              vx: Math.cos(angle) * newAgent.speed,
+              vy: Math.sin(angle) * newAgent.speed,
+              directionChangeTimer: 0
+            }
+          }
+
+          // Update position
+          let newX = newAgent.x + newAgent.vx
+          let newY = newAgent.y + newAgent.vy
+          let newVx = newAgent.vx
+          let newVy = newAgent.vy
+
+          // Bounce off walls
+          if (newX < newAgent.radius || newX > WORLD_WIDTH - newAgent.radius) {
+            newVx = -newVx
+            newX = Math.max(newAgent.radius, Math.min(WORLD_WIDTH - newAgent.radius, newX))
+          }
+          if (newY < newAgent.radius || newY > WORLD_HEIGHT - newAgent.radius) {
+            newVy = -newVy
+            newY = Math.max(newAgent.radius, Math.min(WORLD_HEIGHT - newAgent.radius, newY))
+          }
+
+          // Check collision with other agents
+          for (const other of prevAgents) {
+            if (other.id === newAgent.id) continue
+            const dx = newX - other.x
+            const dy = newY - other.y
+            const distance = Math.sqrt(dx * dx + dy * dy)
+            const minDistance = newAgent.radius + other.radius
+
+            if (distance < minDistance) {
+              // Simple collision response: bounce back
+              const angle = Math.atan2(dy, dx)
+              const targetX = other.x + Math.cos(angle) * minDistance
+              const targetY = other.y + Math.sin(angle) * minDistance
+              newX = targetX
+              newY = targetY
+              // Reverse velocity
+              newVx = -newVx * 0.8
+              newVy = -newVy * 0.8
+            }
+          }
+
+          return { ...newAgent, x: newX, y: newY, vx: newVx, vy: newVy, directionChangeTimer: updatedDirectionTimer }
+        })
+
+        // Draw agents
+        updatedAgents.forEach(agent => {
+          drawAgent(ctx, agent, canvas.width, canvas.height)
+        })
+
+        return updatedAgents
+      })
+
+      animationFrameRef.current = requestAnimationFrame(animate)
+    }
+
+    animate()
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+    }
+  }, [camera, drawGrid, drawAgent])
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current

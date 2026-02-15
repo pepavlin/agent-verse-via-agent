@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/error-handler'
 
 /**
  * GET /api/departments
  * List all available departments
  */
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     // No authentication required - fake auth system
 

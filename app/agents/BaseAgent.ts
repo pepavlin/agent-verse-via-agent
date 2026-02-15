@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk"
-import { Agent, Message, Task, AgentRole, AgentExecutionResult, AgentStatus } from "@/types"
+import { Agent, Message, AgentRole, AgentExecutionResult, AgentStatus } from "@/types"
 
 /**
  * BaseAgent class - Foundation for all AgentVerse agents
@@ -65,7 +65,7 @@ When responding:
   /**
    * Execute a task with the given input
    */
-  async execute(input: string, context?: any): Promise<AgentExecutionResult> {
+  async execute(input: string, context?: Record<string, unknown>): Promise<AgentExecutionResult> {
     const startTime = Date.now()
     this.status = 'running'
 
@@ -99,7 +99,7 @@ When responding:
   /**
    * Process a task - override in specialized agents for custom behavior
    */
-  protected async processTask(input: string, context?: any): Promise<string> {
+  protected async processTask(input: string, context?: Record<string, unknown>): Promise<string> {
     const messages: Anthropic.MessageParam[] = []
 
     // Add context if provided
@@ -175,7 +175,7 @@ When responding:
   /**
    * Format output for consistency
    */
-  protected formatOutput(content: string, metadata?: any): string {
+  protected formatOutput(content: string): string {
     return content
   }
 

@@ -44,47 +44,109 @@ export default function AgentVisualization({
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null)
   const isCtrlKeyRef = useRef(false)
 
-  // Initialize PixiJS
-  useEffect(() => {
-    if (!canvasRef.current || appRef.current) return
+  // Update selected agents state
+  const updateSelectedAgents = useCallback(() => {
+    const selected = agentsRef.current.filter((a) => a.selected)
+    setSelectedAgents(selected)
+    onSelectionChange?.(selected)
+  }, [onSelectionChange])
 
-    const app = new PIXI.Application()
+  // Find agent at mouse position
+  const findAgentAtPosition = useCallback((x: number, y: number): VisualAgent | null => {
+    // Convert screen coordinates to world coordinates
+    const worldX = x - width / 2
+    const worldY = y - height / 2
 
-    app.init({
-      width,
-      height,
-      backgroundColor: 0x0a0a0f,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-    }).then(() => {
-      if (canvasRef.current && app.canvas) {
-        canvasRef.current.appendChild(app.canvas as HTMLCanvasElement)
-        appRef.current = app
+    for (const agent of agentsRef.current) {
+      const dx = worldX - agent.x
+      const dy = worldY - agent.y
+      const distance = Math.sqrt(dx * dx + dy * dy)
 
-        // Create selection rectangle graphic
-        const selectionGraphic = new PIXI.Graphics()
-        app.stage.addChild(selectionGraphic)
-        selectionRectGraphicRef.current = selectionGraphic
-
-        // Initialize agents
-        initializeAgents(app)
-
-        // Start animation loop
-        app.ticker.add(updateAgents)
+      if (distance <= AGENT_RADIUS) {
+        return agent
       }
+    }
+
+    return null
+  }, [width, height])
+
+  // Clear all selections
+  const clearSelection = useCallback(() => {
+    agentsRef.current.forEach((agent) => {
+      agent.selected = false
     })
+    updateSelectedAgents()
+  }, [])
 
-    return () => {
-      if (appRef.current) {
-        appRef.current.destroy(true, { children: true, texture: true, textureSource: true })
-        appRef.current = null
-      }
+  // Update selected agents state
+  const updateSelectedAgents = useCallback(() => {
+    const selected = agentsRef.current.filter((a) => a.selected)
+    setSelectedAgents(selected)
+    onSelectionChange?.(selected)
+  }, [onSelectionChange])
+
+  // Draw selection rectangle
+  const drawSelectionRect = useCallback(() => {
+    if (!selectionRectGraphicRef.current || !interactionRef.current.selectionRect) return
+
+    const rect = interactionRef.current.selectionRect
+    const graphic = selectionRectGraphicRef.current
+
+    graphic.clear()
+    graphic.rect(
+      Math.min(rect.startX, rect.endX),
+      Math.min(rect.startY, rect.endY),
+      Math.abs(rect.endX - rect.startX),
+      Math.abs(rect.endY - rect.startY)
+    )
+    graphic.fill({ color: SELECTION_COLOR, alpha: SELECTION_ALPHA })
+    graphic.stroke({ width: 2, color: SELECTION_COLOR })
+  }, [])
+
+  // Clear selection rectangle
+  const clearSelectionRect = useCallback(() => {
+    if (selectionRectGraphicRef.current) {
+      selectionRectGraphicRef.current.clear()
     }
   }, [])
 
+  // Select agents in rectangle
+  const selectAgentsInRect = useCallback((rect: SelectionRect) => {
+    const minX = Math.min(rect.startX, rect.endX) - width / 2
+    const maxX = Math.max(rect.startX, rect.endX) - width / 2
+    const minY = Math.min(rect.startY, rect.endY) - height / 2
+    const maxY = Math.max(rect.startY, rect.endY) - height / 2
+
+    agentsRef.current.forEach((agent) => {
+      const inRect = agent.x >= minX && agent.x <= maxX && agent.y >= minY && agent.y <= maxY
+
+      if (inRect) {
+        agent.selected = true
+      } else if (!isCtrlKeyRef.current) {
+        agent.selected = false
+      }
+    })
+
+    updateSelectedAgents()
+  }, [width, height, updateSelectedAgents])
+
+  // Handle agent click
+  const handleAgentClick = useCallback((agent: VisualAgent, isMultiSelect: boolean) => {
+    if (isMultiSelect) {
+      // Toggle selection
+      agent.selected = !agent.selected
+    } else {
+      // Clear other selections and select this one
+      agentsRef.current.forEach((a) => {
+        a.selected = a.id === agent.id
+      })
+    }
+
+    updateSelectedAgents()
+  }, [updateSelectedAgents])
+
   // Initialize agent graphics
-  const initializeAgents = (app: PIXI.Application) => {
+  const initializeAgents = useCallback((app: PIXI.Application) => {
     agentsRef.current.forEach((agent) => {
       const container = new PIXI.Container()
       container.x = agent.x + width / 2
@@ -133,7 +195,7 @@ export default function AgentVisualization({
       app.stage.addChild(container)
       agentGraphicsRef.current.set(agent.id, container)
     })
-  }
+  }, [width, height])
 
   // Update agent positions and animations
   const updateAgents = useCallback(() => {
@@ -179,6 +241,45 @@ export default function AgentVisualization({
       }
     })
   }, [width, height])
+
+  // Initialize PixiJS
+  useEffect(() => {
+    if (!canvasRef.current || appRef.current) return
+
+    const app = new PIXI.Application()
+
+    app.init({
+      width,
+      height,
+      backgroundColor: 0x0a0a0f,
+      antialias: true,
+      resolution: window.devicePixelRatio || 1,
+      autoDensity: true,
+    }).then(() => {
+      if (canvasRef.current && app.canvas) {
+        canvasRef.current.appendChild(app.canvas as HTMLCanvasElement)
+        appRef.current = app
+
+        // Create selection rectangle graphic
+        const selectionGraphic = new PIXI.Graphics()
+        app.stage.addChild(selectionGraphic)
+        selectionRectGraphicRef.current = selectionGraphic
+
+        // Initialize agents
+        initializeAgents(app)
+
+        // Start animation loop
+        app.ticker.add(updateAgents)
+      }
+    })
+
+    return () => {
+      if (appRef.current) {
+        appRef.current.destroy(true, { children: true, texture: true, textureSource: true })
+        appRef.current = null
+      }
+    }
+  }, [updateAgents, initializeAgents, width, height])
 
   // Mouse event handlers
   useEffect(() => {
@@ -256,101 +357,7 @@ export default function AgentVisualization({
       canvas.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [])
-
-  // Find agent at mouse position
-  const findAgentAtPosition = (x: number, y: number): VisualAgent | null => {
-    // Convert screen coordinates to world coordinates
-    const worldX = x - width / 2
-    const worldY = y - height / 2
-
-    for (const agent of agentsRef.current) {
-      const dx = worldX - agent.x
-      const dy = worldY - agent.y
-      const distance = Math.sqrt(dx * dx + dy * dy)
-
-      if (distance <= AGENT_RADIUS) {
-        return agent
-      }
-    }
-
-    return null
-  }
-
-  // Handle agent click
-  const handleAgentClick = (agent: VisualAgent, isMultiSelect: boolean) => {
-    if (isMultiSelect) {
-      // Toggle selection
-      agent.selected = !agent.selected
-    } else {
-      // Clear other selections and select this one
-      agentsRef.current.forEach((a) => {
-        a.selected = a.id === agent.id
-      })
-    }
-
-    updateSelectedAgents()
-  }
-
-  // Select agents in rectangle
-  const selectAgentsInRect = (rect: SelectionRect) => {
-    const minX = Math.min(rect.startX, rect.endX) - width / 2
-    const maxX = Math.max(rect.startX, rect.endX) - width / 2
-    const minY = Math.min(rect.startY, rect.endY) - height / 2
-    const maxY = Math.max(rect.startY, rect.endY) - height / 2
-
-    agentsRef.current.forEach((agent) => {
-      const inRect = agent.x >= minX && agent.x <= maxX && agent.y >= minY && agent.y <= maxY
-
-      if (inRect) {
-        agent.selected = true
-      } else if (!isCtrlKeyRef.current) {
-        agent.selected = false
-      }
-    })
-
-    updateSelectedAgents()
-  }
-
-  // Draw selection rectangle
-  const drawSelectionRect = () => {
-    if (!selectionRectGraphicRef.current || !interactionRef.current.selectionRect) return
-
-    const rect = interactionRef.current.selectionRect
-    const graphic = selectionRectGraphicRef.current
-
-    graphic.clear()
-    graphic.rect(
-      Math.min(rect.startX, rect.endX),
-      Math.min(rect.startY, rect.endY),
-      Math.abs(rect.endX - rect.startX),
-      Math.abs(rect.endY - rect.startY)
-    )
-    graphic.fill({ color: SELECTION_COLOR, alpha: SELECTION_ALPHA })
-    graphic.stroke({ width: 2, color: SELECTION_COLOR })
-  }
-
-  // Clear selection rectangle
-  const clearSelectionRect = () => {
-    if (selectionRectGraphicRef.current) {
-      selectionRectGraphicRef.current.clear()
-    }
-  }
-
-  // Clear all selections
-  const clearSelection = () => {
-    agentsRef.current.forEach((agent) => {
-      agent.selected = false
-    })
-    updateSelectedAgents()
-  }
-
-  // Update selected agents state
-  const updateSelectedAgents = () => {
-    const selected = agentsRef.current.filter((a) => a.selected)
-    setSelectedAgents(selected)
-    onSelectionChange?.(selected)
-  }
+  }, [findAgentAtPosition, handleAgentClick, clearSelection, drawSelectionRect, selectAgentsInRect, clearSelectionRect])
 
   return (
     <div className="relative">

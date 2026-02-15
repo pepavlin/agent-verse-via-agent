@@ -16,7 +16,7 @@ describe('Registration Flow Integration Tests', () => {
         await prisma.user.delete({
           where: { id: createdUserId },
         })
-      } catch (error) {
+      } catch (error: unknown) {
         // User might not exist, ignore error
       }
       createdUserId = null

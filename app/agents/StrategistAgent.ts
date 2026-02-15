@@ -28,7 +28,7 @@ As a Strategist, you should:
 Your strategies should be comprehensive yet practical, with clear success metrics.`
   }
 
-  protected async processTask(input: string, context?: any): Promise<string> {
+  protected async processTask(input: string, context?: Record<string, unknown>): Promise<string> {
     // Add strategy-specific context
     const enhancedInput = `Strategic Planning Task: ${input}
 
