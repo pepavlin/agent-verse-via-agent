@@ -23,18 +23,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
-      <div className="w-full max-w-md p-8 space-y-6 bg-gray-900/80 backdrop-blur-sm rounded-lg shadow-2xl border border-purple-500/30">
-        <h2 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-dark via-secondary-dark to-accent-dark dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
+      <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-neutral-800 backdrop-blur-sm rounded-lg shadow-2xl border border-neutral-200 dark:border-primary/30">
+        <h2 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-primary-dark to-accent">
           Welcome to AgentVerse
         </h2>
-        <p className="text-center text-gray-300 text-sm">
+        <p className="text-center text-neutral-600 dark:text-neutral-400 text-sm">
           Enter your nickname to start using the app
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="nickname" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="nickname" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
               Nickname
             </label>
             <input
@@ -43,20 +43,20 @@ export default function LoginPage() {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="Enter your nickname..."
-              className="w-full px-4 py-3 bg-gray-800/50 border border-purple-500/30 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500"
+              className="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light text-neutral-900 dark:text-neutral-50 placeholder-neutral-500 dark:placeholder-neutral-400 transition-colors"
               autoFocus
             />
           </div>
 
           {error && (
-            <div className="p-3 text-sm text-red-300 bg-red-900/30 rounded-md border border-red-500/30">
+            <div className="p-3 text-sm text-danger bg-danger/10 dark:bg-danger/20 rounded-md border border-danger/30 dark:border-danger/50">
               {error}
             </div>
           )}
 
           <button
             type="submit"
-            className="w-full px-4 py-3 font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-md hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+            className="w-full px-4 py-3 font-medium text-white bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary-dark rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-all"
           >
             Start
           </button>

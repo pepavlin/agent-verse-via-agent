@@ -82,13 +82,13 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="w-full max-w-md p-6 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-900">Create New Agent</h2>
+          <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Create New Agent</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -98,7 +98,7 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="name" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Agent Name
             </label>
             <input
@@ -107,33 +107,33 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              className="w-full px-3 py-2 mt-1 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light text-neutral-900 dark:text-neutral-50 dark:bg-neutral-800 bg-white transition-colors"
               placeholder="My Assistant"
             />
           </div>
 
           <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="role" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Agent Role
             </label>
             <select
               id="role"
               value={role}
               onChange={(e) => setRole(e.target.value as AgentRole)}
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              className="w-full px-3 py-2 mt-1 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light text-neutral-900 dark:text-neutral-50 dark:bg-neutral-800 bg-white transition-colors"
             >
               <option value="researcher">Researcher</option>
               <option value="strategist">Strategist</option>
               <option value="critic">Critic</option>
               <option value="ideator">Ideator</option>
             </select>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
               {roleDescriptions[role]}
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
               Agent Color
             </label>
             <div className="grid grid-cols-4 gap-2">
@@ -143,7 +143,7 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
                   type="button"
                   onClick={() => setColor(c.value)}
                   className={`h-10 rounded-md border-2 transition-all ${
-                    color === c.value ? 'border-blue-500 scale-110' : 'border-gray-300'
+                    color === c.value ? 'border-primary dark:border-primary-light scale-110 shadow-lg' : 'border-neutral-300 dark:border-neutral-600'
                   }`}
                   style={{ backgroundColor: c.value }}
                   title={c.name}
@@ -153,14 +153,14 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
           </div>
 
           <div>
-            <label htmlFor="size" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="size" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Agent Size
             </label>
             <select
               id="size"
               value={size}
               onChange={(e) => setSize(Number(e.target.value))}
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              className="w-full px-3 py-2 mt-1 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light text-neutral-900 dark:text-neutral-50 dark:bg-neutral-800 bg-white transition-colors"
             >
               {agentSizes.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -171,7 +171,7 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="description" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Description (Optional)
             </label>
             <textarea
@@ -179,20 +179,20 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              className="w-full px-3 py-2 mt-1 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light text-neutral-900 dark:text-neutral-50 dark:bg-neutral-800 bg-white transition-colors"
               placeholder="Additional customization for this agent..."
             />
           </div>
 
           <div>
-            <label htmlFor="model" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="model" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Claude Model
             </label>
             <select
               id="model"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              className="w-full px-3 py-2 mt-1 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light text-neutral-900 dark:text-neutral-50 dark:bg-neutral-800 bg-white transition-colors"
             >
               <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
               <option value="claude-3-opus-20240229">Claude 3 Opus</option>
@@ -201,7 +201,7 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
           </div>
 
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-100 rounded-md">
+            <div className="p-3 text-sm text-danger bg-danger/10 dark:bg-danger/20 rounded-md border border-danger/30 dark:border-danger/50">
               {error}
             </div>
           )}
@@ -210,14 +210,14 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              className="flex-1 px-4 py-2 text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-2 font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 font-medium text-white bg-primary hover:bg-primary-dark rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Creating...' : 'Create Agent'}
             </button>

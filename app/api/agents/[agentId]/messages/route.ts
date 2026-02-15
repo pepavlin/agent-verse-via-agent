@@ -350,7 +350,7 @@ export async function POST(
       })
 
       // Convert message history to the format expected by BaseAgent
-      const messageHistory = agent.messages.map((msg) => ({
+      const messageHistory = agent.messages.map((msg: any) => ({
         role: msg.role as "user" | "assistant" | "system",
         content: msg.content,
       }))
@@ -367,7 +367,7 @@ export async function POST(
       const systemPrompt = getRoleSystemPrompt(agent.role || 'executor', agent.personality)
 
       // Prepare conversation history
-      const conversationHistory = agent.messages.map((msg) => ({
+      const conversationHistory = agent.messages.map((msg: any) => ({
         role: msg.role as "user" | "assistant",
         content: msg.content,
       }))
