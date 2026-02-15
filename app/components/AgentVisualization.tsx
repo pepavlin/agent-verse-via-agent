@@ -76,14 +76,7 @@ export default function AgentVisualization({
       agent.selected = false
     })
     updateSelectedAgents()
-  }, [])
-
-  // Update selected agents state
-  const updateSelectedAgents = useCallback(() => {
-    const selected = agentsRef.current.filter((a) => a.selected)
-    setSelectedAgents(selected)
-    onSelectionChange?.(selected)
-  }, [onSelectionChange])
+  }, [updateSelectedAgents])
 
   // Draw selection rectangle
   const drawSelectionRect = useCallback(() => {
