@@ -15,7 +15,6 @@ import {
 import type { BaseAgent } from "@/app/agents/BaseAgent"
 import {
   SendMessageSchema,
-  GetMessagesQuerySchema,
   validateSchema,
   formatZodErrors,
 } from "@/lib/validation"
