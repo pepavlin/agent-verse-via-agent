@@ -2,101 +2,189 @@
 
 **Analysis Date:** February 15, 2026
 **Trigger:** PR #69 merge (Tailwind configuration with modern color scheme)
-**Status:** 🔴 FAILED
-**Root Cause:** Multiple cascading issues in post-PR #69 deployment pipeline
+**Status:** 🔴 **FAILED** (after PR #69 deployment to production)
+**Current Status of Code:** ✅ Build succeeds locally - issue likely resolved in intermediate commits
 
 ---
 
 ## Executive Summary
 
-Deploy (main) workflow #75 failed after PR #69 was merged to the main branch. The failure occurred during the Docker build phase of the deployment process. Unlike previous workflow failures that had single root causes, workflow #75 represents a **cascade of multiple interdependent failures** that compound to prevent successful deployment.
+Deploy (main) workflow #75 failed after PR #69 was merged to the main branch and deployed. The failure occurred during the Docker build phase of the deployment process.
 
-**The three critical issues that blocked deployment:**
+**Important Discovery:** The codebase currently uses **Tailwind CSS v4**, which has native support for CSS variables in configuration via the `@theme inline` directive. This means the Tailwind configuration pattern used in PR #69 is actually valid and builds successfully today.
 
-1. **🔴 CRITICAL: Tailwind Configuration File Syntax/Type Error**
-   - PR #69 introduced `tailwind.config.ts` with CSS variable references
-   - The configuration references variables that may not exist at build time
-   - Causes build failure when Next.js processes Tailwind configuration
+**However, the failure indicates that at the time of workflow #75 execution, something blocked the deployment.** The most likely causes are:
 
-2. **🔴 CRITICAL: Missing Tailwind CSS Setup**
-   - The new `tailwind.config.ts` references CSS variables via Tailwind theming
-   - But the underlying CSS variable definitions are incomplete or incorrectly formatted
-   - Causes Tailwind to fail during build/compilation phase
+1. **🔴 PRIMARY: Database Migration Compatibility Issues (Prisma 7)**
+   - Commit b5851b9 (right after PR #69) migrated from SQLite to PostgreSQL
+   - Prisma 7 introduced dependencies on valibot, zeptomatch, graphmatch, and grammex
+   - Docker multi-stage build runner stage may be missing these dependencies
+   - Build fails with "Cannot find module" error during runtime
 
-3. **🔴 CRITICAL: Database Migration/Compatibility Issue**
-   - Commit b5851b9 (post-PR #69) migrated from SQLite to PostgreSQL
-   - This migration happened AFTER PR #69 was merged but BEFORE successful deployment
-   - The database migration wasn't tested with the new Tailwind configuration changes
+2. **🟡 SECONDARY: Prisma Schema or Configuration Mismatch**
+   - Database migration removed SQLite migrations and schema
+   - PostgreSQL schema may not have been properly initialized
+   - Prisma generation could fail if schema.prisma is incompatible
+
+3. **🟡 TERTIARY: Timing/Coordination of Multiple System Changes**
+   - Tailwind config change + Database migration + PostgreSQL adapter switch
+   - These major system changes happened in rapid succession
+   - Complex interactions possible even if each change individually works
 
 ---
 
 ## Detailed Root Cause Analysis
 
-### Issue #1: Tailwind Configuration Problems
+### Issue #1: Dependency Injection in Docker Build (MOST LIKELY)
 
-**File:** `tailwind.config.ts` (added in PR #69)
+**Files Affected:**
+- `Dockerfile` (multi-stage build with manual node_modules copying)
+- `package.json` (dependencies: tailwindcss v4, prisma v7, etc.)
 
-The new Tailwind configuration file contains:
+**The Real Problem:**
 
+Tailwind CSS v4 is not the issue. The real failure likely occurs when Docker builds with the PostgreSQL migration because:
+
+**Prisma 7 Dependencies Chain:**
+```
+prisma@7.4.0
+└── @prisma/dev@0.20.0
+    └── zeptomatch@2.1.0
+        ├── graphmatch@1.1.0   ← Not in Dockerfile copy
+        └── grammex@3.1.11     ← Not in Dockerfile copy
+```
+
+**Also required:**
+- `valibot` - Required by @prisma/dev for validation
+
+**The Dockerfile runner stage manually copies node_modules** to keep the image small. If these transitive dependencies aren't included:
+
+```dockerfile
+# Current (might be incomplete)
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+
+# Missing in runner stage:
+# COPY --from=builder /app/node_modules/valibot ./node_modules/valibot
+# COPY --from=builder /app/node_modules/graphmatch ./node_modules/graphmatch
+# COPY --from=builder /app/node_modules/grammex ./node_modules/grammex
+# COPY --from=builder /app/node_modules/zeptomatch ./node_modules/zeptomatch
+```
+
+**What Happens:**
+```
+1. Docker build completes ✅
+2. Container starts
+3. Application tries to load
+4. Prisma initialization happens
+5. Prisma requires zeptomatch
+6. zeptomatch requires graphmatch
+7. ❌ graphmatch not found in container
+8. Container crash: "Cannot find module 'graphmatch'"
+```
+
+**Evidence Supporting This:**
+The `docs/CHANGES_2026-02-15.md` file documents exactly this problem:
+- "Docker Valibot Dependency Fix" - valibot was missing
+- "Docker Graphmatch and Grammex Dependencies Fix" - these were missing
+- These fixes show the exact error pattern that would occur
+
+### Issue #2: PostgreSQL Adapter Configuration
+
+**File:** `lib/prisma.ts`
+
+The SQLite → PostgreSQL migration changed the Prisma configuration:
+
+**Before (SQLite with LibSQL):**
 ```typescript
-colors: {
-  primary: {
-    light: 'var(--primary-light)',
-    DEFAULT: 'var(--primary)',
-    dark: 'var(--primary-dark)',
-  },
-  secondary: {
-    light: 'var(--secondary-light)',
-    DEFAULT: 'var(--secondary)',
-    dark: 'var(--secondary-dark)',
-  },
-  // ... more variables
-}
+const sqliteUrl = getSqliteUrl(databaseUrl)
+const libsqlClient = createClient({ url: sqliteUrl })
+return new PrismaClient({
+  adapter: new PrismaLibSql(libsqlClient),
+})
 ```
 
-**The Problem:**
-- Tailwind CSS processes configuration at **build time**
-- CSS variables (`var(--primary)`) are runtime constructs and don't exist during build
-- Tailwind cannot resolve these variables at compile time
-- The build fails because Tailwind expects actual color values, not variable references
-
-**Why It Wasn't Caught Earlier:**
-- PR #69 only added the Tailwind config file
-- It didn't modify any components to actually USE the Tailwind classes
-- The PR build might have succeeded because nothing actually triggers Tailwind processing
-- The real failure happens when deployed and components try to use Tailwind utilities
-
-### Issue #2: CSS Variable Definitions Missing or Incomplete
-
-**File:** `app/globals.css` (or main CSS file)
-
-The documentation mentions CSS variables are defined in `app/globals.css`, but:
-
-1. The actual CSS custom properties may not be properly defined in all production environments
-2. The variables might be defined in development but missing in the Docker build environment
-3. There's no explicit initialization of these variables at build time
-
-**Docker Build Context:**
-- Docker builds the application in an isolated container
-- Global CSS must be available and properly initialized
-- If CSS variables aren't pre-defined before Tailwind compiles, the build fails
-
-### Issue #3: Database Migration Race Condition
-
-**Timeline:**
-```
-T+0:   PR #69 merged (Tailwind config added)
-T+1:   Commit b5851b9 pushed (SQLite → PostgreSQL migration)
-T+2:   Workflow #75 triggered on main branch
-T+3:   Docker build starts with BOTH changes together
+**After (PostgreSQL):**
+```typescript
+return new PrismaClient({
+  // Uses PostgreSQL provider from prisma.schema.prisma
+})
 ```
 
-**The Problem:**
-- The database migration (b5851b9) removed SQLite dependencies and added PostgreSQL
-- This changed `lib/prisma.ts` to use PostgreSQL adapter instead of LibSQL
-- Prisma generation happens during Docker build
-- If Prisma schema is incompatible with new configuration, build fails
-- The new Tailwind config + PostgreSQL migration = compound complexity
+**Potential Issues:**
+- Environment variable `DATABASE_URL` must be set to PostgreSQL connection string
+- Docker build doesn't need DB at build time, but Prisma generation might
+- Prisma migration files might need to be run at container startup
+
+### Issue #3: Timing and Coordination of Changes
+
+**The Changes in Sequence:**
+
+```
+86f73c7 (PR #69): feat: add tailwind configuration with modern color scheme
+  ├─ Adds tailwind.config.ts
+  ├─ Updates docs/COLOR_SCHEME_MODERNIZATION.md
+  └─ Uses Tailwind v4 CSS variable pattern ✅
+
+b5851b9 (1.3 hours later): refactor: migrate database from SQLite to PostgreSQL
+  ├─ Removes SQLite dependencies
+  ├─ Adds PostgreSQL driver
+  ├─ Updates lib/prisma.ts
+  ├─ Updates prisma/schema.prisma
+  ├─ Removes SQLite migrations
+  └─ Introduces Prisma 7 dependency on valibot, zeptomatch, etc.
+
+↓ Workflow #75 triggered with BOTH changes
+
+Docker Build:
+  ├─ npm ci ✅
+  ├─ npx prisma generate ⚠️ (PostgreSQL adapter, new deps)
+  ├─ npm run build ❓ (Tailwind v4 should work)
+  └─ ❌ FAILED (likely Prisma dependency issue in runner stage)
+```
+
+---
+
+## Most Likely Failure Scenario
+
+```
+Docker Build Process
+═════════════════════════════════════════════════════════════
+
+Builder Stage:
+  ├─ npm ci (with all 500+ packages) ✅
+  ├─ npx prisma generate (PostgreSQL adapter, Prisma 7) ✅
+  ├─ npm run build (Tailwind v4, Next.js) ✅
+  └─ Result: .next/standalone built successfully ✅
+
+Runner Stage (Production Image):
+  ├─ Copy .next/standalone ✅
+  ├─ Copy @prisma/client ✅
+  ├─ Copy node_modules/.prisma ✅
+  ├─ BUT: Missing transitive dependencies:
+  │  └─ ❌ graphmatch (required by zeptomatch)
+  │  └─ ❌ grammex (required by zeptomatch)
+  │  └─ ❌ valibot (required by @prisma/dev)
+  │
+  └─ Image created but BROKEN ❌
+
+Container Startup:
+  ├─ next start
+  ├─ Node loads application
+  ├─ Prisma imports zeptomatch
+  ├─ zeptomatch requires graphmatch
+  └─ ❌ MODULE NOT FOUND ERROR
+     │
+     └─ Container crashes
+        Docker Compose fails
+        Deployment incomplete
+```
+
+**This explains:**
+- ✅ Why `npm run build` succeeds (in builder stage with all deps)
+- ✅ Why Docker build completes (runner image created)
+- ❌ Why deployment fails (missing runtime dependencies in final image)
+- ✅ Why the fixes documented in `docs/CHANGES_2026-02-15.md` work
 
 ---
 
