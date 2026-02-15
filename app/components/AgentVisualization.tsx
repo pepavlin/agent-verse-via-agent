@@ -7,24 +7,33 @@ import { VisualAgent, SelectionRect, InteractionState, AGENT_RADIUS, SELECTION_C
 interface AgentVisualizationProps {
   agents: VisualAgent[]
   onSelectionChange?: (selectedAgents: VisualAgent[]) => void
+  onAgentClick?: (agent: VisualAgent) => void
+  focusedAgentId?: string | null
   width?: number
   height?: number
+  showConnections?: boolean
 }
 
 export default function AgentVisualization({
   agents: initialAgents,
   onSelectionChange,
+  onAgentClick,
+  focusedAgentId: focusedAgentIdProp,
   width = 1200,
   height = 800,
+  showConnections = true,
 }: AgentVisualizationProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<PIXI.Application | null>(null)
   const agentsRef = useRef<VisualAgent[]>(initialAgents)
   const [, setSelectedAgents] = useState<VisualAgent[]>([])
+  const cameraPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
   // Graphics objects
   const agentGraphicsRef = useRef<Map<string, PIXI.Container>>(new Map())
+  const agentCircleRef = useRef<Map<string, PIXI.Graphics>>(new Map())
   const selectionRectGraphicRef = useRef<PIXI.Graphics | null>(null)
+  const connectionsGraphicRef = useRef<PIXI.Graphics | null>(null)
 
   // Viewport state - currently unused but kept for future functionality
   // const viewportRef = useRef<ViewportState>({
@@ -50,6 +59,19 @@ export default function AgentVisualization({
     setSelectedAgents(selected)
     onSelectionChange?.(selected)
   }, [onSelectionChange])
+
+  // Center camera on focused agent
+  const centerCameraOnAgent = useCallback((agentId: string | null) => {
+    if (!agentId) {
+      cameraPositionRef.current = { x: 0, y: 0 }
+      return
+    }
+
+    const agent = agentsRef.current.find((a) => a.id === agentId)
+    if (agent) {
+      cameraPositionRef.current = { x: agent.x, y: agent.y }
+    }
+  }, [])
 
   // Find agent at mouse position
   const findAgentAtPosition = useCallback((x: number, y: number): VisualAgent | null => {
@@ -135,8 +157,10 @@ export default function AgentVisualization({
       })
     }
 
+    centerCameraOnAgent(agent.selected ? agent.id : null)
+    onAgentClick?.(agent)
     updateSelectedAgents()
-  }, [updateSelectedAgents])
+  }, [updateSelectedAgents, onAgentClick, centerCameraOnAgent])
   // Initialize agent graphics
   const initializeAgents = useCallback((app: PIXI.Application) => {
     agentsRef.current.forEach((agent) => {
@@ -186,8 +210,32 @@ export default function AgentVisualization({
 
       app.stage.addChild(container)
       agentGraphicsRef.current.set(agent.id, container)
+      agentCircleRef.current.set(agent.id, circle)
     })
   }, [width, height])
+
+  // Draw connections between agents (communication visualization)
+  const drawConnections = useCallback(() => {
+    if (!showConnections || !connectionsGraphicRef.current) return
+
+    const graphics = connectionsGraphicRef.current
+    graphics.clear()
+
+    // Draw lines between agents that would be communicating
+    // For demo, connect every agent to 2-3 nearby agents
+    agentsRef.current.forEach((agent, index) => {
+      // Connect to a few neighbors based on index
+      for (let offset = 1; offset <= 2; offset++) {
+        const targetIndex = (index + offset) % agentsRef.current.length
+        const targetAgent = agentsRef.current[targetIndex]
+
+        // Draw connection line with subtle color
+        graphics.moveTo(agent.x + width / 2, agent.y + height / 2)
+        graphics.lineTo(targetAgent.x + width / 2, targetAgent.y + height / 2)
+        graphics.stroke({ width: 1, color: 0x4f46e5, alpha: 0.2 })
+      }
+    })
+  }, [width, height, showConnections])
 
   // Update agent positions and animations
   const updateAgents = useCallback(() => {
@@ -232,7 +280,20 @@ export default function AgentVisualization({
         }
       }
     })
-  }, [width, height])
+
+    // Redraw connections
+    drawConnections()
+  }, [width, height, drawConnections])
+
+  // Update camera when focused agent changes
+  useEffect(() => {
+    // Center camera on focused agent when prop changes
+    if (focusedAgentIdProp) {
+      centerCameraOnAgent(focusedAgentIdProp)
+    } else {
+      centerCameraOnAgent(null)
+    }
+  }, [focusedAgentIdProp, centerCameraOnAgent])
 
   // Initialize PixiJS
   useEffect(() => {
@@ -251,6 +312,11 @@ export default function AgentVisualization({
       if (canvasRef.current && app.canvas) {
         canvasRef.current.appendChild(app.canvas as HTMLCanvasElement)
         appRef.current = app
+
+        // Create connections graphic (drawn first, behind agents)
+        const connectionsGraphic = new PIXI.Graphics()
+        app.stage.addChild(connectionsGraphic)
+        connectionsGraphicRef.current = connectionsGraphic
 
         // Create selection rectangle graphic
         const selectionGraphic = new PIXI.Graphics()
@@ -271,7 +337,7 @@ export default function AgentVisualization({
         appRef.current = null
       }
     }
-  }, [updateAgents, initializeAgents, width, height])
+  }, [updateAgents, initializeAgents, width, height, drawConnections])
 
   // Mouse event handlers
   useEffect(() => {
