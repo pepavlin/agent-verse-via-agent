@@ -18,8 +18,7 @@ interface Agent {
 
 export default function GamePage() {
   const router = useRouter()
-  const [user, setUser] = useState<SimpleUser | null>(null)
-  const [loading, setLoading] = useState(true)
+  const currentUser = simpleAuth.getUser()
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentList, setShowAgentList] = useState(true)
@@ -37,23 +36,21 @@ export default function GamePage() {
     }
   }, [])
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const currentUser = simpleAuth.getUser()
     if (!currentUser) {
       router.push('/login')
     } else {
-      setUser(currentUser)
-      setLoading(false)
       fetchAgents()
     }
-  }, [router, fetchAgents])
+  }, [currentUser, router, fetchAgents])
 
   const handleLogout = () => {
     simpleAuth.logout()
     router.push('/')
   }
 
-  if (loading) {
+  if (!currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="text-lg text-purple-300">Loading universe...</div>
@@ -72,7 +69,7 @@ export default function GamePage() {
             </h1>
             <div className="h-6 w-px bg-purple-500/30" />
             <span className="text-purple-300 text-sm">
-              Welcome, {user?.nickname}
+              Welcome, {currentUser?.nickname}
             </span>
             <div className="h-6 w-px bg-purple-500/30" />
             <span className="text-purple-300 text-sm">
