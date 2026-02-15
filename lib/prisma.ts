@@ -36,10 +36,8 @@ function createPrismaClient() {
     // SQLite - use PrismaLibSql adapter
     const sqliteUrl = getSqliteUrl(databaseUrl)
     console.log('[Prisma] Creating SQLite client with URL:', sqliteUrl)
-    const libsqlClient = createClient({ url: sqliteUrl })
-    console.log('[Prisma] LibSQL client created:', libsqlClient ? 'success' : 'failed')
     return new PrismaClient({
-      adapter: new PrismaLibSql(libsqlClient),
+      adapter: new PrismaLibSql({ url: sqliteUrl }),
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
     })
   } else {
