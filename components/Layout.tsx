@@ -7,9 +7,9 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
       <Navigation />
-      <main>{children}</main>
+      <main className="bg-neutral-50 dark:bg-neutral-950">{children}</main>
     </div>
   )
 }
