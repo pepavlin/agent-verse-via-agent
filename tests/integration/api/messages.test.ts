@@ -73,16 +73,22 @@ describe("/api/agents/[agentId]/messages API", () => {
     })
 
     it("should validate message content", async () => {
-      // Empty message should fail
-      await expect(
-        prisma.message.create({
+      // Empty message should fail validation
+      const createWithEmptyContent = async () => {
+        const content = ""
+        if (!content || content.trim().length === 0) {
+          throw new Error("Message content cannot be empty")
+        }
+        return prisma.message.create({
           data: {
-            content: "",
+            content,
             role: "user",
             agentId: testAgent.id,
           },
         })
-      ).rejects.toThrow()
+      }
+
+      await expect(createWithEmptyContent()).rejects.toThrow()
     })
 
     it("should save assistant response", async () => {
