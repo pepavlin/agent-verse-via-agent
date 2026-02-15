@@ -1,4 +1,4 @@
-import { Agent, Message, Task, AgentExecutionResult, Department, AgentMessage, MessageQueue, UserQuery, UserInteractionRequest } from "@/types"
+import { Agent, Message, Task, AgentExecutionResult, AgentMessage, UserQuery, UserInteractionRequest } from "@/types"
 import { BaseAgent } from "@/app/agents/BaseAgent"
 import { ResearcherAgent, StrategistAgent, CriticAgent, IdeatorAgent } from "@/app/agents"
 
@@ -115,7 +115,11 @@ export class AgentOrchestrator {
   async executeParallel(
     agentIds: string[],
     input: string,
+<<<<<<< HEAD
     context?: Record<string, unknown>
+=======
+    context?: unknown
+>>>>>>> 037f65e (fix: resolve ESLint violations and code quality issues)
   ): Promise<AgentExecutionResult[]> {
     const promises = agentIds.map(agentId => {
       const agent = this.agents.get(agentId)
@@ -146,7 +150,11 @@ export class AgentOrchestrator {
       critic?: string
     },
     task: string,
+<<<<<<< HEAD
     context?: Record<string, unknown>
+=======
+    context?: unknown
+>>>>>>> 037f65e (fix: resolve ESLint violations and code quality issues)
   ): Promise<{
     research?: AgentExecutionResult
     ideas?: AgentExecutionResult
@@ -265,7 +273,11 @@ export class AgentOrchestrator {
    * Get status of all registered agents
    */
   getAllAgentStatuses() {
+<<<<<<< HEAD
     const statuses: Array<Record<string, unknown>> = []
+=======
+    const statuses: Record<string, unknown>[] = []
+>>>>>>> 037f65e (fix: resolve ESLint violations and code quality issues)
 
     this.agents.forEach((agent) => {
       statuses.push(agent.getStatus())
@@ -278,7 +290,11 @@ export class AgentOrchestrator {
    * Get information about all registered agents
    */
   getRegisteredAgents() {
+<<<<<<< HEAD
     const agentInfo: Array<Record<string, unknown>> = []
+=======
+    const agentInfo: Record<string, unknown>[] = []
+>>>>>>> 037f65e (fix: resolve ESLint violations and code quality issues)
 
     this.agents.forEach((agent) => {
       agentInfo.push(agent.getInfo())
@@ -312,7 +328,11 @@ export class AgentOrchestrator {
     workflowId: string,
     agentId: string,
     question: string,
+<<<<<<< HEAD
     context?: Record<string, unknown>
+=======
+    context?: unknown
+>>>>>>> 037f65e (fix: resolve ESLint violations and code quality issues)
   ): Promise<string> {
     if (!this.userQueryCallback) {
       throw new Error('User query callback not set. Cannot request user input.')
