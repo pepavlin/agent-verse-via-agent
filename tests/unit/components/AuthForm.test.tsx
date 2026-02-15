@@ -30,9 +30,8 @@ describe('AuthForm Component', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     vi.mocked(useRouter).mockReturnValue(mockRouter as Record<string, unknown>)
-    vi.mocked(fetch).mockClear()
   })
 
   describe('Registration Mode', () => {
@@ -147,17 +146,7 @@ describe('AuthForm Component', () => {
 
     it('should show loading state during submission', async () => {
       vi.mocked(fetch).mockImplementationOnce(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(
-              () =>
-                resolve({
-                  ok: true,
-                  json: async () => ({ user: { id: '1' } }),
-                } as Response),
-              100
-            )
-          )
+        () => new Promise(() => {})
       )
 
       const user = userEvent.setup()
@@ -188,7 +177,7 @@ describe('AuthForm Component', () => {
       const user = userEvent.setup()
       render(<AuthForm mode="register" />)
 
-      await user.type(screen.getByLabelText('Email'), 'invalid')
+      await user.type(screen.getByLabelText('Email'), 'invalid@bad.com')
       await user.type(screen.getByLabelText('Password'), 'password123')
       await user.click(screen.getByRole('button', { name: /sign up/i }))
 
