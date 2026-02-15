@@ -48,6 +48,84 @@ function createPrismaClient() {
 }
 
 // Create appropriate Prisma client based on database type
-export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+const baseClient = globalForPrisma.prisma ?? createPrismaClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Create a wrapper with validation for messages
+class ValidatingPrismaClient {
+  private client: any
+
+  constructor(client: any) {
+    this.client = client
+  }
+
+  get user() {
+    return this.client.user
+  }
+
+  get account() {
+    return this.client.account
+  }
+
+  get session() {
+    return this.client.session
+  }
+
+  get agent() {
+    return this.client.agent
+  }
+
+  get department() {
+    return this.client.department
+  }
+
+  get task() {
+    return this.client.task
+  }
+
+  get workflowExecution() {
+    return this.client.workflowExecution
+  }
+
+  get workflowStep() {
+    return this.client.workflowStep
+  }
+
+  get userQuery() {
+    return this.client.userQuery
+  }
+
+  get verificationToken() {
+    return this.client.verificationToken
+  }
+
+  get message() {
+    const originalMessage = this.client.message
+    return {
+      create: async (args: any) => {
+        // Validate message content
+        if (args.data?.content === '') {
+          throw new Error('Message content cannot be empty')
+        }
+        return originalMessage.create(args)
+      },
+      findUnique: (args: any) => originalMessage.findUnique(args),
+      findMany: (args: any) => originalMessage.findMany(args),
+      update: (args: any) => originalMessage.update(args),
+      delete: (args: any) => originalMessage.delete(args),
+      deleteMany: (args: any) => originalMessage.deleteMany(args),
+      count: (args: any) => originalMessage.count(args),
+    }
+  }
+
+  get $disconnect() {
+    return this.client.$disconnect.bind(this.client)
+  }
+
+  get $transaction() {
+    return this.client.$transaction.bind(this.client)
+  }
+}
+
+export const prisma = new ValidatingPrismaClient(baseClient) as any
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = baseClient

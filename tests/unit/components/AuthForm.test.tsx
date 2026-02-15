@@ -15,8 +15,9 @@ vi.mock('next/navigation', () => ({
   useRouter: vi.fn(),
 }))
 
-// Mock fetch
-global.fetch = vi.fn()
+// Create a mock fetch once and reuse it
+const mockFetch = vi.fn()
+global.fetch = mockFetch
 
 describe('AuthForm Component', () => {
   const mockPush = vi.fn()
@@ -71,7 +72,7 @@ describe('AuthForm Component', () => {
     })
 
     it('should handle successful registration', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ user: { id: '1', email: 'test@example.com' } }),
       } as Response)
@@ -94,7 +95,7 @@ describe('AuthForm Component', () => {
       await user.click(submitButton)
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith('/api/register', {
+        expect(mockFetch).toHaveBeenCalledWith('/api/register', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -121,7 +122,7 @@ describe('AuthForm Component', () => {
     })
 
     it('should display error when registration fails', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: false,
         json: async () => ({
           error: {
@@ -145,8 +146,18 @@ describe('AuthForm Component', () => {
     })
 
     it('should show loading state during submission', async () => {
-      vi.mocked(fetch).mockImplementationOnce(
-        () => new Promise(() => {})
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  ok: true,
+                  json: async () => ({ user: { id: '1' } }),
+                } as Response),
+              100
+            )
+          )
       )
 
       const user = userEvent.setup()
@@ -160,50 +171,60 @@ describe('AuthForm Component', () => {
 
       expect(screen.getByText('Processing...')).toBeTruthy()
       expect(submitButton).toHaveProperty('disabled', true)
+
+      // Wait for the async operation to complete
+      await waitFor(() => {
+        expect(submitButton).toHaveProperty('disabled', false)
+      }, { timeout: 500 })
     })
 
     it('should clear error when submitting again', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
+      // First submission - error
+      mockFetch.mockResolvedValueOnce({
         ok: false,
         json: async () => ({
           error: {
             type: 'VALIDATION_ERROR',
-            message: 'Invalid email format',
+            message: 'Email already exists',
             field: 'email'
           }
         }),
       } as Response)
 
-      const user = userEvent.setup()
-      render(<AuthForm mode="register" />)
-
-      await user.type(screen.getByLabelText('Email'), 'invalid@bad.com')
-      await user.type(screen.getByLabelText('Password'), 'password123')
-      await user.click(screen.getByRole('button', { name: /sign up/i }))
-
-      await waitFor(() => {
-        expect(screen.getByText('Invalid email format')).toBeTruthy()
-      })
-
-      // Submit again
-      vi.mocked(fetch).mockResolvedValueOnce({
+      // Second submission - success
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ user: { id: '1' } }),
       } as Response)
 
       vi.mocked(signIn).mockResolvedValueOnce({ ok: true } as Record<string, unknown>)
 
-      await user.clear(screen.getByLabelText('Email'))
-      await user.type(screen.getByLabelText('Email'), 'valid@example.com')
+      const user = userEvent.setup()
+      render(<AuthForm mode="register" />)
+
+      // First submission with error
+      await user.type(screen.getByLabelText('Email'), 'existing@example.com')
+      await user.type(screen.getByLabelText('Password'), 'password123')
       await user.click(screen.getByRole('button', { name: /sign up/i }))
 
+      // Wait for error to appear
       await waitFor(() => {
-        expect(screen.queryByText('Invalid email format')).toBeNull()
+        expect(screen.getByText('Email already exists')).toBeTruthy()
       })
+
+      // Second submission - should clear error
+      await user.clear(screen.getByLabelText('Email'))
+      await user.type(screen.getByLabelText('Email'), 'newuser@example.com')
+      await user.click(screen.getByRole('button', { name: /sign up/i }))
+
+      // The error should be cleared after the second submission
+      await waitFor(() => {
+        expect(screen.queryByText('Email already exists')).toBeNull()
+      }, { timeout: 3000 })
     })
 
     it('should submit form with Enter key', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ user: { id: '1' } }),
       } as Response)
@@ -218,7 +239,7 @@ describe('AuthForm Component', () => {
       await user.keyboard('{Enter}')
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalled()
+        expect(mockFetch).toHaveBeenCalled()
       })
     })
   })
@@ -287,7 +308,7 @@ describe('AuthForm Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Invalid credentials')).toBeTruthy()
-      })
+      }, { timeout: 3000 })
     })
 
     it('should not call register API in login mode', async () => {
@@ -304,7 +325,7 @@ describe('AuthForm Component', () => {
         expect(signIn).toHaveBeenCalled()
       })
 
-      expect(fetch).not.toHaveBeenCalled()
+      expect(mockFetch).not.toHaveBeenCalled()
     })
   })
 

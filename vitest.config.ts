@@ -9,6 +9,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/unit/**/*.test.{ts,tsx}'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'tests/global-chat.test.ts'],
   },
   resolve: {
     alias: {
