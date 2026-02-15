@@ -6,7 +6,6 @@
  */
 
 import { execSync } from 'child_process';
-import { existsSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -54,12 +53,16 @@ function getDiskUsage() {
   }
 }
 
-function getDbSize() {
-  const dbPath = join(projectRoot, 'dev.db');
-  if (!existsSync(dbPath)) {
+async function getDbSize() {
+  try {
+    const pg = await import('pg');
+    const pool = new pg.default.Pool({ connectionString: process.env.DATABASE_URL });
+    const result = await pool.query('SELECT pg_database_size(current_database()) as size');
+    await pool.end();
+    return parseInt(result.rows[0].size);
+  } catch {
     return 0;
   }
-  return statSync(dbPath).size;
 }
 
 function getDirectorySize(path) {
@@ -72,7 +75,7 @@ function getDirectorySize(path) {
   }
 }
 
-function checkDiskSpace() {
+async function checkDiskSpace() {
   console.log('=== Disk Space Monitor ===\n');
 
   const diskInfo = getDiskUsage();
@@ -106,9 +109,9 @@ function checkDiskSpace() {
   console.log('');
 
   // Check database size
-  const dbSize = getDbSize();
+  const dbSize = await getDbSize();
   console.log('Database Size:');
-  console.log(`  dev.db: ${formatBytes(dbSize)}`);
+  console.log(`  PostgreSQL: ${formatBytes(dbSize)}`);
 
   if (dbSize > DB_SIZE_WARNING) {
     console.log(`  ⚠️  Database is growing large. Consider running maintenance.`);

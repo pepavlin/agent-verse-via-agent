@@ -189,16 +189,14 @@ describe('Database User Creation Tests', () => {
 
     testUsers.push(user1.id)
 
-    // SQLite is case-insensitive for UNIQUE constraints by default
-    // but emails are stored as entered
+    // PostgreSQL is case-sensitive for UNIQUE constraints by default
     expect(user1.email).toBe(baseEmail)
 
     const foundUser = await prisma.user.findUnique({
       where: { email: baseEmail.toUpperCase() },
     })
 
-    // Depending on SQLite collation, this might or might not find the user
-    // This test documents the behavior
+    // PostgreSQL is case-sensitive, so uppercase lookup should not find the user
     if (foundUser) {
       expect(foundUser.email).toBe(baseEmail)
     }

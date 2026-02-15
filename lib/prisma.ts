@@ -1,61 +1,37 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { Pool } from 'pg'
-import path from 'path'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// For SQLite, convert relative path to absolute path
-const getSqliteUrl = (url: string) => {
-  if (url.startsWith('file:')) {
-    const relativePath = url.replace('file:', '')
-    const absolutePath = path.resolve(process.cwd(), relativePath)
-    return `file:${absolutePath}`
-  }
-  return url
-}
-
-// Factory function to create Prisma client
+// Factory function to create Prisma client with PostgreSQL adapter
 function createPrismaClient() {
-  // Determine database type from DATABASE_URL
-  const databaseUrl = process.env.DATABASE_URL || 'file:./dev.db'
-  const isPostgreSQL = databaseUrl.startsWith('postgresql://')
-  const isSQLite = databaseUrl.startsWith('file:')
-
-  if (isPostgreSQL) {
-    // PostgreSQL - use PrismaPg adapter with pg Pool
-    return new PrismaClient({
-      adapter: new PrismaPg(new Pool({ connectionString: databaseUrl })),
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
-    })
-  } else if (isSQLite) {
-    // SQLite - use PrismaLibSql adapter
-    const sqliteUrl = getSqliteUrl(databaseUrl)
-    console.log('[Prisma] Creating SQLite client with URL:', sqliteUrl)
-    return new PrismaClient({
-      adapter: new PrismaLibSql({ url: sqliteUrl }),
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
-    })
-  } else {
-    // Fallback
-    return new PrismaClient({
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
-    })
+  const databaseUrl = process.env.DATABASE_URL
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is required')
   }
+
+  const pool = new Pool({ connectionString: databaseUrl })
+  return new PrismaClient({
+    adapter: new PrismaPg(pool),
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
+  })
 }
 
-// Create appropriate Prisma client based on database type
-const baseClient = globalForPrisma.prisma ?? createPrismaClient()
+// Lazy getter — only creates the client when first accessed at runtime
+function getBaseClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient()
+  }
+  return globalForPrisma.prisma
+}
 
-// Create a wrapper with validation for messages
+// Create a wrapper with validation for messages (uses lazy initialization)
 class ValidatingPrismaClient {
-  private client: any
-
-  constructor(client: any) {
-    this.client = client
+  private get client(): PrismaClient {
+    return getBaseClient()
   }
 
   get user() {
@@ -126,6 +102,4 @@ class ValidatingPrismaClient {
   }
 }
 
-export const prisma = new ValidatingPrismaClient(baseClient) as any
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = baseClient
+export const prisma = new ValidatingPrismaClient() as any
