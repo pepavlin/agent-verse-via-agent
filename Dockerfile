@@ -73,6 +73,8 @@ COPY --from=builder /app/node_modules/proper-lockfile ./node_modules/proper-lock
 COPY --from=builder /app/node_modules/remeda ./node_modules/remeda
 COPY --from=builder /app/node_modules/std-env ./node_modules/std-env
 COPY --from=builder /app/node_modules/zeptomatch ./node_modules/zeptomatch
+COPY --from=builder /app/node_modules/graphmatch ./node_modules/graphmatch
+COPY --from=builder /app/node_modules/grammex ./node_modules/grammex
 COPY --from=builder /app/node_modules/signal-exit ./node_modules/signal-exit
 COPY --from=builder /app/node_modules/lru-cache ./node_modules/lru-cache
 
