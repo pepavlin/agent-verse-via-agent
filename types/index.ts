@@ -1,3 +1,13 @@
+// Re-export Prisma types to work around adapter type issues
+// These are used in API routes and can be safely re-exported here
+import type { Prisma as PrismaType } from "@prisma/client"
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace Prisma {
+  export type MessageGetPayload<T> = PrismaType.MessageGetPayload<T>
+  export type AgentGetPayload<T> = PrismaType.AgentGetPayload<T>
+}
+
 // Base Agent interface
 export interface Agent {
   id: string

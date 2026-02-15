@@ -9,7 +9,7 @@ describe('Database User Creation Tests', () => {
     for (const userId of testUsers) {
       try {
         await prisma.user.delete({ where: { id: userId } })
-      } catch (error) {
+      } catch {
         // User might not exist, ignore error
       }
     }

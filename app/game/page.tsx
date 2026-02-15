@@ -46,7 +46,8 @@ export default function GamePage() {
       setLoading(false)
       fetchAgents()
     }
-  }, [router, fetchAgents])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleLogout = () => {
     simpleAuth.logout()

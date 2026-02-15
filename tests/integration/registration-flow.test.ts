@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
@@ -16,7 +16,7 @@ describe('Registration Flow Integration Tests', () => {
         await prisma.user.delete({
           where: { id: createdUserId },
         })
-      } catch (error: unknown) {
+      } catch {
         // User might not exist, ignore error
       }
       createdUserId = null

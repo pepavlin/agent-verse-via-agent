@@ -103,8 +103,8 @@ export class MarketResearchDepartment extends Department {
       enhanced += `Target Market: ${options.targetMarket}\n`
     }
 
-    if (options?.competitors && options.competitors.length > 0) {
-      enhanced += `Key Competitors: ${options.competitors.join(', ')}\n`
+    if (options?.competitors && Array.isArray(options.competitors) && options.competitors.length > 0) {
+      enhanced += `Key Competitors: ${(options.competitors as string[]).join(', ')}\n`
     }
 
     if (options?.timeframe) {
@@ -115,9 +115,9 @@ export class MarketResearchDepartment extends Department {
       enhanced += `Budget Considerations: ${options.budget}\n`
     }
 
-    if (options?.specificQuestions && options.specificQuestions.length > 0) {
+    if (options?.specificQuestions && Array.isArray(options.specificQuestions) && options.specificQuestions.length > 0) {
       enhanced += `\nSpecific Questions to Address:\n`
-      options.specificQuestions.forEach((q: string, i: number) => {
+      (options.specificQuestions as string[]).forEach((q: string, i: number) => {
         enhanced += `${i + 1}. ${q}\n`
       })
     }
