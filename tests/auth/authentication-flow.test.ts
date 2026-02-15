@@ -232,7 +232,6 @@ describe('Authentication Flow Tests', () => {
         updatedAt: new Date(),
       }
 
-      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
       vi.mocked(prisma.user.create).mockResolvedValueOnce(createdUser)
 
       const registeredUser = await prisma.user.create({

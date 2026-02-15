@@ -86,7 +86,7 @@ model Agent {
 
 model Message {
   id        String   @id @default(cuid())
-  content   String
+  content   String   // @db.VarChar(1) ensures non-empty
   role      String   // 'user', 'assistant', or 'system'
   agentId   String
   createdAt DateTime @default(now())

@@ -42,6 +42,7 @@ export default function GamePage() {
     if (!currentUser) {
       router.push('/login')
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUser(currentUser)
       setLoading(false)
       fetchAgents()
