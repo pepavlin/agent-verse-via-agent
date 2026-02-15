@@ -102,7 +102,7 @@ export async function POST(request: Request) {
         personality: personality || null,
         specialization: specialization || null,
         departmentId: departmentId || null,
-        color: color || "#a855f7",
+        color: color || "#6366f1",
         size: size || 20,
         userId: fakeUserId
       }

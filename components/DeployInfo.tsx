@@ -31,7 +31,7 @@ export default function DeployInfo() {
   };
 
   return (
-    <div className="text-center text-purple-300/70 text-sm">
+    <div className="text-center text-secondary-light/70 text-sm">
       Poslední deploy: {formatDate(deployDate)}
     </div>
   );

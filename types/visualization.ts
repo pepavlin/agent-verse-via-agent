@@ -32,13 +32,13 @@ export interface InteractionState {
 }
 
 export const AGENT_COLORS: Record<string, string> = {
-  researcher: '#3b82f6', // blue
-  strategist: '#a855f7', // purple
-  critic: '#ef4444', // red
-  ideator: '#f59e0b', // amber
-  coordinator: '#10b981', // green
-  executor: '#06b6d4', // cyan
-  default: '#6b7280', // gray
+  researcher: '#6366f1', // Indigo (Primary)
+  strategist: '#8b5cf6', // Violet (Secondary)
+  critic: '#ef4444', // Red (Danger)
+  ideator: '#f97316', // Orange (Warning)
+  coordinator: '#10b981', // Green (Success)
+  executor: '#06b6d4', // Cyan (Accent)
+  default: '#64748b', // Slate 500 (Gray)
 }
 
 export const AGENT_RADIUS = 20

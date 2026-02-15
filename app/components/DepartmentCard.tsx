@@ -33,12 +33,12 @@ export default function DepartmentCard({ department, availableAgents = [], missi
 
   const getRoleColor = (role: string) => {
     const colors: Record<string, string> = {
-      researcher: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300',
-      strategist: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
-      critic: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300',
-      ideator: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300',
-      coordinator: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300',
-      executor: 'bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300'
+      researcher: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200',
+      strategist: 'bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-200',
+      critic: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200',
+      ideator: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200',
+      coordinator: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200',
+      executor: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-200'
     }
     return colors[role] || 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-300'
   }
