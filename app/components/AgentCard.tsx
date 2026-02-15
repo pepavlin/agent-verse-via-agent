@@ -18,12 +18,12 @@ interface AgentCardProps {
 }
 
 const roleColors: Record<string, string> = {
-  researcher: 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300',
-  strategist: 'bg-violet-100 dark:bg-violet-900/30 text-violet-900 dark:text-violet-300',
+  researcher: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-300',
+  strategist: 'bg-purple-100 dark:bg-purple-900/30 text-purple-900 dark:text-purple-300',
   critic: 'bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-300',
-  ideator: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-300',
-  coordinator: 'bg-pink-100 dark:bg-pink-900/30 text-pink-900 dark:text-pink-300',
-  executor: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-300'
+  ideator: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-900 dark:text-cyan-300',
+  coordinator: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-300',
+  executor: 'bg-rose-100 dark:bg-rose-900/30 text-rose-900 dark:text-rose-300'
 }
 
 const roleIcons: Record<string, string> = {
@@ -66,7 +66,7 @@ export default function AgentCard({ agent, onDelete }: AgentCardProps) {
             {agent.description || 'No description provided'}
           </p>
           <div className="flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
-            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 rounded">
+            <span className="px-2 py-1 bg-primary/10 dark:bg-primary/20 text-primary-dark dark:text-primary-light rounded">
               {agent.model.includes('sonnet') ? 'Sonnet' :
                agent.model.includes('opus') ? 'Opus' : 'Haiku'}
             </span>

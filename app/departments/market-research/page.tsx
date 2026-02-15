@@ -147,21 +147,21 @@ export default function MarketResearchPage() {
 
   const getRoleColor = (role: string) => {
     const colors: Record<string, string> = {
-      researcher: 'bg-blue-100 text-blue-800 border-blue-200',
-      strategist: 'bg-purple-100 text-purple-800 border-purple-200',
-      critic: 'bg-orange-100 text-orange-800 border-orange-200',
-      ideator: 'bg-green-100 text-green-800 border-green-200'
+      researcher: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
+      strategist: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-700',
+      critic: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-700',
+      ideator: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700'
     }
-    return colors[role] || 'bg-gray-100 text-gray-800 border-gray-200'
+    return colors[role] || 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'
   }
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { bg: string; text: string }> = {
-      pending: { bg: 'bg-gray-100', text: 'text-gray-800' },
-      in_progress: { bg: 'bg-blue-100', text: 'text-blue-800' },
-      completed: { bg: 'bg-green-100', text: 'text-green-800' },
-      failed: { bg: 'bg-red-100', text: 'text-red-800' },
-      skipped: { bg: 'bg-yellow-100', text: 'text-yellow-800' }
+      pending: { bg: 'bg-neutral-100 dark:bg-neutral-800', text: 'text-neutral-800 dark:text-neutral-300' },
+      in_progress: { bg: 'bg-primary/10 dark:bg-primary/20', text: 'text-primary-dark dark:text-primary-light' },
+      completed: { bg: 'bg-success/10 dark:bg-success/20', text: 'text-success-dark dark:text-success-light' },
+      failed: { bg: 'bg-danger/10 dark:bg-danger/20', text: 'text-danger dark:text-danger' },
+      skipped: { bg: 'bg-warning/10 dark:bg-warning/20', text: 'text-warning-dark dark:text-warning-light' }
     }
     const badge = badges[status] || badges.pending
     return (
@@ -173,17 +173,17 @@ export default function MarketResearchPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <Link href="/departments" className="text-blue-600 hover:text-blue-800 text-sm mb-2 inline-block">
+              <Link href="/departments" className="text-primary hover:text-primary-dark dark:hover:text-primary-light text-sm mb-2 inline-block">
                 ← Back to Departments
               </Link>
-              <h1 className="text-3xl font-bold text-gray-900">Market Research Department</h1>
-              <p className="mt-2 text-gray-600">
+              <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-50">Market Research Department</h1>
+              <p className="mt-2 text-neutral-600 dark:text-neutral-400">
                 Comprehensive market analysis through collaborative AI agents
               </p>
             </div>
@@ -191,10 +191,10 @@ export default function MarketResearchPage() {
 
           {/* Department Status */}
           {departmentInfo && (
-            <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg">
+            <div className="mt-4 p-4 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900">Department Status</h3>
+                  <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-50">Department Status</h3>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {departmentInfo.requiredRoles.map((role: string) => {
                       const hasAgent = departmentInfo.availableAgents?.some((a: { role: string }) => a.role === role)
@@ -204,7 +204,7 @@ export default function MarketResearchPage() {
                           className={`px-2 py-1 rounded text-xs font-medium ${
                             hasAgent
                               ? getRoleColor(role)
-                              : 'bg-gray-100 text-gray-400 border border-gray-200'
+                              : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-neutral-700'
                           }`}
                         >
                           {getRoleIcon(role)} {role} {hasAgent && '✓'}
@@ -214,7 +214,7 @@ export default function MarketResearchPage() {
                   </div>
                 </div>
                 <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  departmentInfo.isReady ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                  departmentInfo.isReady ? 'bg-success/10 dark:bg-success/20 text-success-dark dark:text-success-light' : 'bg-warning/10 dark:bg-warning/20 text-warning-dark dark:text-warning-light'
                 }`}>
                   {departmentInfo.isReady ? '✓ Ready' : '⚠ Setup Required'}
                 </div>
@@ -226,12 +226,12 @@ export default function MarketResearchPage() {
         {/* Main Content */}
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Input Form */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Research Request</h2>
+          <div className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50 mb-4">Research Request</h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="query" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Research Query *
                 </label>
                 <textarea
@@ -239,14 +239,14 @@ export default function MarketResearchPage() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="What market research would you like to conduct?"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-50"
                   rows={4}
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="targetMarket" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="targetMarket" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Target Market
                 </label>
                 <input
@@ -255,12 +255,12 @@ export default function MarketResearchPage() {
                   value={targetMarket}
                   onChange={(e) => setTargetMarket(e.target.value)}
                   placeholder="e.g., SMBs in North America"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-50"
                 />
               </div>
 
               <div>
-                <label htmlFor="competitors" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="competitors" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Key Competitors
                 </label>
                 <input
@@ -269,19 +269,19 @@ export default function MarketResearchPage() {
                   value={competitors}
                   onChange={(e) => setCompetitors(e.target.value)}
                   placeholder="Comma-separated list"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-50"
                 />
               </div>
 
               <div>
-                <label htmlFor="timeframe" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="timeframe" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Timeframe
                 </label>
                 <select
                   id="timeframe"
                   value={timeframe}
                   onChange={(e) => setTimeframe(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-50"
                 >
                   <option value="3 months">3 months</option>
                   <option value="6 months">6 months</option>
@@ -292,7 +292,7 @@ export default function MarketResearchPage() {
               </div>
 
               <div>
-                <label htmlFor="specificQuestions" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="specificQuestions" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Specific Questions (one per line)
                 </label>
                 <textarea
@@ -300,7 +300,7 @@ export default function MarketResearchPage() {
                   value={specificQuestions}
                   onChange={(e) => setSpecificQuestions(e.target.value)}
                   placeholder="What are the key market trends?&#10;Who are the main competitors?&#10;What are the growth opportunities?"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-50"
                   rows={4}
                 />
               </div>
@@ -308,7 +308,7 @@ export default function MarketResearchPage() {
               <button
                 type="submit"
                 disabled={loading || !query || !departmentInfo?.isReady}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+                className="w-full px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors disabled:bg-neutral-300 dark:disabled:bg-neutral-700 disabled:cursor-not-allowed font-medium"
               >
                 {loading ? 'Running Research...' : 'Start Market Research'}
               </button>
@@ -316,45 +316,45 @@ export default function MarketResearchPage() {
           </div>
 
           {/* Results Panel */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Research Results</h2>
+          <div className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50 mb-4">Research Results</h2>
 
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-md mb-4">
-                <p className="text-red-800 text-sm">{error}</p>
+              <div className="p-4 bg-danger/10 dark:bg-danger/20 border border-danger/30 dark:border-danger/50 rounded-md mb-4">
+                <p className="text-danger dark:text-danger text-sm">{error}</p>
               </div>
             )}
 
             {loading && (
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Running multi-agent workflow...</p>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-4 text-neutral-600 dark:text-neutral-400">Running multi-agent workflow...</p>
               </div>
             )}
 
             {result && (
               <div className="space-y-6">
                 {/* Workflow Status */}
-                <div className="p-4 bg-gray-50 rounded-md">
+                <div className="p-4 bg-neutral-100 dark:bg-neutral-700/50 rounded-md">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Workflow Status</span>
+                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Workflow Status</span>
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      result.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      result.success ? 'bg-success/10 dark:bg-success/20 text-success-dark dark:text-success-light' : 'bg-danger/10 dark:bg-danger/20 text-danger dark:text-danger'
                     }`}>
                       {result.success ? 'Completed' : 'Failed'}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
                     Execution time: {(result.executionTime / 1000).toFixed(2)}s
                   </p>
                 </div>
 
                 {/* Workflow Steps */}
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-3">Workflow Steps</h3>
+                  <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-3">Workflow Steps</h3>
                   <div className="space-y-3">
                     {result.steps.map((step) => (
-                      <div key={step.stepNumber} className="border border-gray-200 rounded-md p-3">
+                      <div key={step.stepNumber} className="border border-neutral-200 dark:border-neutral-700 rounded-md p-3 bg-neutral-50 dark:bg-neutral-700/30">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">
@@ -363,14 +363,14 @@ export default function MarketResearchPage() {
                           </div>
                           {getStatusBadge(step.status)}
                         </div>
-                        <p className="text-xs text-gray-600 mb-2">{step.description}</p>
+                        <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">{step.description}</p>
                         {step.output && (
-                          <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                            <p className="text-gray-700 line-clamp-3">{step.output.substring(0, 200)}...</p>
+                          <div className="mt-2 p-2 bg-neutral-100 dark:bg-neutral-700/50 rounded text-xs">
+                            <p className="text-neutral-700 dark:text-neutral-300 line-clamp-3">{step.output.substring(0, 200)}...</p>
                           </div>
                         )}
                         {step.error && (
-                          <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-800">
+                          <div className="mt-2 p-2 bg-danger/10 dark:bg-danger/20 rounded text-xs text-danger dark:text-danger">
                             {step.error}
                           </div>
                         )}
@@ -382,10 +382,10 @@ export default function MarketResearchPage() {
                 {/* Final Summary */}
                 {result.result?.summary && (
                   <div>
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">Final Report</h3>
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-md max-h-96 overflow-y-auto">
+                    <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-3">Final Report</h3>
+                    <div className="p-4 bg-primary/10 dark:bg-primary/20 border border-primary/30 dark:border-primary/50 rounded-md max-h-96 overflow-y-auto">
                       <div className="prose prose-sm max-w-none">
-                        <pre className="whitespace-pre-wrap text-xs text-gray-800 font-sans">
+                        <pre className="whitespace-pre-wrap text-xs text-neutral-800 dark:text-neutral-200 font-sans">
                           {result.result.summary}
                         </pre>
                       </div>
@@ -396,7 +396,7 @@ export default function MarketResearchPage() {
             )}
 
             {!loading && !result && !error && (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-neutral-500 dark:text-neutral-400">
                 <p>Submit a research query to see results</p>
               </div>
             )}
