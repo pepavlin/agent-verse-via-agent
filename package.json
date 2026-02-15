@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "predev": "npm run db:init",
-    "dev": "next dev",
-    "prebuild": "node scripts/generate-build-info.js",
+    "dev": "NEXT_PUBLIC_BUILD_TIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\") next dev",
     "build": "next build",
+    "build:with-timestamp": "NEXT_PUBLIC_BUILD_TIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\") next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -16,7 +16,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:maintenance": "node scripts/db-maintenance.mjs",
     "cleanup:disk": "./scripts/cleanup-disk-space.sh",
-    "monitor:disk": "node scripts/monitor-disk-space.mjs"
+    "monitor:disk": "node scripts/monitor-disk-space.mjs",
+    "docker:build": "./scripts/docker-build.sh",
+    "docker:up": "./scripts/docker-compose-up.sh"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

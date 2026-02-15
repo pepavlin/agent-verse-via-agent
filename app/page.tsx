@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import GameCanvas from '@/app/components/GameCanvas'
 import AgentChatDialog from '@/app/components/AgentChatDialog'
 import CreateAgentModal from '@/app/components/CreateAgentModal'
+import { BUILD_CONFIG } from '@/lib/build-config'
 
 interface Agent {
   id: string
@@ -14,26 +15,12 @@ interface Agent {
   size?: number | null
 }
 
-interface BuildInfo {
-  deployDate: string
-}
-
 export default function Home() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentList, setShowAgentList] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [deployDate, setDeployDate] = useState<string | null>(null)
-
-  useEffect(() => {
-    // Fetch build info on component mount
-    fetch('/build-info.json')
-      .then(res => res.json())
-      .then((data: BuildInfo) => {
-        setDeployDate(data.deployDate)
-      })
-      .catch(err => console.error('Failed to fetch build info:', err))
-  }, [])
+  const deployDate = BUILD_CONFIG.deployDate
 
   const fetchAgents = async () => {
     try {

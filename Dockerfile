@@ -28,6 +28,9 @@ RUN npx prisma generate
 
 # Build Next.js application
 ENV NEXT_TELEMETRY_DISABLED=1
+# Set build timestamp - this will be embedded in the Next.js build
+ARG BUILD_TIMESTAMP
+ENV NEXT_PUBLIC_BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
 RUN npm run build
 
 # Stage 3: Runner
