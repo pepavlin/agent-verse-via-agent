@@ -103,7 +103,7 @@ export class Department {
     workflowId: string,
     agentId: string,
     question: string,
-    context?: any
+    context?: Record<string, unknown>
   ): Promise<string> {
     if (!this.userQueryCallback) {
       throw new Error('User query callback not set')
@@ -131,7 +131,7 @@ export class Department {
    */
   async execute(
     input: string,
-    context?: any,
+    context?: Record<string, unknown>,
     enableUserInteraction: boolean = false
   ): Promise<DepartmentExecutionResult> {
     const startTime = Date.now()
@@ -158,7 +158,7 @@ export class Department {
 
     const userQueries: UserQuery[] = []
     let currentContext = context || {}
-    let workflowInput = input
+    const workflowInput = input
 
     try {
       for (let i = 0; i < steps.length; i++) {

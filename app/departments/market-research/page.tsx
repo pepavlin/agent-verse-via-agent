@@ -16,14 +16,22 @@ interface WorkflowStep {
   completedAt?: string
 }
 
+interface StepResult {
+  role: string
+  description: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
+  output?: string
+  error?: string
+}
+
 interface ExecutionResult {
   success: boolean
   workflowId: string
   departmentId: string
   result?: {
     summary: string
-    steps: any[]
-    context: any
+    steps: StepResult[]
+    context: Record<string, unknown>
   }
   error?: string
   steps: WorkflowStep[]
@@ -46,7 +54,12 @@ export default function MarketResearchPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ExecutionResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [departmentInfo, setDepartmentInfo] = useState<any>(null)
+  const [departmentInfo, setDepartmentInfo] = useState<{
+    isReady: boolean
+    missingRoles?: string[]
+    requiredRoles: string[]
+    availableAgents?: { role: string }[]
+  } | null>(null)
 
   useEffect(() => {
     const user = simpleAuth.getUser()
@@ -81,7 +94,12 @@ export default function MarketResearchPage() {
     setResult(null)
 
     try {
-      const options: any = {}
+      const options: {
+        targetMarket?: string
+        competitors?: string[]
+        timeframe?: string
+        specificQuestions?: string[]
+      } = {}
       if (targetMarket) options.targetMarket = targetMarket
       if (competitors) options.competitors = competitors.split(',').map(c => c.trim())
       if (timeframe) options.timeframe = timeframe
@@ -179,7 +197,7 @@ export default function MarketResearchPage() {
                   <h3 className="text-sm font-medium text-gray-900">Department Status</h3>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {departmentInfo.requiredRoles.map((role: string) => {
-                      const hasAgent = departmentInfo.availableAgents?.some((a: any) => a.role === role)
+                      const hasAgent = departmentInfo.availableAgents?.some((a: { role: string }) => a.role === role)
                       return (
                         <span
                           key={role}

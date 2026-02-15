@@ -159,7 +159,7 @@ export default function DepartmentsPage() {
           <div className="mt-8 p-6 bg-white border border-gray-200 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Getting Started</h3>
             <p className="text-gray-600 mb-4">
-              To use departments, you need to create agents with specific roles. Here's how:
+              To use departments, you need to create agents with specific roles. Here&apos;s how:
             </p>
             <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
               <li>Go to the <Link href="/agents" className="text-blue-600 hover:underline">Agents page</Link></li>
