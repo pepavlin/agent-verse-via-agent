@@ -52,6 +52,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 # Copy node_modules with all required Prisma 7 transitive dependencies
 # Includes: valibot, zeptomatch, graphmatch, grammex, and other Prisma dependencies
