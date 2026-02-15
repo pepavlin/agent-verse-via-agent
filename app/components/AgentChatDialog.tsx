@@ -54,7 +54,6 @@ export default function AgentChatDialog({ agent, onClose }: AgentChatDialogProps
   }, [messages])
 
   useEffect(() => {
-    // Load chat history
     loadChatHistory()
   }, [agent.id, loadChatHistory])
 
