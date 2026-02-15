@@ -18,14 +18,14 @@ const roleDescriptions = {
 }
 
 const agentColors = [
-  { name: 'Purple', value: '#a855f7' },
-  { name: 'Pink', value: '#ec4899' },
-  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Indigo', value: '#6366f1' },
+  { name: 'Violet', value: '#8b5cf6' },
+  { name: 'Cyan', value: '#06b6d4' },
   { name: 'Green', value: '#10b981' },
   { name: 'Orange', value: '#f97316' },
   { name: 'Red', value: '#ef4444' },
-  { name: 'Yellow', value: '#eab308' },
-  { name: 'Cyan', value: '#06b6d4' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Amber', value: '#fbbf24' },
 ]
 
 const agentSizes = [
@@ -40,7 +40,7 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
   const [description, setDescription] = useState('')
   const [model, setModel] = useState('claude-3-5-sonnet-20241022')
   const [role, setRole] = useState<AgentRole>('researcher')
-  const [color, setColor] = useState('#a855f7')
+  const [color, setColor] = useState('#6366f1')
   const [size, setSize] = useState(20)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -68,7 +68,7 @@ export default function CreateAgentModal({ isOpen, onClose, onSuccess }: CreateA
       setDescription('')
       setModel('claude-3-5-sonnet-20241022')
       setRole('researcher')
-      setColor('#a855f7')
+      setColor('#6366f1')
       setSize(20)
       onSuccess()
       onClose()

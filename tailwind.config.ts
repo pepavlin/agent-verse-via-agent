@@ -8,18 +8,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Custom color palette
+        // Custom color palette using CSS variables
         background: 'var(--background)',
         foreground: 'var(--foreground)',
 
-        // Primary - Deep Indigo (professional tech look)
+        // Primary - Indigo (professional tech look)
         primary: {
           light: 'var(--primary-light)',
           DEFAULT: 'var(--primary)',
           dark: 'var(--primary-dark)',
         },
 
-        // Secondary - Purple (creative/AI feel)
+        // Secondary - Violet (creative/AI feel)
         secondary: {
           light: 'var(--secondary-light)',
           DEFAULT: 'var(--secondary)',
@@ -38,7 +38,7 @@ const config: Config = {
         warning: 'var(--warning)',
         danger: 'var(--danger)',
 
-        // Neutral scale
+        // Neutral scale (Slate)
         neutral: {
           50: 'var(--neutral-50)',
           100: 'var(--neutral-100)',

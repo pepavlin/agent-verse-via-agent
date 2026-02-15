@@ -17,12 +17,12 @@ export default function ChatMessage({ message }: ChatMessageProps) {
       <div
         className={`max-w-[70%] rounded-lg px-4 py-2 ${
           isUser
-            ? 'bg-blue-600 text-white'
-            : 'bg-gray-200 text-gray-900'
+            ? 'bg-primary text-white'
+            : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100'
         }`}
       >
         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-        <span className={`text-xs mt-1 block ${isUser ? 'text-blue-100' : 'text-gray-500'}`}>
+        <span className={`text-xs mt-1 block ${isUser ? 'text-primary-light' : 'text-neutral-500 dark:text-neutral-400'}`}>
           {new Date(message.createdAt).toLocaleTimeString()}
         </span>
       </div>

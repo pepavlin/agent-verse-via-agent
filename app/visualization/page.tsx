@@ -43,22 +43,22 @@ export default function VisualizationPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-neutral-950 text-white">
       {/* Header */}
-      <header className="bg-gray-900 border-b border-gray-700 px-6 py-4">
+      <header className="bg-neutral-900 border-b border-neutral-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
               Agent Visualization
             </h1>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-sm text-neutral-400 mt-1">
               Interactive 2D visualization with rect selection tool
             </p>
           </div>
 
           <button
             onClick={() => setShowSidebar(!showSidebar)}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-md text-sm transition-colors"
+            className="px-4 py-2 bg-primary hover:bg-primary-dark rounded-md text-sm transition-colors text-white"
           >
             {showSidebar ? 'Hide Sidebar' : 'Show Sidebar'}
           </button>
@@ -71,7 +71,7 @@ export default function VisualizationPage() {
       {/* Main Content */}
       <div className="flex">
         <div className="flex-1 p-6">
-          <div className="bg-gray-900 rounded-lg overflow-hidden shadow-xl">
+          <div className="bg-neutral-900 rounded-lg overflow-hidden shadow-xl">
             <AgentVisualization
               agents={agents}
               onSelectionChange={handleSelectionChange}
@@ -81,14 +81,14 @@ export default function VisualizationPage() {
           </div>
 
           {/* Legend */}
-          <div className="mt-4 bg-gray-900 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3">Agent Roles</h3>
+          <div className="mt-4 bg-neutral-900 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-neutral-300 mb-3">Agent Roles</h3>
             <div className="flex flex-wrap gap-4">
               {[
-                { role: 'researcher', color: '#3b82f6', name: 'Researcher' },
-                { role: 'strategist', color: '#a855f7', name: 'Strategist' },
+                { role: 'researcher', color: '#6366f1', name: 'Researcher' },
+                { role: 'strategist', color: '#8b5cf6', name: 'Strategist' },
                 { role: 'critic', color: '#ef4444', name: 'Critic' },
-                { role: 'ideator', color: '#f59e0b', name: 'Ideator' },
+                { role: 'ideator', color: '#f97316', name: 'Ideator' },
                 { role: 'coordinator', color: '#10b981', name: 'Coordinator' },
                 { role: 'executor', color: '#06b6d4', name: 'Executor' },
               ].map(({ role, color, name }) => (
@@ -97,7 +97,7 @@ export default function VisualizationPage() {
                     className="w-4 h-4 rounded-full"
                     style={{ backgroundColor: color }}
                   />
-                  <span className="text-sm text-gray-400">{name}</span>
+                  <span className="text-sm text-neutral-400">{name}</span>
                 </div>
               ))}
             </div>

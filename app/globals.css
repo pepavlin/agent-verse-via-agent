@@ -3,17 +3,17 @@
 :root {
   /* Light theme - Modern & Professional */
   --background: #fafbfc;
-  --foreground: #0d1117;
+  --foreground: #0f172a;    /* Updated to Slate-950 */
 
-  /* Modern Primary Color - Deep Indigo (professional tech look) */
-  --primary: #4f46e5;        /* Indigo 600 */
-  --primary-light: #6366f1;  /* Indigo 500 */
-  --primary-dark: #4338ca;   /* Indigo 700 */
+  /* Modern Primary Color - Indigo (professional tech look) */
+  --primary: #6366f1;        /* Indigo 500 - Modernized */
+  --primary-light: #818cf8;  /* Indigo 400 */
+  --primary-dark: #4f46e5;   /* Indigo 600 */
 
-  /* Modern Secondary Color - Purple (creative/ai feel) */
-  --secondary: #9333ea;      /* Purple 600 */
-  --secondary-light: #a855f7; /* Purple 500 */
-  --secondary-dark: #7e22ce;  /* Purple 700 */
+  /* Modern Secondary Color - Violet (creative/ai feel) */
+  --secondary: #8b5cf6;      /* Violet 500 - Updated */
+  --secondary-light: #a78bfa; /* Violet 400 */
+  --secondary-dark: #7c3aed;  /* Violet 600 */
 
   /* Modern Accent Color - Cyan (modern tech) */
   --accent: #0891b2;         /* Cyan 700 */
@@ -21,11 +21,11 @@
   --accent-dark: #0e7490;    /* Cyan 800 */
 
   /* Semantic Colors */
-  --success: #059669;        /* Emerald 600 */
-  --warning: #d97706;        /* Amber 600 */
-  --danger: #dc2626;         /* Red 600 */
+  --success: #10b981;        /* Emerald 500 - Maintained */
+  --warning: #f97316;        /* Orange 500 - Updated */
+  --danger: #ef4444;         /* Red 500 - Maintained */
 
-  /* Neutral grays - Modern minimalist palette */
+  /* Neutral grays - Modern minimalist palette (Slate scale) */
   --neutral-50: #f8fafc;     /* Slate 50 */
   --neutral-100: #f1f5f9;    /* Slate 100 */
   --neutral-200: #e2e8f0;    /* Slate 200 */
@@ -68,8 +68,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
+    /* Dark theme - Using modern color scheme */
+    --background: #0f172a;    /* Slate 900 */
+    --foreground: #f8fafc;    /* Slate 50 */
   }
 }
 

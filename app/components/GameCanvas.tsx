@@ -414,7 +414,7 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
                 : hoveredAgent.description}
             </div>
           )}
-          <div className="text-xs text-purple-400 mt-1">Click to chat</div>
+          <div className="text-xs text-secondary-light mt-1">Click to chat</div>
         </div>
       )}
     </div>
