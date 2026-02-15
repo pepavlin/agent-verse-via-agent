@@ -175,7 +175,8 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
   // Fetch agents on mount
   useEffect(() => {
     fetchAgents()
-  }, [fetchAgents])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Animation loop
   useEffect(() => {

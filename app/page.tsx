@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import GameCanvas from '@/app/components/GameCanvas'
 import AgentChatDialog from '@/app/components/AgentChatDialog'
 import CreateAgentModal from '@/app/components/CreateAgentModal'

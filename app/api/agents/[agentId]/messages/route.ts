@@ -26,42 +26,20 @@ const anthropic = new Anthropic({
 })
 
 // Helper function to get agent instance based on role
-function getAgentInstance(
-  agent: {
-    id: string
-    name: string
-    role: string | null
-    model: string
-    personality: string | null
-    specialization: string | null
-  }
-): BaseAgent | null {
+function getAgentInstance(agent: Agent): BaseAgent | null {
   if (!agent.role) {
     return null
-  }
-  const config: Agent = {
-    id: agent.id,
-    name: agent.name,
-    model: agent.model,
-    role: agent.role as Agent['role'],
-    personality: agent.personality,
-    specialization: agent.specialization,
-    description: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    userId: '',
-    departmentId: undefined
   }
 
   switch (agent.role) {
     case "researcher":
-      return new ResearcherAgent(config)
+      return new ResearcherAgent(agent)
     case "strategist":
-      return new StrategistAgent(config)
+      return new StrategistAgent(agent)
     case "critic":
-      return new CriticAgent(config)
+      return new CriticAgent(agent)
     case "ideator":
-      return new IdeatorAgent(config)
+      return new IdeatorAgent(agent)
     default:
       return null
   }
