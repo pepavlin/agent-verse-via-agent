@@ -53,18 +53,13 @@ else
   echo "⚠️  Unknown database type in DATABASE_URL"
 fi
 
-# Run Prisma migrations
-echo "🔄 Running Prisma migrations..."
-if npx prisma migrate deploy; then
-  echo "✅ Prisma migrations completed successfully"
+# Sync database schema
+echo "🔄 Syncing database schema..."
+if npx prisma db push; then
+  echo "✅ Database schema synced successfully"
 else
-  echo "⚠️  Prisma migrate deploy failed, trying prisma db push..."
-  if npx prisma db push --accept-data-loss; then
-    echo "✅ Database schema pushed successfully"
-  else
-    echo "❌ Failed to initialize database schema"
-    exit 1
-  fi
+  echo "❌ Failed to initialize database schema"
+  exit 1
 fi
 
 # Verify database connection
