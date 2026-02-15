@@ -37,6 +37,7 @@ export default function GamePage() {
     }
   }, [])
 
+  // Initialize user state and fetch agents on mount
   useEffect(() => {
     const currentUser = simpleAuth.getUser()
     if (!currentUser) {
@@ -49,7 +50,8 @@ export default function GamePage() {
         void fetchAgents()
       })
     }
-  }, [router, fetchAgents])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router])
 
   const handleLogout = () => {
     simpleAuth.logout()

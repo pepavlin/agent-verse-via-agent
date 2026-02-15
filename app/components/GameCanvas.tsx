@@ -46,41 +46,29 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
   const WORLD_HEIGHT = 1500
   const AGENT_RADIUS = 20
 
-  const fetchAgents = useCallback(async () => {
-    try {
-      const response = await fetch('/api/agents')
-      if (response.ok) {
-        const data = await response.json()
-
-        // Convert agents to game entities with random positions and velocities
-        const gameAgents: Agent[] = data.map((agent: Record<string, unknown>, index: number) => {
-          const speed = 0.5 + Math.random() * 1.5 // Random speed between 0.5 and 2.0
-          const angle = Math.random() * Math.PI * 2
-          return {
-            id: agent.id,
-            name: agent.name,
-            description: agent.description,
-            model: agent.model,
-            x: Math.random() * (WORLD_WIDTH - 200) + 100,
-            y: Math.random() * (WORLD_HEIGHT - 200) + 100,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            color: agent.color || `hsl(${(index * 137.5) % 360}, 70%, 60%)`,
-            radius: agent.size || AGENT_RADIUS,
-            speed: speed,
-            isPaused: false,
-            pauseTimer: 0,
-            maxPauseTime: 60 + Math.random() * 120, // Pause for 1-3 seconds (60fps)
-            directionChangeTimer: 0
-          }
-        })
-
-        setAgents(gameAgents)
+  const createGameAgents = useCallback((data: Record<string, unknown>[]): Agent[] => {
+    return data.map((agent: Record<string, unknown>, index: number) => {
+      const speed = 0.5 + Math.random() * 1.5 // Random speed between 0.5 and 2.0
+      const angle = Math.random() * Math.PI * 2
+      return {
+        id: String(agent.id),
+        name: String(agent.name),
+        description: agent.description as string | null,
+        model: String(agent.model),
+        x: Math.random() * (WORLD_WIDTH - 200) + 100,
+        y: Math.random() * (WORLD_HEIGHT - 200) + 100,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: String(agent.color || `hsl(${(index * 137.5) % 360}, 70%, 60%)`),
+        radius: Number(agent.size) || AGENT_RADIUS,
+        speed: speed,
+        isPaused: false,
+        pauseTimer: 0,
+        maxPauseTime: 60 + Math.random() * 120, // Pause for 1-3 seconds (60fps)
+        directionChangeTimer: 0
       }
-    } catch (error) {
-      console.error('Failed to fetch agents:', error)
-    }
-  }, [])
+    })
+  }, [AGENT_RADIUS, WORLD_WIDTH, WORLD_HEIGHT])
 
   const drawGrid = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
     const gridSize = 50 * camera.zoom
@@ -173,6 +161,19 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
   }, [camera.x, camera.y, camera.zoom])
 
   // Fetch agents on mount
+  const fetchAgents = useCallback(async () => {
+    try {
+      const response = await fetch('/api/agents')
+      if (response.ok) {
+        const data = await response.json()
+        const gameAgents = createGameAgents(data)
+        setAgents(gameAgents)
+      }
+    } catch (error) {
+      console.error('Failed to fetch agents:', error)
+    }
+  }, [createGameAgents])
+
   useEffect(() => {
     // Use Promise to defer state update to next microtask
     Promise.resolve().then(() => fetchAgents())
