@@ -62,16 +62,14 @@ else
   exit 1
 fi
 
-# Verify database connection
-echo "🔍 Verifying database connection..."
-if npx prisma db execute --stdin <<EOF
-SELECT 1 as test;
+# Seed default user required by the application
+echo "🔍 Ensuring default user exists..."
+npx prisma db execute --stdin <<EOF
+INSERT INTO "User" (id, email, name, password, "createdAt", "updatedAt")
+VALUES ('fake-user', 'fake@agentverse.local', 'Default User', 'not-used', NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
 EOF
-then
-  echo "✅ Database connection verified"
-else
-  echo "⚠️  Could not verify database connection, but continuing..."
-fi
+echo "✅ Default user ready"
 
 # Start the application
 echo "🎯 Starting Next.js application..."
