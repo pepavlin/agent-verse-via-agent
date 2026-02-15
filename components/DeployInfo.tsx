@@ -1,28 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
-interface BuildInfo {
-  deployDate: string;
-}
+import { BUILD_CONFIG } from '@/lib/build-config';
 
 export default function DeployInfo() {
-  const [deployDate, setDeployDate] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/build-info.json')
-      .then(res => res.json())
-      .then((data: BuildInfo) => {
-        setDeployDate(data.deployDate);
-      })
-      .catch(err => {
-        console.error('Failed to load build info:', err);
-      });
-  }, []);
-
-  if (!deployDate) {
-    return null;
-  }
+  const deployDate = BUILD_CONFIG.deployDate;
 
   const formatDate = (isoString: string) => {
     const date = new Date(isoString);
