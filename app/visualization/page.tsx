@@ -13,6 +13,7 @@ export default function VisualizationPage() {
   const [agents] = useState<VisualAgent[]>(() => generateDemoAgents(30))
   const [selectedAgents, setSelectedAgents] = useState<VisualAgent[]>([])
   const [focusedAgent, setFocusedAgent] = useState<VisualAgent | null>(null)
+  const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
 
   const handleSelectionChange = useCallback((selected: VisualAgent[]) => {
@@ -22,6 +23,16 @@ export default function VisualizationPage() {
   const handleAgentClick = useCallback((agent: VisualAgent) => {
     setFocusedAgent(agent.selected ? agent : null)
   }, [])
+
+  const handleFocusAgent = useCallback((agentId: string | null) => {
+    setFocusedAgentId(agentId)
+    if (agentId) {
+      const agent = agents.find((a) => a.id === agentId)
+      setFocusedAgent(agent || null)
+    } else {
+      setFocusedAgent(null)
+    }
+  }, [agents])
 
   const handleAction = useCallback((action: string, agents: VisualAgent[]) => {
     console.log(`Action: ${action}`, agents)
@@ -82,6 +93,8 @@ export default function VisualizationPage() {
               agents={agents}
               onSelectionChange={handleSelectionChange}
               onAgentClick={handleAgentClick}
+              onFocusAgent={handleFocusAgent}
+              focusedAgentId={focusedAgentId}
               width={1200}
               height={700}
               showConnections={true}
@@ -152,6 +165,7 @@ export default function VisualizationPage() {
           <AgentSidebar
             selectedAgents={selectedAgents}
             onClose={() => setShowSidebar(false)}
+            onFocusAgent={handleFocusAgent}
           />
         )}
       </div>
