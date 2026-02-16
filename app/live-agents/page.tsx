@@ -5,6 +5,7 @@ import { Agent } from '@/types'
 import { VisualAgent } from '@/types/visualization'
 import AgentVisualization from '@/app/components/AgentVisualization'
 import AgentInfoPanel from '@/app/components/AgentInfoPanel'
+import AgentSidebar from '@/app/components/AgentSidebar'
 import { createVisualAgent } from '@/lib/demoAgents'
 import Link from 'next/link'
 
@@ -12,8 +13,10 @@ export default function LiveAgentsPage() {
   const [agents, setAgents] = useState<VisualAgent[]>([])
   const [selectedAgents, setSelectedAgents] = useState<VisualAgent[]>([])
   const [focusedAgent, setFocusedAgent] = useState<VisualAgent | null>(null)
+  const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showSidebar, setShowSidebar] = useState(true)
 
   // Fetch agents from API
   useEffect(() => {
@@ -52,6 +55,16 @@ export default function LiveAgentsPage() {
   const handleAgentClick = useCallback((agent: VisualAgent) => {
     setFocusedAgent(agent.selected ? agent : null)
   }, [])
+
+  const handleFocusAgent = useCallback((agentId: string | null) => {
+    setFocusedAgentId(agentId)
+    if (agentId) {
+      const agent = agents.find((a) => a.id === agentId)
+      setFocusedAgent(agent || null)
+    } else {
+      setFocusedAgent(null)
+    }
+  }, [agents])
 
   if (loading) {
     return (
@@ -117,6 +130,8 @@ export default function LiveAgentsPage() {
                 agents={agents}
                 onSelectionChange={handleSelectionChange}
                 onAgentClick={handleAgentClick}
+                onFocusAgent={handleFocusAgent}
+                focusedAgentId={focusedAgentId}
                 width={1200}
                 height={700}
                 showConnections={true}
@@ -125,63 +140,71 @@ export default function LiveAgentsPage() {
           )}
         </div>
 
-        {/* Info Panel */}
-        <div className="w-64 bg-neutral-900 border-l border-neutral-700 p-6 overflow-y-auto">
-          <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Map Info</h3>
-          <div className="space-y-4 text-sm">
-            <div>
-              <p className="text-neutral-400">Total Agents</p>
-              <p className="text-2xl font-bold text-indigo-400">{agents.length}</p>
-            </div>
-            <div>
-              <p className="text-neutral-400">Selected</p>
-              <p className="text-2xl font-bold text-violet-400">{selectedAgents.length}</p>
-            </div>
-          </div>
-
-          <hr className="my-6 border-neutral-700" />
-
-          <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Agent Roles</h3>
-          <div className="space-y-2 text-xs text-neutral-400">
-            {[
-              { role: 'researcher', color: '#6366f1', name: 'Researcher', count: agents.filter((a) => a.role === 'researcher').length },
-              { role: 'strategist', color: '#8b5cf6', name: 'Strategist', count: agents.filter((a) => a.role === 'strategist').length },
-              { role: 'critic', color: '#ef4444', name: 'Critic', count: agents.filter((a) => a.role === 'critic').length },
-              { role: 'ideator', color: '#f97316', name: 'Ideator', count: agents.filter((a) => a.role === 'ideator').length },
-              { role: 'coordinator', color: '#10b981', name: 'Coordinator', count: agents.filter((a) => a.role === 'coordinator').length },
-              { role: 'executor', color: '#06b6d4', name: 'Executor', count: agents.filter((a) => a.role === 'executor').length },
-            ].map(({ color, name, count }) => (
-              <div key={name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: color }}
-                  />
-                  <span>{name}</span>
-                </div>
-                <span className="text-neutral-500">{count}</span>
+        {/* Agent Sidebar with Focus functionality */}
+        {showSidebar && selectedAgents.length > 0 ? (
+          <AgentSidebar
+            selectedAgents={selectedAgents}
+            onClose={() => setShowSidebar(false)}
+            onFocusAgent={handleFocusAgent}
+          />
+        ) : (
+          <div className="w-64 bg-neutral-900 border-l border-neutral-700 p-6 overflow-y-auto">
+            <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Map Info</h3>
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="text-neutral-400">Total Agents</p>
+                <p className="text-2xl font-bold text-indigo-400">{agents.length}</p>
               </div>
-            ))}
-          </div>
+              <div>
+                <p className="text-neutral-400">Selected</p>
+                <p className="text-2xl font-bold text-violet-400">{selectedAgents.length}</p>
+              </div>
+            </div>
 
-          <hr className="my-6 border-neutral-700" />
+            <hr className="my-6 border-neutral-700" />
 
-          <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Controls</h3>
-          <div className="space-y-3 text-xs text-neutral-400">
-            <div>
-              <p className="font-semibold text-neutral-300">Click Agent</p>
-              <p>View agent details</p>
+            <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Agent Roles</h3>
+            <div className="space-y-2 text-xs text-neutral-400">
+              {[
+                { role: 'researcher', color: '#6366f1', name: 'Researcher', count: agents.filter((a) => a.role === 'researcher').length },
+                { role: 'strategist', color: '#8b5cf6', name: 'Strategist', count: agents.filter((a) => a.role === 'strategist').length },
+                { role: 'critic', color: '#ef4444', name: 'Critic', count: agents.filter((a) => a.role === 'critic').length },
+                { role: 'ideator', color: '#f97316', name: 'Ideator', count: agents.filter((a) => a.role === 'ideator').length },
+                { role: 'coordinator', color: '#10b981', name: 'Coordinator', count: agents.filter((a) => a.role === 'coordinator').length },
+                { role: 'executor', color: '#06b6d4', name: 'Executor', count: agents.filter((a) => a.role === 'executor').length },
+              ].map(({ color, name, count }) => (
+                <div key={name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span>{name}</span>
+                  </div>
+                  <span className="text-neutral-500">{count}</span>
+                </div>
+              ))}
             </div>
-            <div>
-              <p className="font-semibold text-neutral-300">Drag to Select</p>
-              <p>Select multiple agents</p>
-            </div>
-            <div>
-              <p className="font-semibold text-neutral-300">Ctrl + Click</p>
-              <p>Multi-select agents</p>
+
+            <hr className="my-6 border-neutral-700" />
+
+            <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Controls</h3>
+            <div className="space-y-3 text-xs text-neutral-400">
+              <div>
+                <p className="font-semibold text-neutral-300">Click Agent</p>
+                <p>View agent details</p>
+              </div>
+              <div>
+                <p className="font-semibold text-neutral-300">Drag to Select</p>
+                <p>Select multiple agents</p>
+              </div>
+              <div>
+                <p className="font-semibold text-neutral-300">Ctrl + Click</p>
+                <p>Multi-select agents</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Agent Info Panel */}
         <AgentInfoPanel
