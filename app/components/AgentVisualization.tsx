@@ -366,21 +366,22 @@ export default function AgentVisualization({
 
         // Draw grid lines for better visual reference
         const gridSize = 50
-        const gridColor = 0xe5e7eb  // Light gray color
-        const gridAlpha = 0.6
+        const gridColor = 0x9ca3af  // Darker gray color for better contrast
+        const gridAlpha = 0.8  // Increased opacity
+        const gridLineWidth = 1.5  // Thicker lines
 
         // Vertical lines
         for (let x = -width / 2; x <= width / 2; x += gridSize) {
           gridGraphic.moveTo(x, -height / 2)
           gridGraphic.lineTo(x, height / 2)
-          gridGraphic.stroke({ width: 1, color: gridColor, alpha: gridAlpha })
+          gridGraphic.stroke({ width: gridLineWidth, color: gridColor, alpha: gridAlpha })
         }
 
         // Horizontal lines
         for (let y = -height / 2; y <= height / 2; y += gridSize) {
           gridGraphic.moveTo(-width / 2, y)
           gridGraphic.lineTo(width / 2, y)
-          gridGraphic.stroke({ width: 1, color: gridColor, alpha: gridAlpha })
+          gridGraphic.stroke({ width: gridLineWidth, color: gridColor, alpha: gridAlpha })
         }
 
         app.stage.addChild(gridGraphic)
