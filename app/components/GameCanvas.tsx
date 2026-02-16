@@ -29,9 +29,10 @@ interface Camera {
 
 interface GameCanvasProps {
   onAgentClick?: (agentId: string) => void
+  focusedAgentId?: string | null
 }
 
-export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
+export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const router = useRouter()
   const [agents, setAgents] = useState<Agent[]>([])
@@ -178,6 +179,23 @@ export default function GameCanvas({ onAgentClick }: GameCanvasProps) {
     // Use Promise to defer state update to next microtask
     Promise.resolve().then(() => fetchAgents())
   }, [fetchAgents])
+
+  // Focus camera on agent when focusedAgentId changes
+  useEffect(() => {
+    if (focusedAgentId) {
+      const focusedAgent = agents.find(a => a.id === focusedAgentId)
+      if (focusedAgent) {
+        // Defer state update to avoid cascading renders
+        Promise.resolve().then(() => {
+          setCamera(prev => ({
+            ...prev,
+            x: focusedAgent.x,
+            y: focusedAgent.y
+          }))
+        })
+      }
+    }
+  }, [focusedAgentId, agents])
 
   // Animation loop
   useEffect(() => {

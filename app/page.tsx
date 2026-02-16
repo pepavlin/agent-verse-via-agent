@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import GameCanvas from '@/app/components/GameCanvas'
 import AgentChatDialog from '@/app/components/AgentChatDialog'
 import CreateAgentModal from '@/app/components/CreateAgentModal'
@@ -20,19 +20,28 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentList, setShowAgentList] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
   const deployDate = BUILD_CONFIG.deployDate
 
-  const fetchAgents = async () => {
-    try {
-      const response = await fetch('/api/agents')
-      if (response.ok) {
-        const data = await response.json()
-        setAgents(data)
+  // Fetch agents on component mount and set up polling
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const response = await fetch('/api/agents')
+        if (response.ok) {
+          const data = await response.json()
+          setAgents(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error)
       }
-    } catch (error) {
-      console.error('Failed to fetch agents:', error)
     }
-  }
+
+    fetchAgents()
+    // Poll for new agents every 5 seconds
+    const interval = setInterval(fetchAgents, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   const formatDeployDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -93,7 +102,10 @@ export default function Home() {
               agents.map((agent) => (
                 <button
                   key={agent.id}
-                  onClick={() => setSelectedAgent(agent)}
+                  onClick={() => {
+                    setSelectedAgent(agent)
+                    setFocusedAgentId(agent.id)
+                  }}
                   className="w-full p-4 text-left hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 transition-colors border-b border-neutral-800 dark:border-neutral-800 last:border-b-0"
                 >
                   <div className="flex items-start gap-3">
@@ -120,10 +132,13 @@ export default function Home() {
       )}
 
       {/* Game Canvas */}
-      <GameCanvas onAgentClick={(agentId) => {
-        const agent = agents.find(a => a.id === agentId)
-        if (agent) setSelectedAgent(agent)
-      }} />
+      <GameCanvas
+        onAgentClick={(agentId) => {
+          const agent = agents.find(a => a.id === agentId)
+          if (agent) setSelectedAgent(agent)
+        }}
+        focusedAgentId={focusedAgentId}
+      />
 
       {/* Chat Dialog */}
       {selectedAgent && (
