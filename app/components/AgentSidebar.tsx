@@ -1,7 +1,7 @@
 'use client'
 
 import { VisualAgent } from '@/types/visualization'
-import { X, Target } from 'lucide-react'
+import { X, Crosshair } from 'lucide-react'
 
 interface AgentSidebarProps {
   selectedAgents: VisualAgent[]
@@ -35,12 +35,13 @@ export default function AgentSidebar({ selectedAgents, onClose, onFocusAgent }: 
         {selectedAgents.map((agent) => (
           <div
             key={agent.id}
-            className="bg-white rounded-lg p-3 border border-neutral-300 shadow-sm"
+            className="bg-white rounded-lg p-3 border border-neutral-300 shadow-sm hover:shadow-md transition-shadow"
           >
             <div className="flex items-center gap-2 mb-3">
               <div
-                className="w-4 h-4 rounded-full"
+                className="w-4 h-4 rounded-full flex-shrink-0"
                 style={{ backgroundColor: agent.color }}
+                title={`Agent color for ${agent.role}`}
               />
               <h3 className="font-medium text-neutral-900 truncate flex-1">
                 {agent.name}
@@ -48,11 +49,11 @@ export default function AgentSidebar({ selectedAgents, onClose, onFocusAgent }: 
               {onFocusAgent && (
                 <button
                   onClick={() => onFocusAgent(agent.id)}
-                  className="text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 p-1.5 rounded transition-colors"
+                  className="text-primary hover:text-primary-dark hover:bg-primary/10 p-1.5 rounded-md transition-all duration-200 flex-shrink-0"
                   title="Focus camera on agent"
-                  aria-label="Focus on agent"
+                  aria-label={`Focus camera on ${agent.name}`}
                 >
-                  <Target size={16} />
+                  <Crosshair size={18} strokeWidth={2} />
                 </button>
               )}
             </div>
