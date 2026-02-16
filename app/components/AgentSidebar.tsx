@@ -1,14 +1,15 @@
 'use client'
 
 import { VisualAgent } from '@/types/visualization'
-import { X } from 'lucide-react'
+import { X, Target } from 'lucide-react'
 
 interface AgentSidebarProps {
   selectedAgents: VisualAgent[]
   onClose?: () => void
+  onFocusAgent?: (agentId: string) => void
 }
 
-export default function AgentSidebar({ selectedAgents, onClose }: AgentSidebarProps) {
+export default function AgentSidebar({ selectedAgents, onClose, onFocusAgent }: AgentSidebarProps) {
   if (selectedAgents.length === 0) {
     return null
   }
@@ -36,7 +37,7 @@ export default function AgentSidebar({ selectedAgents, onClose }: AgentSidebarPr
             key={agent.id}
             className="bg-gray-800 rounded-lg p-3 border border-gray-700"
           >
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-3">
               <div
                 className="w-4 h-4 rounded-full"
                 style={{ backgroundColor: agent.color }}
@@ -44,6 +45,16 @@ export default function AgentSidebar({ selectedAgents, onClose }: AgentSidebarPr
               <h3 className="font-medium text-white truncate flex-1">
                 {agent.name}
               </h3>
+              {onFocusAgent && (
+                <button
+                  onClick={() => onFocusAgent(agent.id)}
+                  className="text-gray-400 hover:text-white hover:bg-gray-700 p-1.5 rounded transition-colors"
+                  title="Focus camera on agent"
+                  aria-label="Focus on agent"
+                >
+                  <Target size={16} />
+                </button>
+              )}
             </div>
 
             <div className="space-y-1 text-sm">

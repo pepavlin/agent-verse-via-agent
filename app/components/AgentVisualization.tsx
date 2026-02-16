@@ -8,16 +8,27 @@ interface AgentVisualizationProps {
   agents: VisualAgent[]
   onSelectionChange?: (selectedAgents: VisualAgent[]) => void
   onAgentClick?: (agent: VisualAgent) => void
+  onFocusAgent?: (agentId: string | null) => void
   focusedAgentId?: string | null
   width?: number
   height?: number
   showConnections?: boolean
 }
 
+interface CameraState {
+  targetX: number
+  targetY: number
+  currentX: number
+  currentY: number
+  targetZoom: number
+  currentZoom: number
+}
+
 export default function AgentVisualization({
   agents: initialAgents,
   onSelectionChange,
   onAgentClick,
+  onFocusAgent,
   focusedAgentId: focusedAgentIdProp,
   width = 1200,
   height = 800,
@@ -27,7 +38,14 @@ export default function AgentVisualization({
   const appRef = useRef<PIXI.Application | null>(null)
   const agentsRef = useRef<VisualAgent[]>(initialAgents)
   const [, setSelectedAgents] = useState<VisualAgent[]>([])
-  const cameraPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const cameraStateRef = useRef<CameraState>({
+    targetX: 0,
+    targetY: 0,
+    currentX: 0,
+    currentY: 0,
+    targetZoom: 1,
+    currentZoom: 1,
+  })
 
   // Graphics objects
   const agentGraphicsRef = useRef<Map<string, PIXI.Container>>(new Map())
@@ -60,16 +78,20 @@ export default function AgentVisualization({
     onSelectionChange?.(selected)
   }, [onSelectionChange])
 
-  // Center camera on focused agent
-  const centerCameraOnAgent = useCallback((agentId: string | null) => {
+  // Center camera on focused agent with smooth animation
+  const focusOnAgent = useCallback((agentId: string | null, zoom = 1.5) => {
     if (!agentId) {
-      cameraPositionRef.current = { x: 0, y: 0 }
+      cameraStateRef.current.targetX = 0
+      cameraStateRef.current.targetY = 0
+      cameraStateRef.current.targetZoom = 1
       return
     }
 
     const agent = agentsRef.current.find((a) => a.id === agentId)
     if (agent) {
-      cameraPositionRef.current = { x: agent.x, y: agent.y }
+      cameraStateRef.current.targetX = agent.x
+      cameraStateRef.current.targetY = agent.y
+      cameraStateRef.current.targetZoom = zoom
     }
   }, [])
 
@@ -157,12 +179,28 @@ export default function AgentVisualization({
       })
     }
 
-    centerCameraOnAgent(agent.selected ? agent.id : null)
+    if (agent.selected) {
+      focusOnAgent(agent.id, 1.5)
+      onFocusAgent?.(agent.id)
+    } else {
+      focusOnAgent(null)
+      onFocusAgent?.(null)
+    }
     onAgentClick?.(agent)
     updateSelectedAgents()
-  }, [updateSelectedAgents, onAgentClick, centerCameraOnAgent])
+  }, [updateSelectedAgents, onAgentClick, onFocusAgent, focusOnAgent])
   // Initialize agent graphics
   const initializeAgents = useCallback((app: PIXI.Application) => {
+    // Initialize camera state
+    cameraStateRef.current = {
+      targetX: 0,
+      targetY: 0,
+      currentX: 0,
+      currentY: 0,
+      targetZoom: 1,
+      currentZoom: 1,
+    }
+
     agentsRef.current.forEach((agent) => {
       const container = new PIXI.Container()
       container.x = agent.x + width / 2
@@ -248,6 +286,15 @@ export default function AgentVisualization({
       maxY: height / 2,
     }
 
+    // Update camera position with smooth animation
+    const camera = cameraStateRef.current
+    const cameraDamping = 0.08 // Smooth damping for camera movement
+    const zoomDamping = 0.1 // Smooth damping for zoom
+
+    camera.currentX += (camera.targetX - camera.currentX) * cameraDamping
+    camera.currentY += (camera.targetY - camera.currentY) * cameraDamping
+    camera.currentZoom += (camera.targetZoom - camera.currentZoom) * zoomDamping
+
     agentsRef.current.forEach((agent) => {
       // Update position
       agent.x += agent.vx
@@ -266,8 +313,9 @@ export default function AgentVisualization({
       // Update graphic position
       const graphic = agentGraphicsRef.current.get(agent.id)
       if (graphic) {
-        graphic.x = agent.x + width / 2
-        graphic.y = agent.y + height / 2
+        graphic.x = agent.x + width / 2 - camera.currentX * camera.currentZoom
+        graphic.y = agent.y + height / 2 - camera.currentY * camera.currentZoom
+        graphic.scale.set(camera.currentZoom, camera.currentZoom)
 
         // Update selection outline
         const circle = graphic.children[0] as PIXI.Graphics
@@ -281,19 +329,19 @@ export default function AgentVisualization({
       }
     })
 
-    // Redraw connections
+    // Redraw connections with camera offset
     drawConnections()
   }, [width, height, drawConnections])
 
   // Update camera when focused agent changes
   useEffect(() => {
-    // Center camera on focused agent when prop changes
+    // Focus camera on agent when prop changes
     if (focusedAgentIdProp) {
-      centerCameraOnAgent(focusedAgentIdProp)
+      focusOnAgent(focusedAgentIdProp, 1.5)
     } else {
-      centerCameraOnAgent(null)
+      focusOnAgent(null)
     }
-  }, [focusedAgentIdProp, centerCameraOnAgent])
+  }, [focusedAgentIdProp, focusOnAgent])
 
   // Initialize PixiJS
   useEffect(() => {

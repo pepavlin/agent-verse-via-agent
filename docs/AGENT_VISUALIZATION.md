@@ -55,10 +55,14 @@ The Agent Visualization System provides an interactive 2D map for visualizing an
 - **Real-time Updates**: Lines redraw as agents move
 - **Toggle**: Can be enabled/disabled via `showConnections` prop
 
-### 6. Camera Control
-- **Auto-Center**: Map automatically centers on the selected agent
-- **Smooth Transition**: Camera smoothly follows the focused agent
-- **Reset**: Deselecting an agent resets the camera to center (0, 0)
+### 6. Camera Control with Auto-Focus
+- **Auto-Focus**: Camera automatically focuses on selected agents
+- **Smooth Animation**: Camera smoothly animates to target position with easing
+- **Zoom on Focus**: Zooms to 1.5x when focusing, returns to 1x when unfocusing
+- **Damping-Based Movement**: Uses smooth damping for natural camera movement (0.08 for position, 0.1 for zoom)
+- **Focus Button**: Target icon button in agent sidebar for quick camera focus
+- **Programmatic Control**: Support for external focus control via `onFocusAgent` callback and `focusedAgentId` prop
+- **Reset**: Deselecting an agent smoothly resets the camera to center (0, 0)
 
 ### 7. Real-time Agent Tracking
 - **API Integration**: Fetches agent data from `/api/agents`
@@ -66,6 +70,24 @@ The Agent Visualization System provides an interactive 2D map for visualizing an
 - **Live-Agents Page**: Dedicated page (`/live-agents`) for real-time monitoring
 
 ## Components
+
+### AgentSidebar.tsx
+Sidebar panel showing list of selected agents with quick actions.
+
+**Props:**
+```typescript
+interface AgentSidebarProps {
+  selectedAgents: VisualAgent[]                    // List of selected agents
+  onClose?: () => void                            // Callback to close sidebar
+  onFocusAgent?: (agentId: string) => void       // Callback to focus on specific agent
+}
+```
+
+**Features:**
+- Displays all selected agents with their details
+- Focus button (Target icon) for quick camera focusing
+- Agent role, specialization, position, and model info
+- Summary statistics (total selected, number of different roles)
 
 ### AgentVisualization.tsx
 Main visualization component rendering the 2D canvas with all agents.
@@ -76,12 +98,18 @@ interface AgentVisualizationProps {
   agents: VisualAgent[]                        // Array of agents to display
   onSelectionChange?: (agents: VisualAgent[]) => void  // Callback when selection changes
   onAgentClick?: (agent: VisualAgent) => void  // Callback when an agent is clicked
+  onFocusAgent?: (agentId: string | null) => void     // Callback when focus target changes
   focusedAgentId?: string | null               // ID of the focused agent (for camera)
   width?: number                                // Canvas width (default: 1200)
   height?: number                               // Canvas height (default: 800)
   showConnections?: boolean                     // Show communication lines (default: true)
 }
 ```
+
+**Camera Animation:**
+- Uses `CameraState` interface with target and current positions
+- Smooth damping for natural motion (0.08 for position, 0.1 for zoom)
+- Zoom range: 1 (default) to 1.5 (focused)
 
 **Features:**
 - Real-time animation loop using PixiJS ticker
@@ -176,10 +204,11 @@ export const SELECTED_OUTLINE_WIDTH = 3
 
 | Action | Description |
 |--------|-------------|
-| Click on Agent | Select agent and show details |
+| Click on Agent | Select agent, show details, and focus camera |
 | Drag Rectangle | Select multiple agents at once |
 | Ctrl/Cmd + Click | Add/remove agent from selection |
-| ESC | Clear all selections |
+| Focus Button (📌) | Focus camera on agent from sidebar |
+| ESC | Clear all selections and reset camera |
 | Hover over Agent | Visual scale effect |
 
 ## API Integration
@@ -217,9 +246,17 @@ export function createVisualAgent(agent: Agent): VisualAgent {
 3. **Polling**: 5-second update interval balances responsiveness with server load
 4. **Memory**: Graphics objects pooled in Maps for efficient cleanup
 
+## Recently Implemented
+
+- [x] Smooth camera animation with damping-based easing
+- [x] Auto-focus on selected agents with zoom
+- [x] Focus button in agent sidebar with Target icon
+- [x] Programmatic focus control via callbacks
+
 ## Future Enhancements
 
-- [ ] Zoom and pan controls
+- [ ] Pan controls for exploring the map
+- [ ] Zoom controls for manual zoom adjustment
 - [ ] Filter agents by role
 - [ ] Real-time agent movement from server
 - [ ] Agent relationship visualization (showing actual communication)
@@ -227,6 +264,7 @@ export function createVisualAgent(agent: Agent): VisualAgent {
 - [ ] Performance metrics overlay
 - [ ] Export visualization as image
 - [ ] WebSocket support for real-time updates
+- [ ] Keyboard shortcuts for focus (arrows, number keys)
 
 ## Browser Compatibility
 
@@ -277,9 +315,10 @@ Access at: `http://localhost:3000/visualization` (demo) or `http://localhost:300
 
 1. Demo agents use random movement (not realistic)
 2. Connection visualization is demo-only (shows sequential connections)
-3. Camera positioning is basic (no interpolation/easing)
-4. No zooming or panning controls
+3. No manual panning controls (only auto-focus)
+4. No zooming controls beyond auto-focus zoom (fixed 1.5x)
 5. Real-time movement requires polling, not WebSocket streaming
+6. Camera focus affects rendering performance with many agents
 
 ## Troubleshooting
 
