@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import GameCanvas from '@/app/components/GameCanvas'
 import AgentChatDialog from '@/app/components/AgentChatDialog'
 import CreateAgentModal from '@/app/components/CreateAgentModal'
@@ -23,25 +23,26 @@ export default function Home() {
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
   const deployDate = BUILD_CONFIG.deployDate
 
+  const fetchAgents = useCallback(async () => {
+    try {
+      const response = await fetch('/api/agents')
+      if (response.ok) {
+        const data = await response.json()
+        setAgents(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch agents:', error)
+    }
+  }, [])
+
   // Fetch agents on component mount and set up polling
   useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        const response = await fetch('/api/agents')
-        if (response.ok) {
-          const data = await response.json()
-          setAgents(data)
-        }
-      } catch (error) {
-        console.error('Failed to fetch agents:', error)
-      }
-    }
-
-    fetchAgents()
+    // Defer initial fetch to next microtask
+    Promise.resolve().then(() => fetchAgents())
     // Poll for new agents every 5 seconds
     const interval = setInterval(fetchAgents, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [fetchAgents])
 
   const formatDeployDate = (dateString: string) => {
     const date = new Date(dateString)
