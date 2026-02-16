@@ -60,15 +60,15 @@ export default function VisualizationPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col">
+    <div className="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col">
       {/* Header */}
-      <header className="bg-neutral-900 border-b border-neutral-700 px-6 py-4">
+      <header className="bg-white border-b border-neutral-300 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
               Agent Visualization
             </h1>
-            <p className="text-sm text-neutral-400 mt-1">
+            <p className="text-sm text-neutral-600 mt-1">
               Interactive 2D map with real-time agent tracking and communication
             </p>
           </div>
@@ -88,7 +88,7 @@ export default function VisualizationPage() {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden relative">
         <div className="flex-1 p-6 overflow-auto">
-          <div className="bg-neutral-900 rounded-lg overflow-hidden shadow-xl h-full flex flex-col">
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl h-full flex flex-col border border-neutral-300">
             <AgentVisualization
               agents={agents}
               onSelectionChange={handleSelectionChange}
@@ -103,8 +103,8 @@ export default function VisualizationPage() {
         </div>
 
         {/* Legend Panel */}
-        <div className="w-64 bg-neutral-900 border-l border-neutral-700 p-6 overflow-y-auto">
-          <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Agent Roles</h3>
+        <div className="w-64 bg-neutral-50 border-l border-neutral-300 p-6 overflow-y-auto">
+          <h3 className="text-sm font-semibold text-neutral-900 mb-4 uppercase tracking-wider">Agent Roles</h3>
           <div className="space-y-3">
             {[
               { role: 'researcher', color: '#6366f1', name: 'Researcher' },
@@ -119,17 +119,17 @@ export default function VisualizationPage() {
                   className="w-3 h-3 rounded-full flex-shrink-0"
                   style={{ backgroundColor: color }}
                 />
-                <span className="text-sm text-neutral-300">{name}</span>
+                <span className="text-sm text-neutral-700">{name}</span>
               </div>
             ))}
           </div>
 
-          <hr className="my-6 border-neutral-700" />
+          <hr className="my-6 border-neutral-300" />
 
-          <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Controls</h3>
-          <div className="space-y-3 text-xs text-neutral-400">
+          <h3 className="text-sm font-semibold text-neutral-900 mb-4 uppercase tracking-wider">Controls</h3>
+          <div className="space-y-3 text-xs text-neutral-600">
             <div>
-              <p className="font-semibold text-neutral-300 mb-1">Click Agent</p>
+              <p className="font-semibold text-neutral-800 mb-1">Click Agent</p>
               <p>View agent details</p>
             </div>
             <div>
@@ -146,9 +146,9 @@ export default function VisualizationPage() {
             </div>
           </div>
 
-          <hr className="my-6 border-neutral-700" />
+          <hr className="my-6 border-neutral-300" />
 
-          <div className="text-xs text-neutral-500">
+          <div className="text-xs text-neutral-700">
             <p><span className="font-semibold">Total Agents:</span> {agents.length}</p>
             <p><span className="font-semibold">Selected:</span> {selectedAgents.length}</p>
           </div>

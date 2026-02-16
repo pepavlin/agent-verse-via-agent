@@ -267,10 +267,10 @@ export default function AgentVisualization({
         const targetIndex = (index + offset) % agentsRef.current.length
         const targetAgent = agentsRef.current[targetIndex]
 
-        // Draw connection line with subtle color
+        // Draw connection line with visible color
         graphics.moveTo(agent.x + width / 2, agent.y + height / 2)
         graphics.lineTo(targetAgent.x + width / 2, targetAgent.y + height / 2)
-        graphics.stroke({ width: 1, color: 0x4f46e5, alpha: 0.2 })
+        graphics.stroke({ width: 1, color: 0x6366f1, alpha: 0.4 })  // More visible lines
       }
     })
   }, [width, height, showConnections])
@@ -352,7 +352,7 @@ export default function AgentVisualization({
     app.init({
       width,
       height,
-      backgroundColor: 0x0a0a0f,
+      backgroundColor: 0xffffff,  // Changed to white for better contrast
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -361,7 +361,31 @@ export default function AgentVisualization({
         canvasRef.current.appendChild(app.canvas as HTMLCanvasElement)
         appRef.current = app
 
-        // Create connections graphic (drawn first, behind agents)
+        // Create grid graphics (drawn first, behind everything)
+        const gridGraphic = new PIXI.Graphics()
+
+        // Draw grid lines for better visual reference
+        const gridSize = 50
+        const gridColor = 0xe5e7eb  // Light gray color
+        const gridAlpha = 0.6
+
+        // Vertical lines
+        for (let x = -width / 2; x <= width / 2; x += gridSize) {
+          gridGraphic.moveTo(x, -height / 2)
+          gridGraphic.lineTo(x, height / 2)
+          gridGraphic.stroke({ width: 1, color: gridColor, alpha: gridAlpha })
+        }
+
+        // Horizontal lines
+        for (let y = -height / 2; y <= height / 2; y += gridSize) {
+          gridGraphic.moveTo(-width / 2, y)
+          gridGraphic.lineTo(width / 2, y)
+          gridGraphic.stroke({ width: 1, color: gridColor, alpha: gridAlpha })
+        }
+
+        app.stage.addChild(gridGraphic)
+
+        // Create connections graphic (drawn after grid, behind agents)
         const connectionsGraphic = new PIXI.Graphics()
         app.stage.addChild(connectionsGraphic)
         connectionsGraphicRef.current = connectionsGraphic
@@ -469,7 +493,7 @@ export default function AgentVisualization({
     <div className="relative">
       <div
         ref={canvasRef}
-        className="border border-gray-700 rounded-lg overflow-hidden"
+        className="border border-neutral-400 rounded-lg overflow-hidden shadow-sm"
         style={{ width, height }}
       />
     </div>
