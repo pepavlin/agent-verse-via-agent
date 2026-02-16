@@ -65,7 +65,7 @@ export default function VisualizationPage() {
       <header className="bg-white border-b border-neutral-300 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               Agent Visualization
             </h1>
             <p className="text-sm text-neutral-600 mt-1">

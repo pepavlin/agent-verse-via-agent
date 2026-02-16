@@ -139,7 +139,7 @@ export default function AgentChatPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-900">
         <div className="text-lg text-secondary-light">Loading...</div>
       </div>
     )
@@ -147,7 +147,7 @@ export default function AgentChatPage() {
 
   if (!agent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-900">
         <div className="text-lg text-secondary-light">Agent not found</div>
       </div>
     )
@@ -205,7 +205,7 @@ export default function AgentChatPage() {
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 ? (
-            <div className="text-center py-12 bg-gray-900/30 backdrop-blur-sm rounded-lg border border-secondary/30">
+            <div className="text-center py-12 bg-neutral-900/30 backdrop-blur-sm rounded-lg border border-secondary/30">
               <svg
                 className="mx-auto h-12 w-12 text-secondary-light/70"
                 fill="none"

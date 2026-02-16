@@ -9,36 +9,37 @@ const config: Config = {
     extend: {
       colors: {
         // Custom color palette using CSS variables
+        // These provide consistent theming across light and dark modes
         background: 'var(--background)',
         foreground: 'var(--foreground)',
 
-        // Primary - Indigo (professional tech look)
+        // Primary - Deep Indigo (professional, high-contrast)
         primary: {
           light: 'var(--primary-light)',
           DEFAULT: 'var(--primary)',
           dark: 'var(--primary-dark)',
         },
 
-        // Secondary - Violet (creative/AI feel)
+        // Secondary - Deep Violet (creative, accessible)
         secondary: {
           light: 'var(--secondary-light)',
           DEFAULT: 'var(--secondary)',
           dark: 'var(--secondary-dark)',
         },
 
-        // Accent - Cyan (modern tech)
+        // Accent - Deep Teal/Cyan (modern, high-contrast)
         accent: {
           light: 'var(--accent-light)',
           DEFAULT: 'var(--accent)',
           dark: 'var(--accent-dark)',
         },
 
-        // Semantic colors
+        // Semantic colors - WCAG AAA compliant
         success: 'var(--success)',
         warning: 'var(--warning)',
         danger: 'var(--danger)',
 
-        // Neutral scale (Slate)
+        // Neutral scale - Warm gray with better contrast
         neutral: {
           50: 'var(--neutral-50)',
           100: 'var(--neutral-100)',

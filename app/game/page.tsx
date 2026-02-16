@@ -60,27 +60,27 @@ export default function GamePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-900">
         <div className="text-lg text-purple-300">Loading universe...</div>
       </div>
     )
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gray-900 relative">
+    <div className="h-screen w-screen overflow-hidden bg-neutral-900 relative">
       {/* Top HUD */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-gray-900/90 to-transparent p-4">
+      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-neutral-900/90 to-transparent p-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+            <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-secondary-light to-accent-light">
               AgentVerse
             </h1>
-            <div className="h-6 w-px bg-purple-500/30" />
-            <span className="text-purple-300 text-sm">
+            <div className="h-6 w-px bg-secondary/30" />
+            <span className="text-secondary-light text-sm">
               Welcome, {user?.nickname}
             </span>
-            <div className="h-6 w-px bg-purple-500/30" />
-            <span className="text-purple-300 text-sm">
+            <div className="h-6 w-px bg-secondary/30" />
+            <span className="text-secondary-light text-sm">
               {agents.length} agents active
             </span>
           </div>
@@ -88,7 +88,7 @@ export default function GamePage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-purple-600/80 backdrop-blur-sm text-white rounded-md hover:bg-purple-700/80 transition-colors border border-purple-500/50 font-medium"
+              className="px-4 py-2 bg-secondary/80 backdrop-blur-sm text-white rounded-md hover:bg-secondary-dark/80 transition-colors border border-secondary/50 font-medium"
             >
               + Create Agent
             </button>
@@ -110,14 +110,14 @@ export default function GamePage() {
 
       {/* Agent List Sidebar */}
       {showAgentList && (
-        <div className="absolute top-20 right-4 z-20 w-80 max-h-[70vh] overflow-hidden bg-gray-900/95 backdrop-blur-sm rounded-lg border border-purple-500/30 shadow-2xl">
+        <div className="absolute top-20 right-4 z-20 w-80 max-h-[70vh] overflow-hidden bg-neutral-900/95 backdrop-blur-sm rounded-lg border border-secondary/30 shadow-2xl">
           <div className="p-4 border-b border-gray-800">
             <h2 className="text-lg font-bold text-white">Active Agents</h2>
-            <p className="text-xs text-gray-400 mt-1">Click to chat with an agent</p>
+            <p className="text-xs text-neutral-400 mt-1">Click to chat with an agent</p>
           </div>
           <div className="overflow-y-auto max-h-[calc(70vh-80px)]">
             {agents.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
+              <div className="p-4 text-center text-neutral-500">
                 No agents found
               </div>
             ) : (
@@ -128,16 +128,16 @@ export default function GamePage() {
                   className="w-full p-4 text-left hover:bg-gray-800/50 transition-colors border-b border-gray-800 last:border-b-0"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-secondary to-accent flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-sm font-bold">
                         {agent.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-white font-semibold text-sm">{agent.name}</h3>
-                      <p className="text-xs text-gray-400 mt-1">{agent.model}</p>
+                      <p className="text-xs text-neutral-400 mt-1">{agent.model}</p>
                       {agent.description && (
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                        <p className="text-xs text-neutral-500 mt-1 line-clamp-2">
                           {agent.description}
                         </p>
                       )}
@@ -177,9 +177,9 @@ export default function GamePage() {
       {/* Bottom HUD */}
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-gray-900/90 to-transparent p-4">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center gap-8 text-sm text-purple-300">
+          <div className="flex items-center justify-center gap-8 text-sm text-secondary-light">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
+              <div className="w-3 h-3 rounded-full bg-secondary animate-pulse" />
               <span>Hover over agents for info</span>
             </div>
             <div className="flex items-center gap-2">

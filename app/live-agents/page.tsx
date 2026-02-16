@@ -83,7 +83,7 @@ export default function LiveAgentsPage() {
       <header className="bg-neutral-900 border-b border-neutral-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-light to-secondary-light bg-clip-text text-transparent">
               Live Agent Map
             </h1>
             <p className="text-sm text-neutral-400 mt-1">
@@ -102,7 +102,7 @@ export default function LiveAgentsPage() {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-900/50 border border-red-700 text-red-200 px-6 py-3">
+        <div className="bg-danger/20 border border-danger/50 text-danger/90 px-6 py-3">
           <p className="text-sm">
             <span className="font-semibold">Error:</span> {error}
           </p>

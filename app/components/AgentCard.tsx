@@ -18,12 +18,12 @@ interface AgentCardProps {
 }
 
 const roleColors: Record<string, string> = {
-  researcher: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-200',
-  strategist: 'bg-violet-100 dark:bg-violet-900/30 text-violet-900 dark:text-violet-200',
-  critic: 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200',
-  ideator: 'bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-200',
-  coordinator: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-200',
-  executor: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-900 dark:text-cyan-200'
+  researcher: 'bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300',
+  strategist: 'bg-purple-50 dark:bg-purple-950/40 text-purple-900 dark:text-purple-300',
+  critic: 'bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-300',
+  ideator: 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-900 dark:text-yellow-300',
+  coordinator: 'bg-green-50 dark:bg-green-950/40 text-green-900 dark:text-green-300',
+  executor: 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-900 dark:text-cyan-300'
 }
 
 const roleIcons: Record<string, string> = {
@@ -43,7 +43,7 @@ export default function AgentCard({ agent, onDelete }: AgentCardProps) {
     }
   }
 
-  const roleColor = agent.role ? roleColors[agent.role] || 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'
+  const roleColor = agent.role ? roleColors[agent.role] || 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-200' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-200'
   const roleIcon = agent.role ? roleIcons[agent.role] || '🤖' : '🤖'
   const messageCount = agent._count?.messages || 0
 

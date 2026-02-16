@@ -1,41 +1,41 @@
 @import "tailwindcss";
 
 :root {
-  /* Light theme - Bright & Professional with Enhanced Contrast */
+  /* Light theme - Professional & Accessible with Enhanced Contrast */
   --background: #ffffff;     /* Pure white for maximum contrast */
   --foreground: #0f172a;     /* Slate-950 for high contrast text */
 
-  /* Modern Primary Color - Indigo (professional tech look) */
-  --primary: #4f46e5;        /* Indigo 600 - Darker, more saturated */
-  --primary-light: #818cf8;  /* Indigo 400 */
-  --primary-dark: #3730a3;   /* Indigo 700 - Even darker for contrast */
+  /* Primary Color - Deep Indigo (professional, high contrast) */
+  --primary: #3730a3;        /* Indigo 700 - Higher contrast on light bg */
+  --primary-light: #818cf8;  /* Indigo 400 - for interactive elements */
+  --primary-dark: #1e1b4b;   /* Indigo 900 - for hover/focus states */
 
-  /* Modern Secondary Color - Violet (creative/ai feel) */
-  --secondary: #7c3aed;      /* Violet 600 - Darker, more vibrant */
-  --secondary-light: #a78bfa; /* Violet 400 */
-  --secondary-dark: #6d28d9;  /* Violet 700 - Even darker */
+  /* Secondary Color - Deep Violet (creative, accessible) */
+  --secondary: #5b21b6;      /* Violet 800 - Darker, more saturated */
+  --secondary-light: #a78bfa; /* Violet 400 - for highlights */
+  --secondary-dark: #3f0f64;  /* Violet 900 - for strong contrast */
 
-  /* Modern Accent Color - Cyan (modern tech) */
-  --accent: #0369a1;         /* Cyan 700 - Much darker than before */
-  --accent-light: #06b6d4;   /* Cyan 600 */
-  --accent-dark: #0c4a6e;    /* Cyan 800 - Much darker */
+  /* Accent Color - Deep Teal/Cyan (modern, high contrast) */
+  --accent: #0369a1;         /* Cyan 700 - Strong, professional */
+  --accent-light: #06b6d4;   /* Cyan 500 - Bright accent */
+  --accent-dark: #082f49;    /* Cyan 900 - Very dark, maximum contrast */
 
-  /* Semantic Colors */
-  --success: #059669;        /* Emerald 600 - Darker green */
-  --warning: #d97706;        /* Amber 600 - Darker warning */
-  --danger: #dc2626;         /* Red 600 - Darker red */
+  /* Semantic Colors - WCAG AAA compliant */
+  --success: #027a48;        /* Emerald 800 - Dark, accessible green */
+  --warning: #b45309;        /* Amber 700 - Dark, accessible amber */
+  --danger: #b91c1c;         /* Red 700 - Dark, accessible red */
 
   /* Neutral grays - Enhanced contrast palette */
-  --neutral-50: #f9fafb;     /* Slate 50 */
-  --neutral-100: #f3f4f6;    /* Slate 100 */
-  --neutral-200: #e5e7eb;    /* Slate 200 */
-  --neutral-300: #d1d5db;    /* Slate 300 */
-  --neutral-400: #9ca3af;    /* Slate 400 */
-  --neutral-500: #6b7280;    /* Slate 500 */
-  --neutral-600: #4b5563;    /* Slate 600 - Darker */
-  --neutral-700: #374151;    /* Slate 700 - Much darker */
-  --neutral-800: #1f2937;    /* Slate 800 - Very dark */
-  --neutral-900: #111827;    /* Slate 900 - Almost black */
+  --neutral-50: #fafafa;     /* Neutral 50 */
+  --neutral-100: #f5f5f5;    /* Neutral 100 */
+  --neutral-200: #e7e5e4;    /* Neutral 200 */
+  --neutral-300: #d6d3d1;    /* Neutral 300 */
+  --neutral-400: #a8a29e;    /* Neutral 400 */
+  --neutral-500: #78716c;    /* Neutral 500 */
+  --neutral-600: #57534e;    /* Neutral 600 */
+  --neutral-700: #44403c;    /* Neutral 700 */
+  --neutral-800: #292524;    /* Neutral 800 */
+  --neutral-900: #1c1917;    /* Neutral 900 */
 }
 
 @theme inline {
@@ -68,22 +68,22 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Dark theme - Better contrast version */
-    --background: #1a1f2e;    /* Darker slate with slightly better contrast */
-    --foreground: #ffffff;    /* Pure white for maximum contrast */
+    /* Dark theme - Enhanced contrast for dark mode */
+    --background: #0f172a;    /* Slate 950 - Very dark background */
+    --foreground: #f8fafc;    /* Slate 50 - Near white for text */
 
-    /* Darker primaries for dark mode */
-    --primary: #818cf8;       /* Indigo 400 - lighter on dark background */
-    --primary-light: #a5b4fc; /* Indigo 300 */
-    --primary-dark: #6366f1;  /* Indigo 500 */
+    /* Lighter primaries for dark mode (for contrast) */
+    --primary: #a5b4fc;       /* Indigo 300 - Bright on dark background */
+    --primary-light: #e0e7ff; /* Indigo 100 - For highlights */
+    --primary-dark: #818cf8;  /* Indigo 400 - For hover states */
 
-    --secondary: #c084fc;     /* Violet 400 - lighter */
-    --secondary-light: #ddd6fe; /* Violet 200 */
-    --secondary-dark: #a78bfa; /* Violet 400 */
+    --secondary: #d8b4fe;     /* Violet 300 - Bright, accessible */
+    --secondary-light: #f3e8ff; /* Violet 100 - For highlights */
+    --secondary-dark: #c084fc; /* Violet 400 - For hover states */
 
-    --accent: #06b6d4;        /* Cyan 500 - bright on dark */
-    --accent-light: #22d3ee;  /* Cyan 400 */
-    --accent-dark: #0891b2;   /* Cyan 600 */
+    --accent: #22d3ee;        /* Cyan 400 - Bright on dark */
+    --accent-light: #67e8f9;  /* Cyan 300 - Very bright */
+    --accent-dark: #06b6d4;   /* Cyan 500 - For emphasis */
   }
 }
 

@@ -416,7 +416,7 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
       {/* Tooltip for hovered agent */}
       {hoveredAgent && (
         <div
-          className="absolute pointer-events-none bg-gray-900/95 text-white px-3 py-2 rounded-lg shadow-lg border border-purple-500/30 backdrop-blur-sm"
+          className="absolute pointer-events-none bg-neutral-900/95 text-white px-3 py-2 rounded-lg shadow-lg border border-secondary/30 backdrop-blur-sm"
           style={{
             left: mousePos.x + 15,
             top: mousePos.y + 15,
@@ -424,9 +424,9 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
           }}
         >
           <div className="font-bold text-sm">{hoveredAgent.name}</div>
-          <div className="text-xs text-gray-400 mt-1">Model: {hoveredAgent.model}</div>
+          <div className="text-xs text-neutral-400 mt-1">Model: {hoveredAgent.model}</div>
           {hoveredAgent.description && (
-            <div className="text-xs text-gray-300 mt-1 max-w-xs">
+            <div className="text-xs text-neutral-300 mt-1 max-w-xs">
               {hoveredAgent.description.length > 80
                 ? hoveredAgent.description.substring(0, 80) + '...'
                 : hoveredAgent.description}

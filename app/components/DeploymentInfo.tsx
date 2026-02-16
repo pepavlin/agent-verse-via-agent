@@ -59,7 +59,7 @@ export function DeploymentInfo({ className = '' }: DeploymentInfoProps) {
   if (!timeAgo) return null;
 
   return (
-    <div className={`text-xs text-gray-500 ${className}`}>
+    <div className={`text-xs text-neutral-500 ${className}`}>
       Nasazeno {timeAgo}
     </div>
   );

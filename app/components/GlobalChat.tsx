@@ -14,7 +14,7 @@ export default function GlobalChat() {
       {!isOpen && (
         <button
           onClick={toggleChat}
-          className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white p-4 rounded-full shadow-lg transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+          className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-secondary-dark to-secondary hover:from-secondary hover:to-secondary-dark text-white p-4 rounded-full shadow-lg transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-secondary-dark focus:ring-offset-2 focus:ring-offset-neutral-900"
           aria-label="Open chat with project manager"
         >
           <MessageSquare className="w-6 h-6" />
@@ -23,9 +23,9 @@ export default function GlobalChat() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-[400px] h-[600px] max-w-[calc(100vw-3rem)] max-h-[calc(100vh-3rem)] bg-gray-900 rounded-lg shadow-2xl border border-gray-700 flex flex-col overflow-hidden">
+        <div className="fixed bottom-6 right-6 z-50 w-[400px] h-[600px] max-w-[calc(100vw-3rem)] max-h-[calc(100vh-3rem)] bg-neutral-900 rounded-lg shadow-2xl border border-neutral-700 flex flex-col overflow-hidden">
           {/* Chat Header */}
-          <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-secondary-dark to-secondary px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-white" />
               <h3 className="text-white font-semibold">Project Manager</h3>

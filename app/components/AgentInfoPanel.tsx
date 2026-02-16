@@ -8,12 +8,12 @@ interface AgentInfoPanelProps {
 }
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  researcher: { label: 'Researcher', color: 'from-indigo-500 to-indigo-600' },
-  strategist: { label: 'Strategist', color: 'from-violet-500 to-violet-600' },
-  critic: { label: 'Critic', color: 'from-red-500 to-red-600' },
-  ideator: { label: 'Ideator', color: 'from-orange-500 to-orange-600' },
-  coordinator: { label: 'Coordinator', color: 'from-green-500 to-green-600' },
-  executor: { label: 'Executor', color: 'from-cyan-500 to-cyan-600' },
+  researcher: { label: 'Researcher', color: 'from-primary-dark to-primary' },
+  strategist: { label: 'Strategist', color: 'from-secondary-dark to-secondary' },
+  critic: { label: 'Critic', color: 'from-danger to-danger' },
+  ideator: { label: 'Ideator', color: 'from-warning to-warning' },
+  coordinator: { label: 'Coordinator', color: 'from-success to-success' },
+  executor: { label: 'Executor', color: 'from-accent to-accent' },
 }
 
 export default function AgentInfoPanel({ agent, onClose }: AgentInfoPanelProps) {
