@@ -15,6 +15,9 @@ interface AgentVisualizationProps {
   showConnections?: boolean
 }
 
+// Initial zoom to fit visualization nicely
+const INITIAL_ZOOM = 0.5
+
 interface CameraState {
   targetX: number
   targetY: number
@@ -43,8 +46,8 @@ export default function AgentVisualization({
     targetY: 0,
     currentX: 0,
     currentY: 0,
-    targetZoom: 1,
-    currentZoom: 1,
+    targetZoom: INITIAL_ZOOM,
+    currentZoom: INITIAL_ZOOM,
   })
 
   // Graphics objects
@@ -191,14 +194,14 @@ export default function AgentVisualization({
   }, [updateSelectedAgents, onAgentClick, onFocusAgent, focusOnAgent])
   // Initialize agent graphics
   const initializeAgents = useCallback((app: PIXI.Application) => {
-    // Initialize camera state
+    // Initialize camera state with initial zoom
     cameraStateRef.current = {
       targetX: 0,
       targetY: 0,
       currentX: 0,
       currentY: 0,
-      targetZoom: 1,
-      currentZoom: 1,
+      targetZoom: INITIAL_ZOOM,
+      currentZoom: INITIAL_ZOOM,
     }
 
     agentsRef.current.forEach((agent) => {
