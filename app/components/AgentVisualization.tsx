@@ -352,7 +352,7 @@ export default function AgentVisualization({
     app.init({
       width,
       height,
-      backgroundColor: 0xffffff,  // Changed to white for better contrast
+      backgroundColor: 0x000000,  // Changed to pure black
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -366,8 +366,8 @@ export default function AgentVisualization({
 
         // Draw grid lines for better visual reference
         const gridSize = 50
-        const gridColor = 0x9ca3af  // Darker gray color for better contrast
-        const gridAlpha = 0.8  // Increased opacity
+        const gridColor = 0xffffff  // Pure white grid
+        const gridAlpha = 1  // Full opacity
         const gridLineWidth = 1.5  // Thicker lines
 
         // Vertical lines

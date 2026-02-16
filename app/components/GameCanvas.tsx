@@ -76,7 +76,7 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
     const offsetX = camera.x % gridSize
     const offsetY = camera.y % gridSize
 
-    ctx.strokeStyle = '#1a1a2e'
+    ctx.strokeStyle = '#FFFFFF'
     ctx.lineWidth = 1
 
     // Vertical lines
@@ -211,7 +211,7 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
       canvas.height = window.innerHeight
 
       // Clear canvas
-      ctx.fillStyle = '#0a0a0f'
+      ctx.fillStyle = '#000000'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       // Draw grid
