@@ -36,7 +36,7 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const router = useRouter()
   const [agents, setAgents] = useState<Agent[]>([])
-  const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 })
+  const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: INITIAL_ZOOM })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null)
@@ -46,6 +46,8 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
   const WORLD_WIDTH = 2000
   const WORLD_HEIGHT = 1500
   const AGENT_RADIUS = 20
+  const ANIMATION_SPEED_MULTIPLIER = 0.01 // 100x slower animation (1/100 of normal speed)
+  const INITIAL_ZOOM = 0.4 // Initial zoom to fit map nicely on screen
 
   const createGameAgents = useCallback((data: Record<string, unknown>[]): Agent[] => {
     return data.map((agent: Record<string, unknown>, index: number) => {
@@ -58,8 +60,8 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
         model: String(agent.model),
         x: Math.random() * (WORLD_WIDTH - 200) + 100,
         y: Math.random() * (WORLD_HEIGHT - 200) + 100,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
+        vx: Math.cos(angle) * speed * ANIMATION_SPEED_MULTIPLIER,
+        vy: Math.sin(angle) * speed * ANIMATION_SPEED_MULTIPLIER,
         color: String(agent.color || `hsl(${(index * 137.5) % 360}, 70%, 60%)`),
         radius: Number(agent.size) || AGENT_RADIUS,
         speed: speed,
@@ -69,7 +71,7 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
         directionChangeTimer: 0
       }
     })
-  }, [AGENT_RADIUS, WORLD_WIDTH, WORLD_HEIGHT])
+  }, [AGENT_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, ANIMATION_SPEED_MULTIPLIER])
 
   const drawGrid = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
     const gridSize = 50 * camera.zoom
@@ -232,8 +234,8 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
                 ...newAgent,
                 isPaused: false,
                 pauseTimer: 0,
-                vx: Math.cos(angle) * newAgent.speed,
-                vy: Math.sin(angle) * newAgent.speed
+                vx: Math.cos(angle) * newAgent.speed * ANIMATION_SPEED_MULTIPLIER,
+                vy: Math.sin(angle) * newAgent.speed * ANIMATION_SPEED_MULTIPLIER
               }
             }
             return { ...newAgent, pauseTimer: updatedPauseTimer }
@@ -244,14 +246,14 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
             return { ...newAgent, isPaused: true, pauseTimer: 0 }
           }
 
-          // Random direction change (0.5% per frame)
+          // Random direction change (0.5% per frame, scaled for slower animation)
           const updatedDirectionTimer = newAgent.directionChangeTimer + 1
           if (updatedDirectionTimer > 60 && Math.random() < 0.005) {
             const angle = Math.random() * Math.PI * 2
             return {
               ...newAgent,
-              vx: Math.cos(angle) * newAgent.speed,
-              vy: Math.sin(angle) * newAgent.speed,
+              vx: Math.cos(angle) * newAgent.speed * ANIMATION_SPEED_MULTIPLIER,
+              vy: Math.sin(angle) * newAgent.speed * ANIMATION_SPEED_MULTIPLIER,
               directionChangeTimer: 0
             }
           }
@@ -395,9 +397,11 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+    const minZoom = 0.2 // Allow zooming out to see full map as small rectangle
+    const maxZoom = 2
     setCamera(prev => ({
       ...prev,
-      zoom: Math.max(0.5, Math.min(2, prev.zoom * zoomFactor))
+      zoom: Math.max(minZoom, Math.min(maxZoom, prev.zoom * zoomFactor))
     }))
   }
 
