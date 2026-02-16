@@ -102,7 +102,13 @@ export default function AgentsPage() {
                 href="/visualization"
                 className="text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-primary dark:hover:text-primary-light transition-colors"
               >
-                Visualization
+                Visualization (Demo)
+              </Link>
+              <Link
+                href="/live-agents"
+                className="text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-primary dark:hover:text-primary-light transition-colors"
+              >
+                Live Map
               </Link>
             </div>
             <div className="flex items-center gap-4">
