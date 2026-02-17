@@ -204,7 +204,7 @@ export default function MarketResearchPage() {
                           className={`px-2 py-1 rounded text-xs font-medium ${
                             hasAgent
                               ? getRoleColor(role)
-                              : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-neutral-700'
+                              : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700'
                           }`}
                         >
                           {getRoleIcon(role)} {role} {hasAgent && '✓'}

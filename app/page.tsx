@@ -92,11 +92,11 @@ export default function Home() {
         <div className="absolute top-20 right-4 z-20 w-80 max-h-[70vh] overflow-hidden bg-neutral-900/95 dark:bg-neutral-900/95 backdrop-blur-sm rounded-lg border border-primary/30 shadow-2xl">
           <div className="p-4 border-b border-neutral-800 dark:border-neutral-800">
             <h2 className="text-lg font-bold text-neutral-50 dark:text-neutral-50">Active Agents</h2>
-            <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">Click to chat with an agent</p>
+            <p className="text-xs text-neutral-400 dark:text-neutral-300 mt-1">Click to chat with an agent</p>
           </div>
           <div className="overflow-y-auto max-h-[calc(70vh-80px)]">
             {agents.length === 0 ? (
-              <div className="p-4 text-center text-neutral-500 dark:text-neutral-500">
+              <div className="p-4 text-center text-neutral-500 dark:text-neutral-300">
                 No agents found. Create your first agent!
               </div>
             ) : (
@@ -117,9 +117,9 @@ export default function Home() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-neutral-50 dark:text-neutral-50 font-semibold text-sm">{agent.name}</h3>
-                      <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">{agent.model}</p>
+                      <p className="text-xs text-neutral-400 dark:text-neutral-300 mt-1">{agent.model}</p>
                       {agent.description && (
-                        <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1 line-clamp-2">
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2">
                           {agent.description}
                         </p>
                       )}

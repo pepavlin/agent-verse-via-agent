@@ -22,7 +22,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
         }`}
       >
         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-        <span className={`text-xs mt-1 block ${isUser ? 'text-primary-light' : 'text-neutral-500 dark:text-neutral-400'}`}>
+        <span className={`text-xs mt-1 block ${isUser ? 'text-primary-light' : 'text-neutral-500 dark:text-neutral-300'}`}>
           {new Date(message.createdAt).toLocaleTimeString()}
         </span>
       </div>

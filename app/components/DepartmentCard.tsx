@@ -85,7 +85,7 @@ export default function DepartmentCard({ department, availableAgents = [], missi
                 <span
                   key={role}
                   className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${
-                    hasRole ? getRoleColor(role) : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 line-through'
+                    hasRole ? getRoleColor(role) : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-300 line-through'
                   }`}
                 >
                   {getRoleIcon(role)} {role}
