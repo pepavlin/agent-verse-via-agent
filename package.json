@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
     "predev": "npm run db:init",
     "dev": "NEXT_PUBLIC_BUILD_TIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\") next dev",
     "build": "next build",
