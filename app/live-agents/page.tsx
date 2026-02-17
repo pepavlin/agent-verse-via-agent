@@ -165,7 +165,7 @@ export default function LiveAgentsPage() {
                 {agents.map((agent) => (
                   <div
                     key={agent.id}
-                    className="bg-neutral-800 rounded-md p-3 hover:bg-neutral-750 transition-colors"
+                    className="bg-neutral-800 rounded-md p-3 hover:bg-neutral-700 transition-colors"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
