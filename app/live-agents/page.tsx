@@ -148,59 +148,81 @@ export default function LiveAgentsPage() {
             onFocusAgent={handleFocusAgent}
           />
         ) : (
-          <div className="w-64 bg-neutral-900 border-l border-neutral-700 p-6 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Map Info</h3>
-            <div className="space-y-4 text-sm">
-              <div>
-                <p className="text-neutral-400">Total Agents</p>
-                <p className="text-2xl font-bold text-indigo-400">{agents.length}</p>
-              </div>
-              <div>
-                <p className="text-neutral-400">Selected</p>
-                <p className="text-2xl font-bold text-violet-400">{selectedAgents.length}</p>
-              </div>
-            </div>
-
-            <hr className="my-6 border-neutral-700" />
-
-            <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Agent Roles</h3>
-            <div className="space-y-2 text-xs text-neutral-400">
-              {[
-                { role: 'researcher', color: '#6366f1', name: 'Researcher', count: agents.filter((a) => a.role === 'researcher').length },
-                { role: 'strategist', color: '#8b5cf6', name: 'Strategist', count: agents.filter((a) => a.role === 'strategist').length },
-                { role: 'critic', color: '#ef4444', name: 'Critic', count: agents.filter((a) => a.role === 'critic').length },
-                { role: 'ideator', color: '#f97316', name: 'Ideator', count: agents.filter((a) => a.role === 'ideator').length },
-                { role: 'coordinator', color: '#10b981', name: 'Coordinator', count: agents.filter((a) => a.role === 'coordinator').length },
-                { role: 'executor', color: '#06b6d4', name: 'Executor', count: agents.filter((a) => a.role === 'executor').length },
-              ].map(({ color, name, count }) => (
-                <div key={name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: color }}
-                    />
-                    <span>{name}</span>
-                  </div>
-                  <span className="text-neutral-500">{count}</span>
+          <div className="w-80 bg-neutral-900 border-l border-neutral-700 overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">All Agents</h3>
+              <div className="space-y-4 text-sm mb-6">
+                <div>
+                  <p className="text-neutral-400">Total Agents</p>
+                  <p className="text-2xl font-bold text-indigo-400">{agents.length}</p>
                 </div>
-              ))}
-            </div>
-
-            <hr className="my-6 border-neutral-700" />
-
-            <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Controls</h3>
-            <div className="space-y-3 text-xs text-neutral-400">
-              <div>
-                <p className="font-semibold text-neutral-300">Click Agent</p>
-                <p>View agent details</p>
               </div>
-              <div>
-                <p className="font-semibold text-neutral-300">Drag to Select</p>
-                <p>Select multiple agents</p>
+
+              <hr className="my-6 border-neutral-700" />
+
+              <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Agent List</h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {agents.map((agent) => (
+                  <div
+                    key={agent.id}
+                    className="bg-neutral-800 rounded-md p-3 hover:bg-neutral-700 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: agent.color }}
+                        />
+                        <span className="text-sm text-neutral-200 truncate">{agent.name}</span>
+                      </div>
+                      <button
+                        onClick={() => handleFocusAgent(agent.id)}
+                        className="text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 p-1.5 rounded-md transition-all duration-200 flex-shrink-0"
+                        title="Focus camera on agent"
+                        aria-label={`Focus camera on ${agent.name}`}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="22" y1="12" x2="18" y2="12" />
+                          <line x1="6" y1="12" x2="2" y2="12" />
+                          <line x1="12" y1="6" x2="12" y2="2" />
+                          <line x1="12" y1="22" x2="12" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="mt-1 text-xs text-neutral-400 capitalize">
+                      {agent.role}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <p className="font-semibold text-neutral-300">Ctrl + Click</p>
-                <p>Multi-select agents</p>
+
+              <hr className="my-6 border-neutral-700" />
+
+              <h3 className="text-sm font-semibold text-neutral-300 mb-4 uppercase tracking-wider">Controls</h3>
+              <div className="space-y-3 text-xs text-neutral-400">
+                <div>
+                  <p className="font-semibold text-neutral-300">Click Agent</p>
+                  <p>View agent details</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-neutral-300">Focus Button</p>
+                  <p>Center camera on agent</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-neutral-300">Drag to Select</p>
+                  <p>Select multiple agents</p>
+                </div>
               </div>
             </div>
           </div>

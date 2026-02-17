@@ -32,6 +32,13 @@ interface GameCanvasProps {
   focusedAgentId?: string | null
 }
 
+// Constants
+const WORLD_WIDTH = 2000
+const WORLD_HEIGHT = 1500
+const AGENT_RADIUS = 20
+const ANIMATION_SPEED_MULTIPLIER = 0.01 // 100x slower animation (1/100 of normal speed)
+const INITIAL_ZOOM = 0.4 // Initial zoom to fit map nicely on screen
+
 export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const router = useRouter()
@@ -42,12 +49,6 @@ export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasP
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const animationFrameRef = useRef<number | undefined>(undefined)
-
-  const WORLD_WIDTH = 2000
-  const WORLD_HEIGHT = 1500
-  const AGENT_RADIUS = 20
-  const ANIMATION_SPEED_MULTIPLIER = 0.01 // 100x slower animation (1/100 of normal speed)
-  const INITIAL_ZOOM = 0.4 // Initial zoom to fit map nicely on screen
 
   const createGameAgents = useCallback((data: Record<string, unknown>[]): Agent[] => {
     return data.map((agent: Record<string, unknown>, index: number) => {

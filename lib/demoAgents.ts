@@ -1,8 +1,8 @@
 import { Agent, AgentRole } from '@/types'
 import { VisualAgent, AGENT_COLORS } from '@/types/visualization'
 
-// Animation speed multiplier for 100x slower movement
-const ANIMATION_SPEED_MULTIPLIER = 0.01
+// Animation speed multiplier (5x slower: reduced from 0.01 to 0.002)
+const ANIMATION_SPEED_MULTIPLIER = 0.002
 
 const AGENT_ROLES: AgentRole[] = [
   'researcher',
