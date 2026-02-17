@@ -124,7 +124,7 @@ export default function Home() {
                           onClick={() => {
                             setSelectedAgent(agent)
                           }}
-                          className="px-3 py-1 bg-primary/80 hover:bg-primary text-white text-xs rounded transition-colors"
+                          className="px-3 py-1 bg-primary/80 hover:bg-primary focus:ring-2 focus:ring-primary text-white text-xs rounded transition-colors"
                         >
                           Chat
                         </button>
@@ -132,7 +132,7 @@ export default function Home() {
                           onClick={() => {
                             setFocusedAgentId(agent.id)
                           }}
-                          className="px-3 py-1 bg-accent/80 hover:bg-accent text-white text-xs rounded transition-colors"
+                          className="px-3 py-1 bg-accent/80 hover:bg-accent focus:ring-2 focus:ring-accent text-white text-xs rounded transition-colors"
                         >
                           Focus
                         </button>
