@@ -101,13 +101,9 @@ export default function Home() {
               </div>
             ) : (
               agents.map((agent) => (
-                <button
+                <div
                   key={agent.id}
-                  onClick={() => {
-                    setSelectedAgent(agent)
-                    setFocusedAgentId(agent.id)
-                  }}
-                  className="w-full p-4 text-left hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 transition-colors border-b border-neutral-800 dark:border-neutral-800 last:border-b-0"
+                  className="w-full p-4 hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 transition-colors border-b border-neutral-800 dark:border-neutral-800 last:border-b-0"
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-light to-accent-light flex items-center justify-center flex-shrink-0">
@@ -123,9 +119,27 @@ export default function Home() {
                           {agent.description}
                         </p>
                       )}
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => {
+                            setSelectedAgent(agent)
+                          }}
+                          className="px-3 py-1 bg-primary/80 hover:bg-primary text-white text-xs rounded transition-colors"
+                        >
+                          Chat
+                        </button>
+                        <button
+                          onClick={() => {
+                            setFocusedAgentId(agent.id)
+                          }}
+                          className="px-3 py-1 bg-accent/80 hover:bg-accent text-white text-xs rounded transition-colors"
+                        >
+                          Focus
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </button>
+                </div>
               ))
             )}
           </div>
@@ -171,7 +185,7 @@ export default function Home() {
                 </>
               )}
             </div>
-            <div className="flex items-center justify-center gap-8 text-sm text-primary-light">
+            <div className="flex items-center justify-center gap-8 text-sm text-neutral-50">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
                 <span>Hover over agents for info</span>
