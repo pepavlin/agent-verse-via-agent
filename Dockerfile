@@ -8,6 +8,9 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json* ./
+# Copy Prisma files needed for postinstall script (prisma generate)
+COPY prisma ./prisma
+COPY prisma.config.ts ./prisma.config.ts
 RUN npm ci
 
 # Stage 2: Builder
