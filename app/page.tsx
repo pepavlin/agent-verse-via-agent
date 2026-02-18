@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import GameCanvas from '@/app/components/GameCanvas'
 import AgentChatDialog from '@/app/components/AgentChatDialog'
 import CreateAgentModal from '@/app/components/CreateAgentModal'
+import ThemeToggle from '@/components/ThemeToggle'
 import { BUILD_CONFIG } from '@/lib/build-config'
 
 interface Agent {
@@ -71,6 +72,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <button
               onClick={() => setShowCreateModal(true)}
               className="px-4 py-2 bg-primary hover:bg-primary-dark dark:hover:bg-primary-dark/80 backdrop-blur-sm text-white rounded-md transition-colors border border-primary/50 font-medium"

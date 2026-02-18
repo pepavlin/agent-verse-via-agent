@@ -66,25 +66,23 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Dark theme - Better contrast version */
-    --background: #1a1f2e;    /* Darker slate with slightly better contrast */
-    --foreground: #ffffff;    /* Pure white for maximum contrast */
+.dark {
+  /* Dark theme - Better contrast version */
+  --background: #0a0a0a;      /* True black for dark mode */
+  --foreground: #ffffff;      /* Pure white for maximum contrast */
 
-    /* Darker primaries for dark mode */
-    --primary: #818cf8;       /* Indigo 400 - lighter on dark background */
-    --primary-light: #a5b4fc; /* Indigo 300 */
-    --primary-dark: #6366f1;  /* Indigo 500 */
+  /* Darker primaries for dark mode */
+  --primary: #818cf8;         /* Indigo 400 - lighter on dark background */
+  --primary-light: #a5b4fc;   /* Indigo 300 */
+  --primary-dark: #6366f1;    /* Indigo 500 */
 
-    --secondary: #c084fc;     /* Violet 400 - lighter */
-    --secondary-light: #ddd6fe; /* Violet 200 */
-    --secondary-dark: #a78bfa; /* Violet 400 */
+  --secondary: #c084fc;       /* Violet 400 - lighter */
+  --secondary-light: #ddd6fe; /* Violet 200 */
+  --secondary-dark: #a78bfa;  /* Violet 400 */
 
-    --accent: #06b6d4;        /* Cyan 500 - bright on dark */
-    --accent-light: #22d3ee;  /* Cyan 400 */
-    --accent-dark: #0891b2;   /* Cyan 600 */
-  }
+  --accent: #06b6d4;          /* Cyan 500 - bright on dark */
+  --accent-light: #22d3ee;    /* Cyan 400 */
+  --accent-dark: #0891b2;     /* Cyan 600 */
 }
 
 body {

@@ -6,6 +6,7 @@ import { simpleAuth } from '@/lib/simple-auth'
 import Link from 'next/link'
 import CreateAgentModal from '../components/CreateAgentModal'
 import AgentCard from '../components/AgentCard'
+import ThemeToggle from '@/components/ThemeToggle'
 
 interface Agent {
   id: string
@@ -112,6 +113,7 @@ export default function AgentsPage() {
               </Link>
             </div>
             <div className="flex items-center gap-4">
+              <ThemeToggle />
               <span className="text-sm text-neutral-600 dark:text-neutral-300">
                 {user.nickname}
               </span>

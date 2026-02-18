@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import ThemeToggle from './ThemeToggle'
 
 export default function Navigation() {
   return (
@@ -12,6 +13,7 @@ export default function Navigation() {
           </div>
 
           <div className="flex items-center space-x-4">
+            <ThemeToggle />
             <Link
               href="/"
               className="text-neutral-700 dark:text-neutral-300 hover:text-primary dark:hover:text-primary-light px-3 py-2 rounded-md text-sm font-medium transition-colors"

@@ -1,13 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { simpleAuth } from '@/lib/simple-auth'
+import ThemeToggle from '@/components/ThemeToggle'
 
 export default function LoginPage() {
   const router = useRouter()
   const [nickname, setNickname] = useState('')
   const [error, setError] = useState('')
+  const [mounted, setMounted] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+
+  useEffect(() => {
+    // Defer mounting state to avoid hydration mismatch between SSR and client
+    const timer = setTimeout(() => setMounted(true), 0)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Watch for theme changes by observing the HTML class
+  useEffect(() => {
+    if (!mounted) return
+
+    const updateTheme = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'))
+    }
+
+    // Initial check
+    updateTheme()
+
+    // Watch for changes
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+
+    return () => observer.disconnect()
+  }, [mounted])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,20 +51,94 @@ export default function LoginPage() {
     simpleAuth.login(nickname)
     router.push('/dashboard')
   }
+  
+  const isDark = isDarkMode
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-cyan-600 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-neutral-800 backdrop-blur-sm rounded-lg shadow-2xl border border-neutral-200 dark:border-primary/30">
-        <h2 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-primary-dark to-accent">
+    <>
+      <style jsx>{`
+        @keyframes gradient-animation {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+        
+        .animated-gradient {
+          background: linear-gradient(
+            -45deg,
+            rgb(79, 70, 229),
+            rgb(147, 51, 234),
+            rgb(8, 145, 178),
+            rgb(99, 102, 241)
+          );
+          background-size: 400% 400%;
+          animation: gradient-animation 15s ease infinite;
+        }
+      `}</style>
+      
+      <div 
+        className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+          isDark ? '' : 'animated-gradient'
+        }`}
+        style={{
+          background: isDark ? '#000000' : undefined
+        }}
+      >
+        {/* Theme Toggle - Fixed position */}
+        <div className="fixed top-4 right-4 z-10">
+          <ThemeToggle />
+        </div>
+
+      <div 
+        className="w-full max-w-md p-8 space-y-6 backdrop-blur-sm rounded-lg shadow-2xl transition-colors duration-300"
+        style={{
+          backgroundColor: isDark ? '#171717' : '#ffffff',
+          borderColor: isDark ? '#404040' : '#e5e7eb'
+        }}
+      >
+        <h2 
+          className="text-4xl font-black text-center"
+          style={{
+            color: isDark ? '#ffffff' : undefined,
+            backgroundImage: isDark ? undefined : 'linear-gradient(to right, rgb(55, 48, 163), rgb(8, 105, 161))',
+            backgroundClip: isDark ? undefined : 'text',
+            WebkitBackgroundClip: isDark ? undefined : 'text',
+            WebkitTextFillColor: isDark ? undefined : 'transparent',
+            textShadow: isDark ? '0 0 1px rgba(255, 255, 255, 0.8)' : 'none',
+            fontWeight: 900,
+            letterSpacing: '0.025em'
+          }}
+        >
           Welcome to AgentVerse
         </h2>
-        <p className="text-center text-neutral-600 dark:text-neutral-400 text-sm">
+        <p 
+          className="text-center text-sm font-semibold"
+          style={{
+            color: isDark ? '#a3a3a3' : '#525252',
+            fontWeight: 700,
+            letterSpacing: '0.015em'
+          }}
+        >
           Enter your nickname to start using the app
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="nickname" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+            <label 
+              htmlFor="nickname" 
+              className="block text-sm font-bold mb-2"
+              style={{
+                color: isDark ? '#d4d4d4' : '#404040',
+                fontWeight: 800,
+                letterSpacing: '0.015em'
+              }}
+            >
               Nickname
             </label>
             <input
@@ -43,25 +147,52 @@ export default function LoginPage() {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="Enter your nickname..."
-              className="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light text-neutral-900 dark:text-neutral-50 placeholder-neutral-500 dark:placeholder-neutral-400 transition-colors"
+              className="w-full px-4 py-3 rounded-md focus:outline-none focus:ring-2 transition-colors"
+              style={{
+                backgroundColor: isDark ? '#262626' : '#fafafa',
+                borderWidth: '1px',
+                borderColor: isDark ? '#525252' : '#d4d4d4',
+                color: isDark ? '#ffffff' : '#171717',
+              }}
               autoFocus
             />
           </div>
 
           {error && (
-            <div className="p-3 text-sm text-danger bg-danger/10 dark:bg-danger/20 rounded-md border border-danger/30 dark:border-danger/50">
+            <div 
+              className="p-3 text-sm rounded-md"
+              style={{
+                color: '#dc2626',
+                backgroundColor: isDark ? 'rgba(220, 38, 38, 0.2)' : 'rgba(220, 38, 38, 0.1)',
+                borderWidth: '1px',
+                borderColor: isDark ? 'rgba(220, 38, 38, 0.5)' : 'rgba(220, 38, 38, 0.3)'
+              }}
+            >
               {error}
             </div>
           )}
 
           <button
             type="submit"
-            className="w-full px-4 py-3 font-medium text-white bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary-dark rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            className="w-full px-4 py-3 font-bold text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            style={{
+              background: 'linear-gradient(to right, rgb(79, 70, 229), rgb(55, 48, 163))',
+              fontWeight: 800,
+              letterSpacing: '0.025em',
+              textShadow: '0 0 1px rgba(0, 0, 0, 0.5)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(to right, rgb(55, 48, 163), rgb(55, 48, 163))'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(to right, rgb(79, 70, 229), rgb(55, 48, 163))'
+            }}
           >
             Start
           </button>
         </form>
       </div>
     </div>
+    </>
   )
 }
