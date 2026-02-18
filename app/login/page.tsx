@@ -49,17 +49,43 @@ export default function LoginPage() {
         <ThemeToggle />
       </div>
 
-      <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-neutral-900 backdrop-blur-sm rounded-lg shadow-2xl border border-neutral-200 dark:border-neutral-700">
-        <h2 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-primary-dark to-accent">
+      <div 
+        className="w-full max-w-md p-8 space-y-6 backdrop-blur-sm rounded-lg shadow-2xl transition-colors duration-300"
+        style={{
+          backgroundColor: isDark ? '#171717' : '#ffffff',
+          borderColor: isDark ? '#404040' : '#e5e7eb'
+        }}
+      >
+        <h2 
+          className="text-4xl font-bold text-center"
+          style={{
+            color: isDark ? '#ffffff' : undefined,
+            backgroundImage: isDark ? undefined : 'linear-gradient(to right, rgb(55, 48, 163), rgb(8, 105, 161))',
+            backgroundClip: isDark ? undefined : 'text',
+            WebkitBackgroundClip: isDark ? undefined : 'text',
+            WebkitTextFillColor: isDark ? undefined : 'transparent'
+          }}
+        >
           Welcome to AgentVerse
         </h2>
-        <p className="text-center text-neutral-600 dark:text-neutral-400 text-sm">
+        <p 
+          className="text-center text-sm"
+          style={{
+            color: isDark ? '#a3a3a3' : '#525252'
+          }}
+        >
           Enter your nickname to start using the app
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="nickname" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+            <label 
+              htmlFor="nickname" 
+              className="block text-sm font-medium mb-2"
+              style={{
+                color: isDark ? '#d4d4d4' : '#404040'
+              }}
+            >
               Nickname
             </label>
             <input
@@ -68,20 +94,43 @@ export default function LoginPage() {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="Enter your nickname..."
-              className="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light text-neutral-900 dark:text-neutral-50 placeholder-neutral-500 dark:placeholder-neutral-400 transition-colors"
+              className="w-full px-4 py-3 rounded-md focus:outline-none focus:ring-2 transition-colors"
+              style={{
+                backgroundColor: isDark ? '#262626' : '#fafafa',
+                borderWidth: '1px',
+                borderColor: isDark ? '#525252' : '#d4d4d4',
+                color: isDark ? '#ffffff' : '#171717',
+              }}
               autoFocus
             />
           </div>
 
           {error && (
-            <div className="p-3 text-sm text-danger bg-danger/10 dark:bg-danger/20 rounded-md border border-danger/30 dark:border-danger/50">
+            <div 
+              className="p-3 text-sm rounded-md"
+              style={{
+                color: '#dc2626',
+                backgroundColor: isDark ? 'rgba(220, 38, 38, 0.2)' : 'rgba(220, 38, 38, 0.1)',
+                borderWidth: '1px',
+                borderColor: isDark ? 'rgba(220, 38, 38, 0.5)' : 'rgba(220, 38, 38, 0.3)'
+              }}
+            >
               {error}
             </div>
           )}
 
           <button
             type="submit"
-            className="w-full px-4 py-3 font-medium text-white bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary-dark rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            className="w-full px-4 py-3 font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            style={{
+              background: 'linear-gradient(to right, rgb(79, 70, 229), rgb(55, 48, 163))',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(to right, rgb(55, 48, 163), rgb(55, 48, 163))'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(to right, rgb(79, 70, 229), rgb(55, 48, 163))'
+            }}
           >
             Start
           </button>
