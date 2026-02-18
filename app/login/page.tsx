@@ -4,20 +4,40 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { simpleAuth } from '@/lib/simple-auth'
 import ThemeToggle from '@/components/ThemeToggle'
-import { useTheme } from 'next-themes'
 
 export default function LoginPage() {
   const router = useRouter()
   const [nickname, setNickname] = useState('')
   const [error, setError] = useState('')
-  const { theme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(false)
 
   useEffect(() => {
     // Defer mounting state to avoid hydration mismatch between SSR and client
     const timer = setTimeout(() => setMounted(true), 0)
     return () => clearTimeout(timer)
   }, [])
+
+  // Watch for theme changes by observing the HTML class
+  useEffect(() => {
+    if (!mounted) return
+
+    const updateTheme = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'))
+    }
+
+    // Initial check
+    updateTheme()
+
+    // Watch for changes
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+
+    return () => observer.disconnect()
+  }, [mounted])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,8 +52,7 @@ export default function LoginPage() {
     router.push('/dashboard')
   }
   
-  // Determine if dark mode is active - only after mounting to avoid hydration mismatch
-  const isDark = mounted && (theme === 'dark' || (theme === 'system' && resolvedTheme === 'dark'))
+  const isDark = isDarkMode
 
   return (
     <div 
