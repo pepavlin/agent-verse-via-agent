@@ -140,7 +140,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full px-4 py-3 font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            className="w-full px-4 py-3 font-medium text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all"
             style={{
               background: 'linear-gradient(to right, rgb(79, 70, 229), rgb(55, 48, 163))',
             }}
