@@ -165,7 +165,7 @@ export default function Home() {
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-neutral-900/90 dark:from-neutral-950/90 to-transparent p-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-primary-light/60">
+            <div className="flex items-center gap-2 text-sm text-neutral-50/60">
               {deployDate && (
                 <>
                   <div className="w-2 h-2 rounded-full bg-success" />
@@ -173,7 +173,7 @@ export default function Home() {
                 </>
               )}
             </div>
-            <div className="flex items-center justify-center gap-8 text-sm text-primary-light">
+            <div className="flex items-center justify-center gap-8 text-sm text-neutral-50">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
                 <span>Hover over agents for info</span>
