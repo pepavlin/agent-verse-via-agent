@@ -36,11 +36,6 @@
   --neutral-700: #374151;    /* Slate 700 - Much darker */
   --neutral-800: #1f2937;    /* Slate 800 - Very dark */
   --neutral-900: #111827;    /* Slate 900 - Almost black */
-  
-  /* Login page gradients */
-  --login-bg-from: #4f46e5;  /* Indigo 600 */
-  --login-bg-via: #9333ea;   /* Purple 600 */
-  --login-bg-to: #0891b2;    /* Cyan 600 */
 }
 
 @theme inline {
@@ -88,11 +83,6 @@
   --accent: #06b6d4;          /* Cyan 500 - bright on dark */
   --accent-light: #22d3ee;    /* Cyan 400 */
   --accent-dark: #0891b2;     /* Cyan 600 */
-  
-  /* Login page dark gradients - truly dark */
-  --login-bg-from: #030712;   /* Gray 950 - almost black */
-  --login-bg-via: #0a0a0a;    /* True black */
-  --login-bg-to: #000000;     /* Pure black */
 }
 
 body {

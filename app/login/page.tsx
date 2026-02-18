@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    // Using setTimeout to avoid the cascading render warning
+    // Defer mounting state to avoid hydration mismatch between SSR and client
     const timer = setTimeout(() => setMounted(true), 0)
     return () => clearTimeout(timer)
   }, [])
