@@ -55,18 +55,45 @@ export default function LoginPage() {
   const isDark = isDarkMode
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center transition-colors duration-300"
-      style={{
-        background: isDark 
-          ? '#000000'
-          : 'linear-gradient(to bottom right, rgb(79, 70, 229), rgb(147, 51, 234), rgb(8, 145, 178))'
-      }}
-    >
-      {/* Theme Toggle - Fixed position */}
-      <div className="fixed top-4 right-4 z-10">
-        <ThemeToggle />
-      </div>
+    <>
+      <style jsx>{`
+        @keyframes gradient-animation {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+        
+        .animated-gradient {
+          background: linear-gradient(
+            -45deg,
+            rgb(79, 70, 229),
+            rgb(147, 51, 234),
+            rgb(8, 145, 178),
+            rgb(99, 102, 241)
+          );
+          background-size: 400% 400%;
+          animation: gradient-animation 15s ease infinite;
+        }
+      `}</style>
+      
+      <div 
+        className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+          isDark ? '' : 'animated-gradient'
+        }`}
+        style={{
+          background: isDark ? '#000000' : undefined
+        }}
+      >
+        {/* Theme Toggle - Fixed position */}
+        <div className="fixed top-4 right-4 z-10">
+          <ThemeToggle />
+        </div>
 
       <div 
         className="w-full max-w-md p-8 space-y-6 backdrop-blur-sm rounded-lg shadow-2xl transition-colors duration-300"
@@ -156,5 +183,6 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+    </>
   )
 }
