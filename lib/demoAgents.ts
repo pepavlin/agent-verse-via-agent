@@ -1,7 +1,7 @@
 import { Agent, AgentRole } from '@/types'
 import { VisualAgent, AGENT_COLORS } from '@/types/visualization'
 
-// Animation speed multiplier (1,000,000x slower animation)
+// Animation speed multiplier (1000x slower than previous, 1/1,000,000 of normal speed)
 const ANIMATION_SPEED_MULTIPLIER = 0.000001
 
 const AGENT_ROLES: AgentRole[] = [
@@ -40,7 +40,7 @@ export function generateDemoAgents(count: number = 20): VisualAgent[] {
       // Visual properties
       x: Math.random() * 1600 - 800, // Random position in a 1600x1200 world
       y: Math.random() * 1200 - 600,
-      vx: (Math.random() - 0.5) * 2 * ANIMATION_SPEED_MULTIPLIER, // Random velocity (1,000,000x slower)
+      vx: (Math.random() - 0.5) * 2 * ANIMATION_SPEED_MULTIPLIER, // Random velocity
       vy: (Math.random() - 0.5) * 2 * ANIMATION_SPEED_MULTIPLIER,
       color: AGENT_COLORS[role] || AGENT_COLORS.default,
       selected: false,

@@ -36,7 +36,7 @@ interface GameCanvasProps {
 const WORLD_WIDTH = 2000
 const WORLD_HEIGHT = 1500
 const AGENT_RADIUS = 20
-const ANIMATION_SPEED_MULTIPLIER = 0.000001 // 1,000,000x slower animation (1/1,000,000 of normal speed)
+const ANIMATION_SPEED_MULTIPLIER = 0.000001 // 1000x slower than previous (1/1,000,000 of normal speed)
 const INITIAL_ZOOM = 0.4 // Initial zoom to fit map nicely on screen
 
 export default function GameCanvas({ onAgentClick, focusedAgentId }: GameCanvasProps) {
