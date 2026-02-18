@@ -109,7 +109,10 @@ export default function LoginPage() {
             backgroundImage: isDark ? undefined : 'linear-gradient(to right, rgb(55, 48, 163), rgb(8, 105, 161))',
             backgroundClip: isDark ? undefined : 'text',
             WebkitBackgroundClip: isDark ? undefined : 'text',
-            WebkitTextFillColor: isDark ? undefined : 'transparent'
+            WebkitTextFillColor: isDark ? undefined : 'transparent',
+            textShadow: isDark ? '0 0 1px rgba(255, 255, 255, 0.8)' : 'none',
+            fontWeight: 900,
+            letterSpacing: '0.025em'
           }}
         >
           Welcome to AgentVerse
@@ -117,7 +120,9 @@ export default function LoginPage() {
         <p 
           className="text-center text-sm font-semibold"
           style={{
-            color: isDark ? '#a3a3a3' : '#525252'
+            color: isDark ? '#a3a3a3' : '#525252',
+            fontWeight: 700,
+            letterSpacing: '0.015em'
           }}
         >
           Enter your nickname to start using the app
@@ -129,7 +134,9 @@ export default function LoginPage() {
               htmlFor="nickname" 
               className="block text-sm font-bold mb-2"
               style={{
-                color: isDark ? '#d4d4d4' : '#404040'
+                color: isDark ? '#d4d4d4' : '#404040',
+                fontWeight: 800,
+                letterSpacing: '0.015em'
               }}
             >
               Nickname
@@ -170,6 +177,9 @@ export default function LoginPage() {
             className="w-full px-4 py-3 font-bold text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all"
             style={{
               background: 'linear-gradient(to right, rgb(79, 70, 229), rgb(55, 48, 163))',
+              fontWeight: 800,
+              letterSpacing: '0.025em',
+              textShadow: '0 0 1px rgba(0, 0, 0, 0.5)'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'linear-gradient(to right, rgb(55, 48, 163), rgb(55, 48, 163))'
