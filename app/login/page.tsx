@@ -103,7 +103,7 @@ export default function LoginPage() {
         }}
       >
         <h2 
-          className="text-4xl font-bold text-center"
+          className="text-4xl font-extrabold text-center"
           style={{
             color: isDark ? '#ffffff' : undefined,
             backgroundImage: isDark ? undefined : 'linear-gradient(to right, rgb(55, 48, 163), rgb(8, 105, 161))',
@@ -115,7 +115,7 @@ export default function LoginPage() {
           Welcome to AgentVerse
         </h2>
         <p 
-          className="text-center text-sm"
+          className="text-center text-sm font-semibold"
           style={{
             color: isDark ? '#a3a3a3' : '#525252'
           }}
@@ -127,7 +127,7 @@ export default function LoginPage() {
           <div>
             <label 
               htmlFor="nickname" 
-              className="block text-sm font-medium mb-2"
+              className="block text-sm font-bold mb-2"
               style={{
                 color: isDark ? '#d4d4d4' : '#404040'
               }}
@@ -167,7 +167,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full px-4 py-3 font-medium text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            className="w-full px-4 py-3 font-bold text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all"
             style={{
               background: 'linear-gradient(to right, rgb(79, 70, 229), rgb(55, 48, 163))',
             }}
