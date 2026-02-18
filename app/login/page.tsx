@@ -1,14 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { simpleAuth } from '@/lib/simple-auth'
 import ThemeToggle from '@/components/ThemeToggle'
+import { useTheme } from 'next-themes'
 
 export default function LoginPage() {
   const router = useRouter()
   const [nickname, setNickname] = useState('')
   const [error, setError] = useState('')
+  const { theme, resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    // Using setTimeout to avoid the cascading render warning
+    const timer = setTimeout(() => setMounted(true), 0)
+    return () => clearTimeout(timer)
+  }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,15 +31,25 @@ export default function LoginPage() {
     simpleAuth.login(nickname)
     router.push('/dashboard')
   }
+  
+  // Determine if dark mode is active - only after mounting to avoid hydration mismatch
+  const isDark = mounted && (theme === 'dark' || (theme === 'system' && resolvedTheme === 'dark'))
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-cyan-600 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950">
+    <div 
+      className="min-h-screen flex items-center justify-center transition-colors duration-300"
+      style={{
+        background: isDark 
+          ? '#000000'
+          : 'linear-gradient(to bottom right, rgb(79, 70, 229), rgb(147, 51, 234), rgb(8, 145, 178))'
+      }}
+    >
       {/* Theme Toggle - Fixed position */}
       <div className="fixed top-4 right-4 z-10">
         <ThemeToggle />
       </div>
 
-      <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-neutral-800 backdrop-blur-sm rounded-lg shadow-2xl border border-neutral-200 dark:border-primary/30">
+      <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-neutral-900 backdrop-blur-sm rounded-lg shadow-2xl border border-neutral-200 dark:border-neutral-700">
         <h2 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-primary-dark to-accent">
           Welcome to AgentVerse
         </h2>
