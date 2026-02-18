@@ -103,7 +103,7 @@ export default function LoginPage() {
         }}
       >
         <h2 
-          className="text-4xl font-extrabold text-center"
+          className="text-4xl font-black text-center"
           style={{
             color: isDark ? '#ffffff' : undefined,
             backgroundImage: isDark ? undefined : 'linear-gradient(to right, rgb(55, 48, 163), rgb(8, 105, 161))',
