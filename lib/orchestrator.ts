@@ -367,7 +367,7 @@ export class AgentOrchestrator {
   private logCommunicationEvent(event: Omit<CommunicationEvent, 'id' | 'timestamp'>): void {
     const fullEvent: CommunicationEvent = {
       ...event,
-      id: `event-${Date.now()}-${Math.random()}`,
+      id: crypto.randomUUID(),
       timestamp: new Date(),
     }
     
