@@ -199,3 +199,40 @@ model UserQuery {
   @@index([agentId])
   @@index([status])
 }
+
+model AgentMetric {
+  id              String   @id @default(cuid())
+  agentId         String
+  agentName       String
+  agentRole       String?
+  userId          String
+  // Execution metrics
+  operationType   String   // execute, pipeline, parallel, workflow
+  taskId          String?
+  workflowId      String?
+  success         Boolean
+  executionTime   Int      // in milliseconds
+  // Token usage metrics
+  inputTokens     Int?
+  outputTokens    Int?
+  totalTokens     Int?
+  // Cost metrics (in USD cents)
+  estimatedCost   Int?     // cost in cents
+  // Model info
+  model           String
+  // Error tracking
+  errorType       String?
+  errorMessage    String?
+  // Timestamps
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  @@index([agentId])
+  @@index([userId])
+  @@index([agentRole])
+  @@index([success])
+  @@index([operationType])
+  @@index([createdAt])
+  @@index([agentId, createdAt])
+  @@index([userId, createdAt])
+}

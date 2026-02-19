@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { Agent, Message, AgentRole, AgentExecutionResult, AgentStatus } from "@/types"
+import { MetricsService } from "@/lib/metrics-service"
 
 /**
  * BaseAgent class - Foundation for all AgentVerse agents
@@ -15,6 +16,8 @@ export abstract class BaseAgent {
   protected anthropic: Anthropic
   protected systemPrompt: string
   protected status: AgentStatus['status'] = 'idle'
+  protected userId: string
+  protected lastTokenUsage?: { input: number; output: number }
 
   constructor(agent: Agent) {
     this.id = agent.id
@@ -24,6 +27,7 @@ export abstract class BaseAgent {
     this.personality = agent.personality || this.getDefaultPersonality()
     this.specialization = agent.specialization || ''
     this.systemPrompt = this.buildSystemPrompt()
+    this.userId = agent.userId
 
     // Initialize Anthropic client
     const apiKey = process.env.ANTHROPIC_API_KEY
@@ -67,31 +71,75 @@ When responding:
    */
   async execute(input: string, context?: Record<string, unknown>): Promise<AgentExecutionResult> {
     const startTime = Date.now()
+    const createdAt = new Date()
     this.status = 'running'
 
     try {
       const result = await this.processTask(input, context)
       const executionTime = Date.now() - startTime
+      const completedAt = new Date()
 
       this.status = 'idle'
+
+      // Record metrics
+      await MetricsService.recordMetric({
+        agentId: this.id,
+        agentName: this.name,
+        agentRole: this.role,
+        userId: this.userId,
+        operationType: (context?.operationType as any) || 'execute',
+        taskId: context?.taskId as string,
+        workflowId: context?.workflowId as string,
+        success: true,
+        executionTime,
+        inputTokens: this.lastTokenUsage?.input,
+        outputTokens: this.lastTokenUsage?.output,
+        model: this.model,
+        createdAt,
+        completedAt,
+      })
 
       return {
         agentId: this.id,
         success: true,
         result,
         executionTime,
-        timestamp: new Date()
+        timestamp: completedAt
       }
     } catch (error) {
       const executionTime = Date.now() - startTime
+      const completedAt = new Date()
       this.status = 'error'
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError'
+
+      // Record error metrics
+      await MetricsService.recordMetric({
+        agentId: this.id,
+        agentName: this.name,
+        agentRole: this.role,
+        userId: this.userId,
+        operationType: (context?.operationType as any) || 'execute',
+        taskId: context?.taskId as string,
+        workflowId: context?.workflowId as string,
+        success: false,
+        executionTime,
+        inputTokens: this.lastTokenUsage?.input,
+        outputTokens: this.lastTokenUsage?.output,
+        model: this.model,
+        errorType,
+        errorMessage,
+        createdAt,
+        completedAt,
+      })
 
       return {
         agentId: this.id,
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         executionTime,
-        timestamp: new Date()
+        timestamp: completedAt
       }
     }
   }
@@ -125,6 +173,12 @@ When responding:
       system: this.systemPrompt,
       messages
     })
+
+    // Store token usage for metrics
+    this.lastTokenUsage = {
+      input: response.usage.input_tokens,
+      output: response.usage.output_tokens,
+    }
 
     // Extract text from response
     const textContent = response.content
