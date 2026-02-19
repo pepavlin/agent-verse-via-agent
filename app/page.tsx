@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import GameCanvas from '@/app/components/GameCanvas'
 import AgentChatDialog from '@/app/components/AgentChatDialog'
 import CreateAgentModal from '@/app/components/CreateAgentModal'
+import AgentCommunicationLog from '@/app/components/AgentCommunicationLog'
 import ThemeToggle from '@/components/ThemeToggle'
 import { BUILD_CONFIG } from '@/lib/build-config'
 
@@ -21,6 +22,7 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showAgentList, setShowAgentList] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showCommLog, setShowCommLog] = useState(false)
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
   const deployDate = BUILD_CONFIG.deployDate
 
@@ -73,6 +75,12 @@ export default function Home() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <button
+              onClick={() => setShowCommLog(!showCommLog)}
+              className="px-4 py-2 bg-neutral-800/80 dark:bg-neutral-800/50 backdrop-blur-sm text-primary-light hover:bg-neutral-700/80 dark:hover:bg-neutral-700/80 rounded-md transition-colors border border-primary/30"
+            >
+              {showCommLog ? 'Hide' : 'Show'} Comm Log
+            </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="px-4 py-2 bg-primary hover:bg-primary-dark dark:hover:bg-primary-dark/80 backdrop-blur-sm text-white rounded-md transition-colors border border-primary/50 font-medium"
@@ -133,6 +141,12 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Communication Log Panel */}
+      <AgentCommunicationLog
+        isOpen={showCommLog}
+        onClose={() => setShowCommLog(false)}
+      />
 
       {/* Game Canvas */}
       <GameCanvas

@@ -419,7 +419,48 @@ export class AgentOrchestrator {
     message.status = 'delivered'
     message.deliveredAt = new Date()
 
+    // Log the communication event (fire and forget)
+    this.logCommunication(message).catch(error => {
+      console.error('[COMMUNICATION_LOG_ERROR]', error)
+    })
+
     return message
+  }
+
+  /**
+   * Log agent-to-agent communication
+   */
+  private async logCommunication(message: AgentMessage): Promise<void> {
+    try {
+      const fromAgent = this.agents.get(message.fromAgentId)
+      const toAgent = this.agents.get(message.toAgentId)
+
+      if (!fromAgent || !toAgent) {
+        return
+      }
+
+      const fromInfo = fromAgent.getInfo()
+      const toInfo = toAgent.getInfo()
+
+      await fetch('/api/agent-communication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromAgentId: message.fromAgentId,
+          toAgentId: message.toAgentId,
+          content: message.content,
+          type: message.metadata?.type || 'notification',
+          metadata: {
+            ...message.metadata,
+            fromAgentName: fromInfo.name,
+            toAgentName: toInfo.name,
+          },
+        }),
+      })
+    } catch (error) {
+      // Silently fail to not interrupt agent communication
+      console.error('[LOG_COMMUNICATION_FAILED]', error)
+    }
   }
 
   /**
