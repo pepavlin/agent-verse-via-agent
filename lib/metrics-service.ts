@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { Agent } from '@/types'
 
 /**
  * Cost estimation based on Claude model pricing (per 1M tokens)
@@ -115,7 +114,10 @@ export class MetricsService {
     startDate?: Date,
     endDate?: Date
   ) {
-    const where: any = { agentId }
+    const where: {
+      agentId: string
+      createdAt?: { gte?: Date; lte?: Date }
+    } = { agentId }
     
     if (startDate || endDate) {
       where.createdAt = {}
@@ -139,7 +141,10 @@ export class MetricsService {
     startDate?: Date,
     endDate?: Date
   ) {
-    const where: any = { userId }
+    const where: {
+      userId: string
+      createdAt?: { gte?: Date; lte?: Date }
+    } = { userId }
     
     if (startDate || endDate) {
       where.createdAt = {}
@@ -159,7 +164,10 @@ export class MetricsService {
    * Get metrics grouped by agent for comparison
    */
   static async getAgentComparison(userId: string, startDate?: Date, endDate?: Date) {
-    const where: any = { userId }
+    const where: {
+      userId: string
+      createdAt?: { gte?: Date; lte?: Date }
+    } = { userId }
     
     if (startDate || endDate) {
       where.createdAt = {}
@@ -179,7 +187,7 @@ export class MetricsService {
       }
       acc[metric.agentId].push(metric)
       return acc
-    }, {} as Record<string, any[]>)
+    }, {} as Record<string, typeof metrics>)
 
     // Calculate summary for each agent
     return Object.entries(agentGroups).map(([agentId, agentMetrics]) => ({
@@ -217,7 +225,12 @@ export class MetricsService {
   /**
    * Calculate summary statistics from metrics
    */
-  private static calculateMetricsSummary(metrics: any[]) {
+  private static calculateMetricsSummary(metrics: Array<{
+    success: boolean
+    executionTime: number
+    estimatedCost?: number | null
+    totalTokens?: number | null
+  }>) {
     if (metrics.length === 0) {
       return {
         totalExecutions: 0,
@@ -258,10 +271,16 @@ export class MetricsService {
    * Group metrics by time interval for time-series charts
    */
   private static groupByTimeInterval(
-    metrics: any[],
+    metrics: Array<{
+      createdAt: Date
+      success: boolean
+      executionTime: number
+      estimatedCost?: number | null
+      totalTokens?: number | null
+    }>,
     interval: 'hour' | 'day' | 'week'
   ) {
-    const grouped: Record<string, any[]> = {}
+    const grouped: Record<string, typeof metrics> = {}
 
     metrics.forEach(metric => {
       const date = new Date(metric.createdAt)
@@ -300,7 +319,11 @@ export class MetricsService {
    * Get error frequency by type
    */
   static async getErrorAnalysis(userId: string, startDate?: Date, endDate?: Date) {
-    const where: any = {
+    const where: {
+      userId: string
+      success: boolean
+      createdAt?: { gte?: Date; lte?: Date }
+    } = {
       userId,
       success: false,
     }
@@ -322,7 +345,11 @@ export class MetricsService {
       if (!acc[errorType]) {
         acc[errorType] = {
           count: 0,
-          examples: [],
+          examples: [] as Array<{
+            message: string | null
+            timestamp: Date
+            agentName: string
+          }>,
         }
       }
       acc[errorType].count++
@@ -334,7 +361,11 @@ export class MetricsService {
         })
       }
       return acc
-    }, {} as Record<string, { count: number; examples: any[] }>)
+    }, {} as Record<string, { count: number; examples: Array<{
+      message: string | null
+      timestamp: Date
+      agentName: string
+    }> }>)
 
     return Object.entries(errorGroups).map(([errorType, data]) => ({
       errorType,

@@ -78,7 +78,6 @@ export default function AnalyticsPage() {
       router.push('/login')
     } else {
       setUser(currentUser)
-      fetchAllData()
     }
   }, [router])
 
@@ -86,6 +85,7 @@ export default function AnalyticsPage() {
     if (user) {
       fetchAllData()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, user])
 
   const fetchAllData = async () => {

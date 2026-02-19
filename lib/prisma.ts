@@ -70,6 +70,10 @@ class ValidatingPrismaClient {
     return this.client.userQuery
   }
 
+  get agentMetric() {
+    return this.client.agentMetric
+  }
+
   get verificationToken() {
     return this.client.verificationToken
   }
