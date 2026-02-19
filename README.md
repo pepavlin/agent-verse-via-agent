@@ -40,7 +40,8 @@ AgentVerse is an interactive web application that creates a universe of speciali
 - 🗨️ **Global Project Manager Chat** - Always-available floating chat for support and guidance
 - 🔄 **Multi-Agent Workflows** - Sequential and parallel execution patterns
 - 🎨 **Interactive Visualization** - 2D agent world with physics simulation
-- 📊 **Workflow Analytics** - Track execution history and performance
+- 📊 **Agent Status Dashboard** - Real-time monitoring with health metrics and error tracking
+- 📈 **Performance Analytics** - Track agent response times, error rates, and activity
 - 🔐 **User Authentication** - Secure NextAuth.js-based authentication
 - 💾 **Persistent Storage** - SQLite database with full conversation history
 
@@ -98,7 +99,8 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 3. **Explore** the agents page to see available agent types
 4. **Create** your first agent with a custom role and personality
 5. **Chat** with individual agents or run department workflows
-6. **Visualize** your agent universe at `/visualization`
+6. **Monitor** your agents via the admin dashboard at `/admin`
+7. **Visualize** your agent universe at `/visualization`
 
 ---
 
@@ -110,6 +112,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[API Documentation](docs/API.md)** - Complete REST API reference
 - **[Developer Guide](docs/DEVELOPMENT.md)** - Setup, conventions, and best practices
 - **[Agent Creation Guide](docs/CREATING_AGENTS.md)** - How to create custom agents
+- **[Agent Status Dashboard](docs/AGENT_STATUS_DASHBOARD.md)** - Real-time monitoring and health metrics
 - **[Database Status Report](DATABASE_STATUS.md)** - Database schema and verification results
 - **[PostgreSQL Setup Guide](docs/POSTGRESQL_SETUP.md)** - Complete PostgreSQL Docker setup with switching guide
 - **[Docker Database Setup](docs/DOCKER_DATABASE_SETUP.md)** - Automatic database initialization in Docker
