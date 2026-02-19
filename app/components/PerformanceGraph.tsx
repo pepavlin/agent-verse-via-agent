@@ -9,6 +9,13 @@ interface PerformanceGraphProps {
   agentName: string
 }
 
+const GRAPH_CONFIG = {
+  MAX_RESPONSE_HEIGHT: 150, // Maximum height for response time visualization in pixels
+  WIDTH: 600,
+  HEIGHT: 180,
+  PADDING: 20
+}
+
 export default function PerformanceGraph({ data, agentName }: PerformanceGraphProps) {
   if (!data || data.length === 0) {
     return (
@@ -20,12 +27,10 @@ export default function PerformanceGraph({ data, agentName }: PerformanceGraphPr
 
   // Calculate max value for scaling
   const maxResponseTime = Math.max(...data.map(d => d.responseTime || 0))
-  const scaleFactor = 150 / (maxResponseTime || 1) // 150px max height
+  const scaleFactor = GRAPH_CONFIG.MAX_RESPONSE_HEIGHT / (maxResponseTime || 1)
 
   // Calculate positions for SVG
-  const width = 600
-  const height = 180
-  const padding = 20
+  const { WIDTH: width, HEIGHT: height, PADDING: padding } = GRAPH_CONFIG
   const dataWidth = width - (padding * 2)
   const dataHeight = height - (padding * 2)
   const step = dataWidth / (data.length - 1 || 1)
@@ -85,7 +90,6 @@ export default function PerformanceGraph({ data, agentName }: PerformanceGraphPr
               cy={p.y}
               r="4"
               fill={p.success ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)'}
-              className="transition-all hover:r-6"
             >
               <title>{`${p.responseTime}ms - ${p.success ? 'Success' : 'Failed'}`}</title>
             </circle>
