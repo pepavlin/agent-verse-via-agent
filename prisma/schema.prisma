@@ -199,3 +199,19 @@ model UserQuery {
   @@index([agentId])
   @@index([status])
 }
+
+model AgentMetrics {
+  id               String   @id @default(cuid())
+  agentId          String
+  status           String   @default("idle") // idle, thinking, communicating, error
+  executionTime    Int?     // in milliseconds
+  success          Boolean  @default(true)
+  errorMessage     String?
+  tasksCompleted   Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([agentId, createdAt])
+}
