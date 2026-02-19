@@ -100,6 +100,12 @@ export default function AgentsPage() {
                 Agent List
               </Link>
               <Link
+                href="/admin-dashboard"
+                className="text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-primary dark:hover:text-primary-light transition-colors"
+              >
+                Status Dashboard
+              </Link>
+              <Link
                 href="/visualization"
                 className="text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-primary dark:hover:text-primary-light transition-colors"
               >

@@ -1,21 +1,17 @@
 import { PrismaClient, Prisma } from '@prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
-import { Pool } from 'pg'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Factory function to create Prisma client with PostgreSQL adapter
+// Factory function to create Prisma client
 function createPrismaClient() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
     throw new Error('DATABASE_URL environment variable is required')
   }
 
-  const pool = new Pool({ connectionString: databaseUrl })
   return new PrismaClient({
-    adapter: new PrismaPg(pool),
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
   })
 }

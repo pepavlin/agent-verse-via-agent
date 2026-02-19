@@ -8,6 +8,7 @@ import ThemeToggle from '@/components/ThemeToggle'
 import AgentStatusCard from '../components/AgentStatusCard'
 import SystemMetrics from '../components/SystemMetrics'
 import ErrorLogViewer from '../components/ErrorLogViewer'
+import PerformanceGraph from '../components/PerformanceGraph'
 
 interface AgentStatusData {
   agentId: string
@@ -214,12 +215,18 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        {/* Error logs viewer */}
+        {/* Performance graph & error logs viewer */}
         {selectedAgent && (
-          <ErrorLogViewer
-            agent={agents.find((a) => a.agentId === selectedAgent)!}
-            onClose={() => setSelectedAgent(null)}
-          />
+          <div className="mt-8 space-y-6">
+            <PerformanceGraph
+              agentId={selectedAgent}
+              agentName={agents.find((a) => a.agentId === selectedAgent)?.agentName || ''}
+            />
+            <ErrorLogViewer
+              agent={agents.find((a) => a.agentId === selectedAgent)!}
+              onClose={() => setSelectedAgent(null)}
+            />
+          </div>
         )}
       </main>
     </div>
