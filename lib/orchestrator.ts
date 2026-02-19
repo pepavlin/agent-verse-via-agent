@@ -510,9 +510,9 @@ export class AgentOrchestrator {
     this.logCommunicationEvent({
       type: 'message',
       fromAgentId,
-      fromAgentName: fromAgent?.getInfo().name,
+      fromAgentName: fromAgent?.getInfo().name || fromAgentId,
       toAgentId,
-      toAgentName: toAgent?.getInfo().name,
+      toAgentName: toAgent?.getInfo().name || toAgentId,
       content,
       metadata,
       workflowId: message.workflowId,
@@ -606,4 +606,13 @@ export class AgentOrchestrator {
 }
 
 // Export singleton instance for use across the application
-export const orchestrator = new AgentOrchestrator()
+// Using globalThis to ensure the same instance is used across HMR reloads
+const globalForOrchestrator = globalThis as unknown as {
+  orchestrator: AgentOrchestrator | undefined
+}
+
+export const orchestrator = globalForOrchestrator.orchestrator ?? new AgentOrchestrator()
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForOrchestrator.orchestrator = orchestrator
+}

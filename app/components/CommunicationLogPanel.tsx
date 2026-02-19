@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { CommunicationEvent } from '@/types'
-import { X, Filter, Search, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { X, Filter, Search, ChevronDown, ChevronUp, Trash2, Play } from 'lucide-react'
 
 interface CommunicationLogPanelProps {
   onClose: () => void
@@ -142,6 +142,16 @@ export default function CommunicationLogPanel({ onClose }: CommunicationLogPanel
     }
   }
 
+  const generateDemoEvents = async () => {
+    try {
+      await fetch('/api/demo-events', { method: 'POST' })
+      // Refresh events after generating demos
+      setTimeout(() => fetchEvents(), 500)
+    } catch (error) {
+      console.error('Failed to generate demo events:', error)
+    }
+  }
+
   // Get unique agent names and event types
   const uniqueAgents = Array.from(
     new Set(
@@ -170,6 +180,13 @@ export default function CommunicationLogPanel({ onClose }: CommunicationLogPanel
             title="Toggle filters"
           >
             <Filter className="w-4 h-4 text-neutral-400" />
+          </button>
+          <button
+            onClick={generateDemoEvents}
+            className="p-2 hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 rounded-md transition-colors"
+            title="Generate demo events"
+          >
+            <Play className="w-4 h-4 text-neutral-400" />
           </button>
           <button
             onClick={clearEvents}
