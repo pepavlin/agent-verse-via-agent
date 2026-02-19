@@ -18,8 +18,9 @@ function createPrismaClient() {
   
   if (isPostgres) {
     const pool = new Pool({ connectionString: databaseUrl })
+    const adapter = new PrismaPg(pool)
     return new PrismaClient({
-      adapter: new PrismaPg(pool),
+      adapter,
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
     })
   } else {

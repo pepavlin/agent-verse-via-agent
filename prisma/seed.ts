@@ -1,19 +1,6 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
-import { Pool } from 'pg'
 
-const databaseUrl = process.env.DATABASE_URL || 'file:./dev.db'
-const isPostgres = databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://')
-
-let prisma: PrismaClient
-
-if (isPostgres) {
-  const dbPool = new Pool({ connectionString: databaseUrl })
-  const adapter = new PrismaPg(dbPool)
-  prisma = new PrismaClient({ adapter })
-} else {
-  prisma = new PrismaClient()
-}
+const prisma = new PrismaClient()
 
 async function main() {
   console.log('Seeding database...')
