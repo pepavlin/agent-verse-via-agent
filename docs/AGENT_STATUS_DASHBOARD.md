@@ -4,6 +4,10 @@
 
 The Agent Status Dashboard provides real-time monitoring and health metrics for all agents in your AgentVerse system. It helps administrators monitor agent performance, identify issues, and debug problems efficiently.
 
+![Agent Status Dashboard](./images/dashboard-demo.png)
+
+*The dashboard displays real-time agent status with color-coded indicators and comprehensive health metrics*
+
 ## Features
 
 ### 1. Real-Time Agent Status Monitoring
