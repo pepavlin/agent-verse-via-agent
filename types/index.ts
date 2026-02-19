@@ -279,8 +279,9 @@ export interface ErrorLog {
 export interface AgentHealthMetrics {
   agentId: string
   agentName: string
+  role?: string | null
   currentStatus: 'idle' | 'thinking' | 'communicating' | 'error'
-  uptime: number // percentage
+  uptime?: number // percentage
   averageResponseTime: number // ms
   successRate: number // percentage
   totalExecutions: number
