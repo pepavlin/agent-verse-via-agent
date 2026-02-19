@@ -204,6 +204,21 @@ export interface MessageQueue {
   lastProcessedAt?: Date
 }
 
+// Communication event for logging and display
+export interface CommunicationEvent {
+  id: string
+  type: 'message' | 'workflow_start' | 'workflow_end' | 'execution' | 'broadcast'
+  fromAgentId: string
+  fromAgentName?: string
+  toAgentId?: string
+  toAgentName?: string
+  content: string
+  metadata?: MessageMetadata
+  timestamp: Date
+  workflowId?: string
+  taskId?: string
+}
+
 // Department execution types
 export interface DepartmentExecutionRequest {
   departmentId: string

@@ -7,6 +7,7 @@ import {
   AgentMessage,
   UserQuery,
   UserInteractionRequest,
+  CommunicationEvent,
 } from '@/types'
 import { BaseAgent } from '@/app/agents/BaseAgent'
 import {
@@ -27,6 +28,8 @@ export class AgentOrchestrator {
   private agentMessageQueues: Map<string, AgentMessage[]> = new Map()
   private userQueryCallback?: (query: UserInteractionRequest) => Promise<string>
   private pendingUserQueries: Map<string, UserQuery> = new Map()
+  private communicationEvents: CommunicationEvent[] = []
+  private maxEventsToKeep = 1000 // Keep last 1000 events
 
   constructor() {
     // Initialize empty orchestrator
@@ -78,6 +81,17 @@ export class AgentOrchestrator {
     if (!agent) {
       throw new Error(`Agent ${agentId} not found in orchestrator`)
     }
+
+    // Log execution event
+    this.logCommunicationEvent({
+      type: 'execution',
+      fromAgentId: 'system',
+      fromAgentName: 'System',
+      toAgentId: agentId,
+      toAgentName: agent.getInfo().name,
+      content: `Executing agent with input: ${input.substring(0, 100)}${input.length > 100 ? '...' : ''}`,
+      metadata: context as Record<string, unknown>,
+    })
 
     return agent.execute(input, context)
   }
@@ -171,6 +185,17 @@ export class AgentOrchestrator {
     critique?: AgentExecutionResult
     finalOutput: string
   }> {
+    const workflowId = `workflow-${Date.now()}-${Math.random()}`
+    
+    // Log workflow start
+    this.logCommunicationEvent({
+      type: 'workflow_start',
+      fromAgentId: 'system',
+      fromAgentName: 'System',
+      content: `Starting collaborative workflow for task: ${task.substring(0, 100)}${task.length > 100 ? '...' : ''}`,
+      workflowId,
+    })
+
     const workflow: {
       research?: AgentExecutionResult
       ideas?: AgentExecutionResult
@@ -236,6 +261,15 @@ export class AgentOrchestrator {
 
     // Compile final output
     const finalOutput = this.compileWorkflowOutput(workflow)
+
+    // Log workflow end
+    this.logCommunicationEvent({
+      type: 'workflow_end',
+      fromAgentId: 'system',
+      fromAgentName: 'System',
+      content: `Completed collaborative workflow with ${Object.keys(workflow).filter(k => k !== 'finalOutput').length} phases`,
+      workflowId,
+    })
 
     return { ...workflow, finalOutput }
   }
@@ -324,6 +358,56 @@ export class AgentOrchestrator {
     this.taskQueue = []
     this.agentMessageQueues.clear()
     this.pendingUserQueries.clear()
+    this.communicationEvents = []
+  }
+
+  /**
+   * Log a communication event
+   */
+  private logCommunicationEvent(event: Omit<CommunicationEvent, 'id' | 'timestamp'>): void {
+    const fullEvent: CommunicationEvent = {
+      ...event,
+      id: `event-${Date.now()}-${Math.random()}`,
+      timestamp: new Date(),
+    }
+    
+    this.communicationEvents.push(fullEvent)
+    
+    // Keep only the most recent events to prevent memory issues
+    if (this.communicationEvents.length > this.maxEventsToKeep) {
+      this.communicationEvents = this.communicationEvents.slice(-this.maxEventsToKeep)
+    }
+  }
+
+  /**
+   * Get all communication events
+   */
+  getCommunicationEvents(limit?: number): CommunicationEvent[] {
+    if (limit) {
+      return this.communicationEvents.slice(-limit)
+    }
+    return [...this.communicationEvents]
+  }
+
+  /**
+   * Get communication events filtered by agent
+   */
+  getCommunicationEventsByAgent(agentId: string, limit?: number): CommunicationEvent[] {
+    const filtered = this.communicationEvents.filter(
+      event => event.fromAgentId === agentId || event.toAgentId === agentId
+    )
+    
+    if (limit) {
+      return filtered.slice(-limit)
+    }
+    return filtered
+  }
+
+  /**
+   * Clear communication events history
+   */
+  clearCommunicationEvents(): void {
+    this.communicationEvents = []
   }
 
   /**
@@ -419,6 +503,22 @@ export class AgentOrchestrator {
     message.status = 'delivered'
     message.deliveredAt = new Date()
 
+    // Log communication event
+    const fromAgent = this.agents.get(fromAgentId)
+    const toAgent = this.agents.get(toAgentId)
+    
+    this.logCommunicationEvent({
+      type: 'message',
+      fromAgentId,
+      fromAgentName: fromAgent?.getInfo().name,
+      toAgentId,
+      toAgentName: toAgent?.getInfo().name,
+      content,
+      metadata,
+      workflowId: message.workflowId,
+      taskId: message.taskId,
+    })
+
     return message
   }
 
@@ -462,6 +562,16 @@ export class AgentOrchestrator {
     metadata?: Record<string, unknown>
   ): Promise<AgentMessage[]> {
     const messages: AgentMessage[] = []
+
+    // Log broadcast event
+    const fromAgent = this.agents.get(fromAgentId)
+    this.logCommunicationEvent({
+      type: 'broadcast',
+      fromAgentId,
+      fromAgentName: fromAgent?.getInfo().name,
+      content: `Broadcasting to ${targetAgentIds.length} agents: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+      metadata,
+    })
 
     for (const toAgentId of targetAgentIds) {
       const message = await this.sendAgentMessage(
