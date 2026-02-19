@@ -199,3 +199,38 @@ model UserQuery {
   @@index([agentId])
   @@index([status])
 }
+
+model AgentExecution {
+  id            String   @id @default(cuid())
+  agentId       String
+  status        String   @default("idle") // idle, thinking, communicating, error
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  responseTime  Int?     // in milliseconds
+  success       Boolean  @default(true)
+  errorMessage  String?
+  input         String?
+  output        String?
+  createdAt     DateTime @default(now())
+
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([agentId, createdAt])
+}
+
+model AgentMetrics {
+  id                  String   @id @default(cuid())
+  agentId             String   @unique
+  totalExecutions     Int      @default(0)
+  successfulExecutions Int     @default(0)
+  failedExecutions    Int      @default(0)
+  averageResponseTime Float    @default(0)
+  lastActivityAt      DateTime?
+  currentStatus       String   @default("idle") // idle, thinking, communicating, error
+  updatedAt           DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([currentStatus])
+  @@index([lastActivityAt])
+}
