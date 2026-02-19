@@ -442,7 +442,14 @@ export class AgentOrchestrator {
       const fromInfo = fromAgent.getInfo()
       const toInfo = toAgent.getInfo()
 
-      await fetch('/api/agent-communication', {
+      // Build API URL - use absolute URL if available from environment
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      
+      const apiUrl = `${baseUrl}/api/agent-communication`
+
+      await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

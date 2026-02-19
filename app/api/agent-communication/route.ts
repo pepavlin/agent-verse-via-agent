@@ -2,6 +2,11 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { handleApiError } from "@/lib/error-handler"
 
+// Constants
+const MAX_CONTENT_PREVIEW_LENGTH = 200
+const MAX_MESSAGES_LIMIT = 100
+const REGULAR_MESSAGES_LIMIT = 50
+
 /**
  * GET /api/agent-communication
  * Retrieve agent-to-agent communication messages
@@ -33,7 +38,7 @@ export async function GET() {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 100, // Limit to most recent 100 messages
+      take: MAX_MESSAGES_LIMIT,
     })
 
     // Also fetch regular agent messages for demo purposes (since inter-agent comm may not exist yet)
@@ -55,7 +60,7 @@ export async function GET() {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 50,
+      take: REGULAR_MESSAGES_LIMIT,
     })
 
     // Transform messages to communication log format
@@ -71,8 +76,8 @@ export async function GET() {
           fromAgentName: msg.fromAgent ? 'Agent' : msg.agent.name,
           toAgentId: msg.toAgent || 'user',
           toAgentName: msg.toAgent ? 'Agent' : 'User',
-          content: msg.content.length > 200 
-            ? msg.content.substring(0, 200) + '...' 
+          content: msg.content.length > MAX_CONTENT_PREVIEW_LENGTH 
+            ? msg.content.substring(0, MAX_CONTENT_PREVIEW_LENGTH) + '...' 
             : msg.content,
           type: type as 'query' | 'response' | 'notification' | 'task',
           timestamp: msg.createdAt,
@@ -124,8 +129,11 @@ export async function POST(request: Request) {
       )
     }
 
+    // Use crypto.randomUUID for reliable unique ID generation
+    const communicationId = crypto.randomUUID()
+
     const communicationLog = {
-      id: `comm-${Date.now()}-${Math.random()}`,
+      id: communicationId,
       fromAgentId,
       toAgentId,
       content,
