@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { handleApiError, notFoundError, validationError } from "@/lib/error-handler"
 import { ResearcherAgent, StrategistAgent, CriticAgent, IdeatorAgent } from "@/app/agents"
 import { Agent } from "@/types"
+import { AgentStatusTracker } from "@/lib/agent-status-tracker"
 
 /**
  * Factory function to create appropriate agent instance based on role
@@ -87,11 +88,28 @@ export async function POST(
 
     const agentInstance = createAgentInstance(agentData)
 
+    // Update status to thinking before execution
+    AgentStatusTracker.updateState(agent.id, agent.name, 'thinking', input)
+
     // Execute agent
+    const startTime = Date.now()
     const result = await agentInstance.execute(input, {
       messages: agent.messages,
       ...context
     })
+    const executionTime = Date.now() - startTime
+
+    // Record task execution
+    AgentStatusTracker.recordTaskExecution(
+      agent.id,
+      agent.name,
+      result.success,
+      executionTime,
+      result.success ? undefined : {
+        message: result.error || 'Unknown error',
+        details: result.error,
+      }
+    )
 
     // Save the interaction to database
     await prisma.message.create({
