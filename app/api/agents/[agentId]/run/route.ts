@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { handleApiError, notFoundError, validationError } from "@/lib/error-handler"
 import { ResearcherAgent, StrategistAgent, CriticAgent, IdeatorAgent } from "@/app/agents"
 import { Agent } from "@/types"
+import { incrementMessagesProcessed, incrementTaskCompleted } from "@/lib/metrics-tracker"
 
 /**
  * Factory function to create appropriate agent instance based on role
@@ -110,6 +111,11 @@ export async function POST(
           agentId: agent.id
         }
       })
+      
+      // Track messages processed (user + assistant = 2)
+      await incrementMessagesProcessed(agent.id, 2)
+      // Track task completion
+      await incrementTaskCompleted(agent.id)
     }
 
     console.log('[AGENT_RUN_SUCCESS]', {

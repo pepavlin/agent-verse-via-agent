@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { Agent, Message, AgentRole, AgentExecutionResult, AgentStatus } from "@/types"
+import { logAgentStatus, recordExecution, logError } from "@/lib/metrics-tracker"
 
 /**
  * BaseAgent class - Foundation for all AgentVerse agents
@@ -69,11 +70,18 @@ When responding:
     const startTime = Date.now()
     this.status = 'running'
 
+    // Log status change to thinking
+    await logAgentStatus(this.id, 'thinking', 'Processing task', context?.taskId as string)
+
     try {
       const result = await this.processTask(input, context)
       const executionTime = Date.now() - startTime
 
       this.status = 'idle'
+
+      // Log successful execution
+      await recordExecution(this.id, true, executionTime)
+      await logAgentStatus(this.id, 'idle', 'Task completed', context?.taskId as string)
 
       return {
         agentId: this.id,
@@ -86,10 +94,28 @@ When responding:
       const executionTime = Date.now() - startTime
       this.status = 'error'
 
+      // Log error
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const stackTrace = error instanceof Error ? error.stack : undefined
+      
+      await logError(
+        this.id,
+        this.name,
+        'execution_error',
+        errorMessage,
+        {
+          stackTrace,
+          context: context as Record<string, unknown>,
+          taskId: context?.taskId as string,
+        }
+      )
+      await recordExecution(this.id, false, executionTime)
+      await logAgentStatus(this.id, 'error', errorMessage, context?.taskId as string)
+
       return {
         agentId: this.id,
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         executionTime,
         timestamp: new Date()
       }

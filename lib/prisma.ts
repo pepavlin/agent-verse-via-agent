@@ -13,11 +13,21 @@ function createPrismaClient() {
     throw new Error('DATABASE_URL environment variable is required')
   }
 
-  const pool = new Pool({ connectionString: databaseUrl })
-  return new PrismaClient({
-    adapter: new PrismaPg(pool),
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
-  })
+  // Check if using PostgreSQL or SQLite
+  const isPostgres = databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://')
+  
+  if (isPostgres) {
+    const pool = new Pool({ connectionString: databaseUrl })
+    return new PrismaClient({
+      adapter: new PrismaPg(pool),
+      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
+    })
+  } else {
+    // For SQLite and other databases, use standard client
+    return new PrismaClient({
+      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
+    })
+  }
 }
 
 // Lazy getter — only creates the client when first accessed at runtime

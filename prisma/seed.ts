@@ -2,11 +2,18 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const databaseUrl = process.env.DATABASE_URL || 'file:./dev.db'
+const isPostgres = databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://')
+
+let prisma: PrismaClient
+
+if (isPostgres) {
+  const dbPool = new Pool({ connectionString: databaseUrl })
+  const adapter = new PrismaPg(dbPool)
+  prisma = new PrismaClient({ adapter })
+} else {
+  prisma = new PrismaClient()
+}
 
 async function main() {
   console.log('Seeding database...')
@@ -34,5 +41,4 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect()
-    await pool.end()
   })
