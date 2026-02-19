@@ -77,6 +77,8 @@ model Agent {
   department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   tasksAssigned  Task[]   @relation("AssignedTasks")
   tasksCreated   Task[]   @relation("CreatedTasks")
+  executions     AgentExecution[]
+  metrics        AgentMetrics?
 
   @@index([userId])
   @@index([role])
@@ -212,6 +214,7 @@ model AgentExecution {
   input         String?
   output        String?
   createdAt     DateTime @default(now())
+  agent         Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@index([agentId])
   @@index([status])
@@ -229,6 +232,7 @@ model AgentMetrics {
   lastActivityAt      DateTime?
   currentStatus       String   @default("idle") // idle, thinking, communicating, error
   updatedAt           DateTime @updatedAt
+  agent               Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@index([agentId])
   @@index([currentStatus])

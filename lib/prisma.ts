@@ -74,6 +74,14 @@ class ValidatingPrismaClient {
     return this.client.verificationToken
   }
 
+  get agentExecution() {
+    return this.client.agentExecution
+  }
+
+  get agentMetrics() {
+    return this.client.agentMetrics
+  }
+
   get message() {
     const originalMessage = this.client.message
     return {
