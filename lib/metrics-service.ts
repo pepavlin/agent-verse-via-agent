@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 /**
  * Cost estimation based on Claude model pricing (per 1M tokens)
  * Prices in USD cents per 1K tokens
- * Source: https://www.anthropic.com/pricing (as of 2024)
+ * Source: https://www.anthropic.com/pricing (pricing accurate as of implementation)
  */
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   // Claude 3.5 Sonnet
@@ -29,7 +29,7 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
 
 /**
  * Estimate cost based on token usage and model
- * @returns Cost in cents
+ * @returns Cost in cents (rounded to 2 decimal places)
  */
 function estimateCost(
   model: string,
@@ -38,11 +38,12 @@ function estimateCost(
 ): number {
   const pricing = MODEL_PRICING[model] || MODEL_PRICING['claude-3-5-sonnet-20241022']
   
-  // Calculate cost per 1K tokens, then convert to cents
+  // Calculate cost: pricing is in cents per 1K tokens
   const inputCost = (inputTokens / 1000) * pricing.input
   const outputCost = (outputTokens / 1000) * pricing.output
   
-  return Math.round((inputCost + outputCost) * 100) / 100 // Round to 2 decimal places
+  // Round to 2 decimal places
+  return Math.round((inputCost + outputCost) * 100) / 100
 }
 
 export interface MetricData {
@@ -288,15 +289,15 @@ export class MetricsService {
 
       switch (interval) {
         case 'hour':
-          key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:00`
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:00`
           break
         case 'day':
-          key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
           break
         case 'week':
           const weekStart = new Date(date)
           weekStart.setDate(date.getDate() - date.getDay())
-          key = `${weekStart.getFullYear()}-${weekStart.getMonth() + 1}-${weekStart.getDate()}`
+          key = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`
           break
       }
 
