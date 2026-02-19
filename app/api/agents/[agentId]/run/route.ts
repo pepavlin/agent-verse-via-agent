@@ -91,55 +91,71 @@ export async function POST(
     // Update status to thinking before execution
     AgentStatusTracker.updateState(agent.id, agent.name, 'thinking', input)
 
-    // Execute agent
-    const startTime = Date.now()
-    const result = await agentInstance.execute(input, {
-      messages: agent.messages,
-      ...context
-    })
-    const executionTime = Date.now() - startTime
+    try {
+      // Execute agent
+      const startTime = Date.now()
+      const result = await agentInstance.execute(input, {
+        messages: agent.messages,
+        ...context
+      })
+      const executionTime = Date.now() - startTime
 
-    // Record task execution
-    AgentStatusTracker.recordTaskExecution(
-      agent.id,
-      agent.name,
-      result.success,
-      executionTime,
-      result.success ? undefined : {
-        message: result.error || 'Unknown error',
-        details: result.error,
-      }
-    )
+      // Record task execution
+      AgentStatusTracker.recordTaskExecution(
+        agent.id,
+        agent.name,
+        result.success,
+        executionTime,
+        result.success ? undefined : {
+          message: result.error || 'Unknown error',
+          details: result.error,
+        }
+      )
 
-    // Save the interaction to database
-    await prisma.message.create({
-      data: {
-        content: input,
-        role: 'user',
-        agentId: agent.id
-      }
-    })
-
-    if (result.success && result.result) {
+      // Save the interaction to database
       await prisma.message.create({
         data: {
-          content: String(result.result),
-          role: 'assistant',
+          content: input,
+          role: 'user',
           agentId: agent.id
         }
       })
+
+      if (result.success && result.result) {
+        await prisma.message.create({
+          data: {
+            content: String(result.result),
+            role: 'assistant',
+            agentId: agent.id
+          }
+        })
+      }
+
+      console.log('[AGENT_RUN_SUCCESS]', {
+        userId: fakeUserId,
+        agentId: agent.id,
+        agentRole: agent.role,
+        executionTime: result.executionTime,
+        success: result.success,
+        timestamp: new Date().toISOString()
+      })
+
+      return NextResponse.json(result)
+    } catch (error) {
+      // Ensure status is updated to error state if execution fails
+      const executionTime = Date.now() - Date.now() // Will be 0 for failed executions
+      AgentStatusTracker.recordTaskExecution(
+        agent.id,
+        agent.name,
+        false,
+        executionTime,
+        {
+          message: error instanceof Error ? error.message : 'Execution failed',
+          details: error instanceof Error ? error.stack : String(error),
+        }
+      )
+      throw error // Re-throw to be handled by outer catch
     }
-
-    console.log('[AGENT_RUN_SUCCESS]', {
-      userId: fakeUserId,
-      agentId: agent.id,
-      agentRole: agent.role,
-      executionTime: result.executionTime,
-      success: result.success,
-      timestamp: new Date().toISOString()
-    })
-
-    return NextResponse.json(result)
   } catch (error) {
     return handleApiError(error, "AGENT_RUN")
   }

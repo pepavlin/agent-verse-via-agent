@@ -128,7 +128,7 @@ class AgentStatusTrackerClass {
     // Record error if failed
     if (!success && error) {
       const errorLog: ErrorLog = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
         timestamp: new Date(),
         message: error.message,
         details: error.details,
