@@ -10,17 +10,17 @@ export async function GET() {
   try {
     const fakeUserId = "fake-user"
 
-    // Fetch recent agent communications
-    // We'll use the Message table and filter for messages with metadata indicating inter-agent communication
+    // Fetch recent agent-to-agent communications
+    // Messages with fromAgent and toAgent fields are inter-agent communications
     const messages = await prisma.message.findMany({
       where: {
         agent: {
           userId: fakeUserId,
         },
-        // Filter for messages that have inter-agent metadata
-        role: {
-          in: ['assistant', 'system']
-        }
+        OR: [
+          { fromAgent: { not: null } },
+          { toAgent: { not: null } }
+        ]
       },
       include: {
         agent: {
@@ -36,45 +36,58 @@ export async function GET() {
       take: 100, // Limit to most recent 100 messages
     })
 
-    // Transform messages to communication log format
-    const communicationMessages = messages
-      .filter(msg => {
-        // For now, we'll create synthetic inter-agent messages
-        // In a real implementation, these would come from actual agent-to-agent communications
-        return msg.role === 'assistant'
-      })
-      .map((msg, index) => {
-        // Parse metadata if it exists
-        let metadata: Record<string, unknown> = {}
-        try {
-          if (typeof msg.metadata === 'string') {
-            metadata = JSON.parse(msg.metadata)
-          } else if (msg.metadata && typeof msg.metadata === 'object') {
-            metadata = msg.metadata as Record<string, unknown>
+    // Also fetch regular agent messages for demo purposes (since inter-agent comm may not exist yet)
+    const regularMessages = await prisma.message.findMany({
+      where: {
+        agent: {
+          userId: fakeUserId,
+        },
+        role: 'assistant',
+      },
+      include: {
+        agent: {
+          select: {
+            id: true,
+            name: true,
           }
-        } catch {
-          // If parsing fails, use empty metadata
         }
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 50,
+    })
 
-        // Determine message type from metadata or infer
-        const type = (metadata.type as string) || 'response'
+    // Transform messages to communication log format
+    const communicationMessages = [...messages, ...regularMessages]
+      .map((msg) => {
+        // Determine message type
+        const type = msg.type || 'response'
 
-        // For demo purposes, we'll show agent responses as communications
-        // In production, this would track actual agent-to-agent messages
+        // Build communication message
         return {
           id: msg.id,
-          fromAgentId: msg.agent.id,
-          fromAgentName: msg.agent.name,
-          toAgentId: 'user',
-          toAgentName: 'User',
+          fromAgentId: msg.fromAgent || msg.agent.id,
+          fromAgentName: msg.fromAgent ? 'Agent' : msg.agent.name,
+          toAgentId: msg.toAgent || 'user',
+          toAgentName: msg.toAgent ? 'Agent' : 'User',
           content: msg.content.length > 200 
             ? msg.content.substring(0, 200) + '...' 
             : msg.content,
           type: type as 'query' | 'response' | 'notification' | 'task',
           timestamp: msg.createdAt,
-          metadata: metadata,
+          metadata: {
+            priority: msg.priority,
+            taskId: msg.taskId,
+          },
         }
       })
+      // Remove duplicates by id
+      .filter((msg, index, self) => 
+        index === self.findIndex((m) => m.id === msg.id)
+      )
+      // Sort by timestamp descending
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
     console.log('[GET_AGENT_COMMUNICATION]', {
       userId: fakeUserId,
@@ -111,10 +124,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // In a production implementation, we would store this in a dedicated
-    // agent_communications table. For now, we'll log it to console
-    // and store it in the message table with appropriate metadata
-    
     const communicationLog = {
       id: `comm-${Date.now()}-${Math.random()}`,
       fromAgentId,
@@ -127,18 +136,17 @@ export async function POST(request: Request) {
 
     console.log('[AGENT_COMMUNICATION_LOGGED]', communicationLog)
 
-    // Store as a system message for the target agent
+    // Store as a message with fromAgent and toAgent fields
     await prisma.message.create({
       data: {
         content,
         role: 'system',
         agentId: toAgentId,
-        metadata: JSON.stringify({
-          ...metadata,
-          type: type || 'notification',
-          fromAgentId,
-          communicationType: 'agent-to-agent',
-        }),
+        fromAgent: fromAgentId,
+        toAgent: toAgentId,
+        type: type || 'notification',
+        priority: metadata?.priority as string || undefined,
+        taskId: metadata?.taskId as string || undefined,
       },
     })
 
