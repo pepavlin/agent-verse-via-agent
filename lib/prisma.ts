@@ -70,6 +70,10 @@ class ValidatingPrismaClient {
     return this.client.userQuery
   }
 
+  get agentMetrics() {
+    return this.client.agentMetrics
+  }
+
   get verificationToken() {
     return this.client.verificationToken
   }
@@ -84,6 +88,7 @@ class ValidatingPrismaClient {
         }
         return originalMessage.create(args)
       },
+      findFirst: (args: Prisma.MessageFindFirstArgs) => originalMessage.findFirst(args),
       findUnique: (args: Prisma.MessageFindUniqueArgs) => originalMessage.findUnique(args),
       findMany: (args: Prisma.MessageFindManyArgs) => originalMessage.findMany(args),
       update: (args: Prisma.MessageUpdateArgs) => originalMessage.update(args),
