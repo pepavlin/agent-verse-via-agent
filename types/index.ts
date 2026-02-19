@@ -231,3 +231,69 @@ export interface DepartmentExecutionResult {
   executionTime: number
   timestamp: Date
 }
+
+// Agent Status Dashboard - New Types
+export interface AgentMetrics {
+  id: string
+  agentId: string
+  timestamp: Date
+  responseTimeMs?: number
+  totalExecutions: number
+  successfulExecs: number
+  failedExecs: number
+  messagesProcessed: number
+  tasksCompleted: number
+  periodType: 'hourly' | 'daily' | 'weekly'
+  periodStart: Date
+  periodEnd: Date
+}
+
+export interface AgentStatusLog {
+  id: string
+  agentId: string
+  status: 'idle' | 'thinking' | 'communicating' | 'error'
+  details?: string
+  taskId?: string
+  workflowId?: string
+  duration?: number
+  timestamp: Date
+  endTime?: Date
+}
+
+export interface ErrorLog {
+  id: string
+  agentId: string
+  agentName: string
+  errorType: 'execution_error' | 'timeout' | 'api_error' | 'validation_error'
+  errorMessage: string
+  stackTrace?: string
+  context?: string
+  taskId?: string
+  workflowId?: string
+  resolved: boolean
+  resolvedAt?: Date
+  timestamp: Date
+}
+
+// Dashboard specific types
+export interface AgentHealthMetrics {
+  agentId: string
+  agentName: string
+  currentStatus: 'idle' | 'thinking' | 'communicating' | 'error'
+  uptime: number // percentage
+  averageResponseTime: number // ms
+  successRate: number // percentage
+  totalExecutions: number
+  errorCount: number
+  lastActivity: Date
+}
+
+export interface DashboardStats {
+  totalAgents: number
+  activeAgents: number
+  idleAgents: number
+  errorAgents: number
+  totalExecutionsToday: number
+  averageResponseTime: number
+  overallSuccessRate: number
+}

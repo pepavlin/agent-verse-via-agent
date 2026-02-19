@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model User {
@@ -198,4 +198,72 @@ model UserQuery {
   @@index([workflowId])
   @@index([agentId])
   @@index([status])
+}
+
+// Agent Status Dashboard - Metrics Tracking
+model AgentMetrics {
+  id                String   @id @default(cuid())
+  agentId           String
+  timestamp         DateTime @default(now())
+  // Performance metrics
+  responseTimeMs    Int?     // Average response time in milliseconds
+  totalExecutions   Int      @default(0)
+  successfulExecs   Int      @default(0)
+  failedExecs       Int      @default(0)
+  // Activity metrics
+  messagesProcessed Int      @default(0)
+  tasksCompleted    Int      @default(0)
+  // Aggregation period (e.g., hourly, daily)
+  periodType        String   @default("hourly") // hourly, daily, weekly
+  periodStart       DateTime
+  periodEnd         DateTime
+
+  @@index([agentId])
+  @@index([timestamp])
+  @@index([agentId, timestamp])
+  @@index([periodType, periodStart])
+}
+
+// Agent Status Dashboard - Status History Tracking
+model AgentStatusLog {
+  id          String   @id @default(cuid())
+  agentId     String
+  status      String   // idle, thinking, communicating, error
+  details     String?  // Additional context about the status
+  taskId      String?
+  workflowId  String?
+  duration    Int?     // Duration in milliseconds
+  timestamp   DateTime @default(now())
+  endTime     DateTime?
+
+  @@index([agentId])
+  @@index([timestamp])
+  @@index([agentId, timestamp])
+  @@index([status])
+  @@index([taskId])
+  @@index([workflowId])
+}
+
+// Agent Status Dashboard - Centralized Error Logging
+model ErrorLog {
+  id          String   @id @default(cuid())
+  agentId     String
+  agentName   String
+  errorType   String   // execution_error, timeout, api_error, validation_error
+  errorMessage String
+  stackTrace  String?
+  context     String?  // JSON string with additional context
+  taskId      String?
+  workflowId  String?
+  resolved    Boolean  @default(false)
+  resolvedAt  DateTime?
+  timestamp   DateTime @default(now())
+
+  @@index([agentId])
+  @@index([timestamp])
+  @@index([agentId, timestamp])
+  @@index([errorType])
+  @@index([resolved])
+  @@index([taskId])
+  @@index([workflowId])
 }
