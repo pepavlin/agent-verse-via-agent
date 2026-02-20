@@ -111,6 +111,12 @@ export default function AgentsPage() {
               >
                 Live Map
               </Link>
+              <Link
+                href="/analytics"
+                className="text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-primary dark:hover:text-primary-light transition-colors"
+              >
+                Analytics
+              </Link>
             </div>
             <div className="flex items-center gap-4">
               <ThemeToggle />
