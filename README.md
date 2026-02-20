@@ -40,9 +40,10 @@ AgentVerse is an interactive web application that creates a universe of speciali
 - 🗨️ **Global Project Manager Chat** - Always-available floating chat for support and guidance
 - 🔄 **Multi-Agent Workflows** - Sequential and parallel execution patterns
 - 🎨 **Interactive Visualization** - 2D agent world with physics simulation
-- 📊 **Workflow Analytics** - Track execution history and performance
+- 📊 **Agent Status Dashboard** - Real-time monitoring with health metrics and error tracking
+- 📈 **Performance Analytics** - Historical response times and success rate tracking
 - 🔐 **User Authentication** - Secure NextAuth.js-based authentication
-- 💾 **Persistent Storage** - SQLite database with full conversation history
+- 💾 **Persistent Storage** - PostgreSQL database with full conversation history
 
 ### Agent Types
 
@@ -52,6 +53,18 @@ AgentVerse is an interactive web application that creates a universe of speciali
 | 🎯 **Strategist** | Planning | Strategic thinking, opportunity identification, risk assessment |
 | 🔍 **Critic** | Evaluation | Quality assurance, gap analysis, constructive improvement |
 | 💡 **Ideator** | Innovation | Creative solutions, brainstorming, innovative approaches |
+
+### Monitoring & Debugging
+
+#### 📊 Agent Status Dashboard
+Comprehensive real-time monitoring system located at `/dashboard`:
+- **Status Indicators** - Color-coded visual states (idle, thinking, communicating, error)
+- **Health Metrics** - Success rates, response times, execution counts
+- **Performance Graphs** - Historical trend analysis for each agent
+- **Error Logs** - Detailed error tracking with filtering and timestamps
+- **Auto-Refresh** - Real-time updates every 3 seconds
+
+See [Agent Status Dashboard Documentation](docs/AGENT_STATUS_DASHBOARD.md) for details.
 
 ### Available Departments
 
@@ -98,7 +111,8 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 3. **Explore** the agents page to see available agent types
 4. **Create** your first agent with a custom role and personality
 5. **Chat** with individual agents or run department workflows
-6. **Visualize** your agent universe at `/visualization`
+6. **Monitor** agent health and performance at `/dashboard`
+7. **Visualize** your agent universe at `/visualization`
 
 ---
 
