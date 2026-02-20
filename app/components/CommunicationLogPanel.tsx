@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { CommunicationEvent } from '@/types'
-import { X, Filter, Search, ChevronDown, ChevronUp, Trash2, Play } from 'lucide-react'
+import { X, Filter, Search, ChevronDown, ChevronUp, Trash2, Play, Download } from 'lucide-react'
 
 interface CommunicationLogPanelProps {
   onClose: () => void
@@ -75,6 +75,20 @@ export default function CommunicationLogPanel({ onClose }: CommunicationLogPanel
   const [filterType, setFilterType] = useState<string>('')
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    if (!showExportMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-export-menu]')) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showExportMenu])
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -152,6 +166,42 @@ export default function CommunicationLogPanel({ onClose }: CommunicationLogPanel
     }
   }
 
+  const exportAsJSON = () => {
+    const data = JSON.stringify(filteredEvents, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `agent-communications-${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }
+
+  const exportAsCSV = () => {
+    const escapeCSV = (value: string) => `"${value.replace(/"/g, '""')}"`
+    const headers = ['id', 'type', 'fromAgentName', 'toAgentName', 'content', 'timestamp', 'workflowId', 'taskId']
+    const rows = filteredEvents.map(event => [
+      escapeCSV(event.id),
+      escapeCSV(event.type),
+      escapeCSV(event.fromAgentName ?? ''),
+      escapeCSV(event.toAgentName ?? ''),
+      escapeCSV(event.content),
+      escapeCSV(new Date(event.timestamp).toISOString()),
+      escapeCSV(event.workflowId ?? ''),
+      escapeCSV(event.taskId ?? ''),
+    ])
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `agent-communications-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }
+
   // Get unique agent names and event types
   const uniqueAgents = Array.from(
     new Set(
@@ -195,6 +245,32 @@ export default function CommunicationLogPanel({ onClose }: CommunicationLogPanel
           >
             <Trash2 className="w-4 h-4 text-neutral-400" />
           </button>
+          <div className="relative" data-export-menu>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="p-2 hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 rounded-md transition-colors"
+              title="Export events"
+              disabled={filteredEvents.length === 0}
+            >
+              <Download className="w-4 h-4 text-neutral-400" />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-neutral-800 border border-neutral-700 rounded-md shadow-lg z-50 min-w-32">
+                <button
+                  onClick={exportAsJSON}
+                  className="w-full px-4 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 transition-colors rounded-t-md"
+                >
+                  Export JSON
+                </button>
+                <button
+                  onClick={exportAsCSV}
+                  className="w-full px-4 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700 transition-colors rounded-b-md"
+                >
+                  Export CSV
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-neutral-800/50 dark:hover:bg-neutral-800/50 rounded-md transition-colors"

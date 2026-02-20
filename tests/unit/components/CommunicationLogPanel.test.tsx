@@ -7,11 +7,18 @@ import CommunicationLogPanel from '@/app/components/CommunicationLogPanel'
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
+// Mock URL.createObjectURL / revokeObjectURL for export tests
+global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+global.URL.revokeObjectURL = vi.fn()
+
 describe('CommunicationLogPanel Component', () => {
   const mockOnClose = vi.fn()
 
   beforeEach(() => {
     vi.resetAllMocks()
+    // Re-assign createObjectURL/revokeObjectURL after resetAllMocks
+    global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+    global.URL.revokeObjectURL = vi.fn()
   })
 
   afterEach(() => {
@@ -104,5 +111,128 @@ describe('CommunicationLogPanel Component', () => {
     })
 
     expect(screen.getByText('Research findings about healthcare')).toBeTruthy()
+  })
+
+  it('should show export menu when download button is clicked', async () => {
+    const mockEvents = [
+      {
+        id: 'event-1',
+        type: 'message',
+        fromAgentId: 'agent-1',
+        fromAgentName: 'Agent One',
+        toAgentId: 'agent-2',
+        toAgentName: 'Agent Two',
+        content: 'Test message content',
+        timestamp: new Date().toISOString(),
+      },
+    ]
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => mockEvents,
+    })
+
+    render(<CommunicationLogPanel onClose={mockOnClose} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('1 event')).toBeTruthy()
+    })
+
+    const exportButton = screen.getByTitle('Export events')
+    await userEvent.click(exportButton)
+
+    expect(screen.getByText('Export JSON')).toBeTruthy()
+    expect(screen.getByText('Export CSV')).toBeTruthy()
+  })
+
+  it('should trigger JSON download on Export JSON click', async () => {
+    const mockEvents = [
+      {
+        id: 'event-1',
+        type: 'message',
+        fromAgentId: 'agent-1',
+        fromAgentName: 'Agent One',
+        toAgentId: 'agent-2',
+        toAgentName: 'Agent Two',
+        content: 'Test message content',
+        timestamp: new Date().toISOString(),
+      },
+    ]
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => mockEvents,
+    })
+
+    // Spy on anchor click to avoid navigation
+    const clickSpy = vi.fn()
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag)
+      if (tag === 'a') {
+        vi.spyOn(el as HTMLAnchorElement, 'click').mockImplementation(clickSpy)
+      }
+      return el
+    })
+
+    render(<CommunicationLogPanel onClose={mockOnClose} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('1 event')).toBeTruthy()
+    })
+
+    await userEvent.click(screen.getByTitle('Export events'))
+    await userEvent.click(screen.getByText('Export JSON'))
+
+    expect(URL.createObjectURL).toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalled()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+
+    vi.restoreAllMocks()
+  })
+
+  it('should trigger CSV download on Export CSV click', async () => {
+    const mockEvents = [
+      {
+        id: 'event-1',
+        type: 'message',
+        fromAgentId: 'agent-1',
+        fromAgentName: 'Agent One',
+        toAgentId: 'agent-2',
+        toAgentName: 'Agent Two',
+        content: 'Test message content',
+        timestamp: new Date().toISOString(),
+      },
+    ]
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => mockEvents,
+    })
+
+    const clickSpy = vi.fn()
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag)
+      if (tag === 'a') {
+        vi.spyOn(el as HTMLAnchorElement, 'click').mockImplementation(clickSpy)
+      }
+      return el
+    })
+
+    render(<CommunicationLogPanel onClose={mockOnClose} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('1 event')).toBeTruthy()
+    })
+
+    await userEvent.click(screen.getByTitle('Export events'))
+    await userEvent.click(screen.getByText('Export CSV'))
+
+    expect(URL.createObjectURL).toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalled()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+
+    vi.restoreAllMocks()
   })
 })
