@@ -2,7 +2,9 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { handleApiError } from "@/lib/error-handler"
 
-// Cost per token estimates for Claude models (USD)
+// Cost per token estimates for Claude models (USD).
+// These are simplified averages of published input/output pricing.
+// Actual costs vary based on the input-to-output token ratio for each conversation.
 const MODEL_COST_PER_TOKEN: Record<string, number> = {
   "claude-3-5-sonnet-20241022": 0.000009, // avg of $3/M input + $15/M output
   "claude-3-opus-20240229": 0.0000375,    // avg of $15/M input + $75/M output
@@ -10,9 +12,7 @@ const MODEL_COST_PER_TOKEN: Record<string, number> = {
 }
 
 function getModelCostPerToken(model: string): number {
-  for (const [key, cost] of Object.entries(MODEL_COST_PER_TOKEN)) {
-    if (model.includes(key) || key.includes(model)) return cost
-  }
+  if (model in MODEL_COST_PER_TOKEN) return MODEL_COST_PER_TOKEN[model]
   if (model.includes("opus")) return MODEL_COST_PER_TOKEN["claude-3-opus-20240229"]
   if (model.includes("haiku")) return MODEL_COST_PER_TOKEN["claude-3-haiku-20240307"]
   return MODEL_COST_PER_TOKEN["claude-3-5-sonnet-20241022"]

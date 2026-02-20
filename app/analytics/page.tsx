@@ -50,6 +50,13 @@ const STATUS_COLORS: Record<string, string> = {
   blocked: 'bg-orange-500',
 }
 
+function getModelLabel(model: string): string {
+  if (model.includes('opus')) return 'Opus'
+  if (model.includes('haiku')) return 'Haiku'
+  if (model.includes('sonnet')) return 'Sonnet'
+  return model
+}
+
 const ROLE_ICONS: Record<string, string> = {
   researcher: '🔍',
   strategist: '🎯',
@@ -340,7 +347,7 @@ export default function AnalyticsPage() {
                             </td>
                             <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400">
                               <span className="px-2 py-0.5 text-xs bg-primary/10 dark:bg-primary/20 text-primary-dark dark:text-primary-light rounded">
-                                {agent.model.includes('sonnet') ? 'Sonnet' : agent.model.includes('opus') ? 'Opus' : 'Haiku'}
+                                {getModelLabel(agent.model)}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right text-neutral-700 dark:text-neutral-300">{agent.messageCount}</td>
