@@ -1,14 +1,15 @@
 # 2D Grid Explorer
 
-An interactive 2D grid built with Next.js and pixi.js.
+Interactive 2D grid with zoom and pan, built with Next.js and pixi.js.
 
 ## Features
 
-- **2D grid** with configurable size (default: 100×100 cells)
-- **Zoom** – scroll wheel or +/− buttons (10% – 500%)
-- **Pan** – click and drag
-- **Objects** – a square and a circle placed on the grid
-- **Boundary** – map has a hard maximum size; panning is clamped
+- **50 × 50 cell grid** with a hard maximum boundary
+- **Zoom** — scroll wheel or +/− buttons (15 % – 400 %)
+- **Pan** — click and drag anywhere on the map
+- **Coordinate display** — hover to see cell coordinates in real time
+- **Two objects** — a square (Alpha) and a circle (Beta) placed on the grid
+- **Reset view** — ⌂ button centres the map at 25 %
 
 ## Getting Started
 
@@ -22,33 +23,35 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Controls
 
 | Action | Input |
-|--------|-------|
+|---|---|
 | Pan | Click and drag |
-| Zoom in/out | Mouse wheel |
-| Zoom buttons | + / − in bottom-right |
-| Reset view | ⌂ button |
+| Zoom in | Scroll up / `+` button |
+| Zoom out | Scroll down / `−` button |
+| Reset view | `⌂` button (bottom-right) |
 
 ## Configuration
 
-Edit `app/components/Grid2D.tsx`:
+All constants live at the top of `app/components/Grid2D.tsx`.
+
+### Grid
 
 ```ts
 export const MAP_CONFIG = {
-  COLS: 100,        // map width in cells
-  ROWS: 100,        // map height in cells
-  CELL_SIZE: 40,    // pixels per cell at zoom=1
-  MIN_ZOOM: 0.1,
-  MAX_ZOOM: 5,
-  ZOOM_STEP: 0.2,
+  COLS: 50,        // columns
+  ROWS: 50,        // rows
+  CELL_SIZE: 64,   // px per cell at zoom = 1
+  MIN_ZOOM: 0.15,
+  MAX_ZOOM: 4,
+  ZOOM_STEP: 0.15,
 }
 ```
 
-Add or modify objects in `GRID_OBJECTS`:
+### Objects
 
 ```ts
 export const GRID_OBJECTS: GridObject[] = [
-  { id: 'square-1', type: 'square', col: 20, row: 15, color: 0x6366f1, size: 2, label: 'Square A' },
-  { id: 'circle-1', type: 'circle', col: 60, row: 40, color: 0x22d3ee, size: 2, label: 'Circle B' },
+  { id: 'square-1', type: 'square', col: 8,  row: 8,  color: 0x6366f1, size: 4, label: 'Alpha' },
+  { id: 'circle-1', type: 'circle', col: 30, row: 22, color: 0xf59e0b, size: 4, label: 'Beta'  },
 ]
 ```
 
@@ -61,6 +64,6 @@ npm test
 ## Tech Stack
 
 - [Next.js 16](https://nextjs.org/)
-- [pixi.js 8](https://pixijs.com/) – WebGL 2D renderer
+- [pixi.js 8](https://pixijs.com/) — WebGL 2D renderer
 - [Tailwind CSS 4](https://tailwindcss.com/)
 - [Vitest](https://vitest.dev/)

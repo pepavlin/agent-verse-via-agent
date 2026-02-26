@@ -2,62 +2,86 @@
 
 ## Overview
 
-Single-page Next.js application rendering an interactive 2D grid via pixi.js WebGL.
+Single-page Next.js application rendering an interactive 2D grid via pixi.js (WebGL).
 
-## Key Files
+## File Structure
 
 ```
 app/
-  page.tsx            – Root page, renders <Grid2D />
-  layout.tsx          – HTML shell, imports globals.css
-  globals.css         – Base styles (Tailwind 4)
+  page.tsx              – Root page, renders <Grid2D />
+  layout.tsx            – HTML shell, metadata, globals.css import
+  globals.css           – Base styles (Tailwind 4 reset)
   components/
-    Grid2D.tsx        – Main grid component (all logic)
+    Grid2D.tsx          – Entire grid component: config, types, rendering, input
 tests/
-  grid-config.test.ts – Unit tests for map config and objects
+  grid.test.ts          – Unit tests for config, worldSize(), and objects
+  setup.ts              – @testing-library/jest-dom setup
+docs/
+  architecture.md       – This file
 ```
 
 ## Grid2D Component
 
-### State and Refs
+### Exports
 
-| Name | Type | Purpose |
-|------|------|---------|
-| `appRef` | Ref | pixi.js Application instance |
-| `worldContainerRef` | Ref | PIXI.Container that holds grid + objects |
-| `viewRef` | Ref | Current `{ x, y, zoom }` – updated without re-renders |
-| `displayZoom` | State | Reactive zoom % shown in HUD |
+| Export | Type | Description |
+|---|---|---|
+| `MAP_CONFIG` | `const` | Grid dimensions, cell size, zoom limits |
+| `GRID_OBJECTS` | `GridObject[]` | Static list of objects placed on the grid |
+| `worldSize()` | `() => { w, h }` | Total map size in pixels at zoom = 1 |
+| `GridObject` | interface | Shape of an object entry |
+| `Grid2D` | React component | Default export |
 
-### Rendering Pipeline
+### Refs (performance – no React re-renders)
 
-1. `useEffect` initialises pixi.js and attaches canvas to `canvasRef` div.
-2. `renderWorld()` draws background, border, grid lines, and objects into `worldContainerRef`.
-3. `applyView()` translates/scales `worldContainerRef` to match `viewRef`, then calls `setDisplayZoom`.
-4. Pointer events (pointerdown/pointermove/pointerup) update `viewRef.x/y` for panning.
-5. Wheel event updates `viewRef.zoom` and adjusts `viewRef.x/y` to zoom toward cursor.
+| Ref | Purpose |
+|---|---|
+| `mountRef` | DOM div that pixi canvas is appended to |
+| `appRef` | `PIXI.Application` instance |
+| `worldRef` | `PIXI.Container` holding all drawn content |
+| `view` | `{ x, y, zoom }` — current camera state |
+| `dragging` | Whether the user is currently panning |
+| `lastPtr` | Last pointer position for delta calculation |
 
-### Coordinate System
+### State (React – triggers re-render)
 
-- **World space** – origin at top-left corner of map; 1 unit = `CELL_SIZE` pixels at zoom 1.
-- **Screen space** – browser pixels; `worldContainer.x/y` is the world origin in screen space.
-- Zoom pivot: `screen = world * zoom + offset`, kept under cursor on wheel.
+| State | Purpose |
+|---|---|
+| `zoomPct` | Displayed zoom percentage in the HUD |
+| `mouseCell` | Current hovered cell `{ col, row }` or null |
 
-### Clamping
+### Rendering
 
-`applyView()` clamps:
-- `zoom` within `[MIN_ZOOM, MAX_ZOOM]`
-- `x/y` so the map edge never goes past the screen edge (user always sees part of the map)
+1. `useEffect` initialises `PIXI.Application` and attaches the canvas.
+2. `drawWorld()` populates `worldRef` with: background fill, grid lines, map border, objects, labels.
+3. `applyView()` clamps `view.zoom` and `view.x/y`, then applies them to `worldRef.x/y/scale`.
+4. Pointer events handle pan (`pointerdown/move/up/leave`).
+5. Wheel event handles zoom-toward-cursor.
+6. Three HUD buttons call `zoomIn`, `zoomOut`, `resetView`.
+
+### Coordinate Mapping
+
+```
+screenX = worldX * zoom + offsetX
+worldX  = (screenX - offsetX) / zoom
+cellCol = Math.floor(worldX / CELL_SIZE)
+```
+
+### Clamping Rules
+
+- `zoom` is clamped to `[MIN_ZOOM, MAX_ZOOM]`.
+- `x/y` are clamped so the map never fully leaves the viewport (user always sees part of it).
 
 ## Object Format
 
 ```ts
 interface GridObject {
-  id: string
+  id: string       // unique identifier
   type: 'square' | 'circle'
-  col: number    // left edge in cells
-  row: number    // top edge in cells
-  color: number  // 0xRRGGBB
-  size: number   // width/height in cells
-  label: string
+  col: number      // left edge column (0-based)
+  row: number      // top edge row (0-based)
+  color: number    // 0xRRGGBB
+  size: number     // width = height in cells
+  label: string    // shown below the object
 }
 ```

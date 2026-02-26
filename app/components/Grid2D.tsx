@@ -2,55 +2,15 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import * as PIXI from 'pixi.js'
+import { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
 
-// Map configuration
-export const MAP_CONFIG = {
-  /** Total width of the map in world units (cells) */
-  COLS: 100,
-  /** Total height of the map in world units (cells) */
-  ROWS: 100,
-  /** Size of each cell in pixels at zoom=1 */
-  CELL_SIZE: 40,
-  /** Minimum zoom level (most zoomed out) */
-  MIN_ZOOM: 0.1,
-  /** Maximum zoom level (most zoomed in) */
-  MAX_ZOOM: 5,
-  /** Step for zoom buttons */
-  ZOOM_STEP: 0.2,
-} as const
+// Re-export so external code can import from either location
+export { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
+export type { GridObject } from './grid-config'
 
-// Objects placed on the grid
-export const GRID_OBJECTS: GridObject[] = [
-  {
-    id: 'square-1',
-    type: 'square',
-    col: 20,
-    row: 15,
-    color: 0x6366f1, // indigo
-    size: 2,
-    label: 'Square A',
-  },
-  {
-    id: 'circle-1',
-    type: 'circle',
-    col: 60,
-    row: 40,
-    color: 0x22d3ee, // cyan
-    size: 2,
-    label: 'Circle B',
-  },
-]
-
-export interface GridObject {
-  id: string
-  type: 'square' | 'circle'
-  col: number
-  row: number
-  color: number
-  /** Size in grid cells */
-  size: number
-  label: string
-}
+// ---------------------------------------------------------------------------
+// Internal view state (updated imperatively — no React re-renders)
+// ---------------------------------------------------------------------------
 
 interface ViewState {
   x: number
@@ -58,302 +18,340 @@ interface ViewState {
   zoom: number
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function Grid2D() {
-  const canvasRef = useRef<HTMLDivElement>(null)
+  const mountRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<PIXI.Application | null>(null)
-  const worldContainerRef = useRef<PIXI.Container | null>(null)
-  const viewRef = useRef<ViewState>({ x: 0, y: 0, zoom: 1 })
-  const isDraggingRef = useRef(false)
-  const lastPointerRef = useRef({ x: 0, y: 0 })
-  const [displayZoom, setDisplayZoom] = useState(25)
+  const worldRef = useRef<PIXI.Container | null>(null)
+  const view = useRef<ViewState>({ x: 0, y: 0, zoom: 1 })
+  const dragging = useRef(false)
+  const lastPtr = useRef({ x: 0, y: 0 })
 
-  /** Rebuild and render grid lines + objects into worldContainer */
-  const renderWorld = useCallback(() => {
-    const app = appRef.current
-    const world = worldContainerRef.current
-    if (!app || !world) return
+  const [zoomPct, setZoomPct] = useState(25)
+  const [mouseCell, setMouseCell] = useState<{ col: number; row: number } | null>(null)
 
+  // -------------------------------------------------------------------------
+  // Draw everything into the world container
+  // -------------------------------------------------------------------------
+
+  const drawWorld = useCallback(() => {
+    const world = worldRef.current
+    if (!world) return
     world.removeChildren()
 
     const { COLS, ROWS, CELL_SIZE } = MAP_CONFIG
-    const mapW = COLS * CELL_SIZE
-    const mapH = ROWS * CELL_SIZE
+    const W = COLS * CELL_SIZE
+    const H = ROWS * CELL_SIZE
 
-    // --- Map background ---
+    // Background
     const bg = new PIXI.Graphics()
-    bg.rect(0, 0, mapW, mapH)
+    bg.rect(0, 0, W, H)
     bg.fill({ color: 0x1e293b })
     world.addChild(bg)
 
-    // --- Map boundary ---
-    const border = new PIXI.Graphics()
-    border.rect(0, 0, mapW, mapH)
-    border.stroke({ color: 0x6366f1, width: 3, alignment: 1 })
-    world.addChild(border)
-
-    // --- Grid lines ---
-    const gridLines = new PIXI.Graphics()
-    gridLines.setStrokeStyle({ color: 0x334155, width: 1 })
-
+    // Grid lines
+    const lines = new PIXI.Graphics()
+    lines.setStrokeStyle({ color: 0x334155, width: 1 })
     for (let c = 0; c <= COLS; c++) {
-      const x = c * CELL_SIZE
-      gridLines.moveTo(x, 0)
-      gridLines.lineTo(x, mapH)
+      lines.moveTo(c * CELL_SIZE, 0)
+      lines.lineTo(c * CELL_SIZE, H)
     }
     for (let r = 0; r <= ROWS; r++) {
-      const y = r * CELL_SIZE
-      gridLines.moveTo(0, y)
-      gridLines.lineTo(mapW, y)
+      lines.moveTo(0, r * CELL_SIZE)
+      lines.lineTo(W, r * CELL_SIZE)
     }
-    gridLines.stroke()
-    world.addChild(gridLines)
+    lines.stroke()
+    world.addChild(lines)
 
-    // --- Objects ---
+    // Map border (outermost edge)
+    const border = new PIXI.Graphics()
+    border.rect(0, 0, W, H)
+    border.stroke({ color: 0x475569, width: 3, alignment: 1 })
+    world.addChild(border)
+
+    // Objects
     for (const obj of GRID_OBJECTS) {
       const g = new PIXI.Graphics()
       const px = obj.col * CELL_SIZE
       const py = obj.row * CELL_SIZE
       const s = obj.size * CELL_SIZE
+      const pad = Math.round(s * 0.08)
 
       if (obj.type === 'square') {
-        const padding = 4
-        g.rect(px + padding, py + padding, s - padding * 2, s - padding * 2)
+        g.roundRect(px + pad, py + pad, s - pad * 2, s - pad * 2, 6)
         g.fill({ color: obj.color })
-        g.rect(px + padding, py + padding, s - padding * 2, s - padding * 2)
-        g.stroke({ color: 0xffffff, width: 2, alpha: 0.5 })
+        g.roundRect(px + pad, py + pad, s - pad * 2, s - pad * 2, 6)
+        g.stroke({ color: 0xffffff, width: 2, alpha: 0.4 })
       } else {
         const cx = px + s / 2
         const cy = py + s / 2
-        const radius = s / 2 - 4
-        g.circle(cx, cy, radius)
+        const r = s / 2 - pad
+        g.circle(cx, cy, r)
         g.fill({ color: obj.color })
-        g.circle(cx, cy, radius)
-        g.stroke({ color: 0xffffff, width: 2, alpha: 0.5 })
+        g.circle(cx, cy, r)
+        g.stroke({ color: 0xffffff, width: 2, alpha: 0.4 })
       }
 
       world.addChild(g)
 
-      // Label
-      const label = new PIXI.Text({
+      // Label below the object
+      const lbl = new PIXI.Text({
         text: obj.label,
         style: {
-          fontSize: 12,
-          fill: 0xffffff,
-          fontFamily: 'Arial',
+          fontSize: 14,
+          fill: 0xf1f5f9,
+          fontFamily: 'ui-monospace, monospace',
           fontWeight: 'bold',
+          dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.8 },
         },
       })
-      label.x = px + s / 2 - label.width / 2
-      label.y = py + s + 4
-      world.addChild(label)
+      lbl.x = px + s / 2 - lbl.width / 2
+      lbl.y = py + s + 6
+      world.addChild(lbl)
     }
   }, [])
 
-  /** Apply current viewRef state to the world container */
+  // -------------------------------------------------------------------------
+  // Apply view state → translate + scale world container
+  // -------------------------------------------------------------------------
+
   const applyView = useCallback(() => {
     const app = appRef.current
-    const world = worldContainerRef.current
+    const world = worldRef.current
     if (!app || !world) return
 
-    const { COLS, ROWS, CELL_SIZE, MIN_ZOOM, MAX_ZOOM } = MAP_CONFIG
-    const mapW = COLS * CELL_SIZE
-    const mapH = ROWS * CELL_SIZE
-    const view = viewRef.current
+    const { MIN_ZOOM, MAX_ZOOM } = MAP_CONFIG
+    const { w: mapW, h: mapH } = worldSize()
+    const v = view.current
 
     // Clamp zoom
-    view.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.zoom))
+    v.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, v.zoom))
 
-    const screenW = app.renderer.width
-    const screenH = app.renderer.height
+    const sw = app.renderer.width
+    const sh = app.renderer.height
 
-    // Clamp pan so the map never fully leaves the screen
-    const minX = Math.min(0, screenW - mapW * view.zoom)
-    const minY = Math.min(0, screenH - mapH * view.zoom)
-    view.x = Math.max(minX, Math.min(0, view.x))
-    view.y = Math.max(minY, Math.min(0, view.y))
+    // Clamp pan so the map always overlaps the viewport
+    v.x = Math.max(Math.min(0, sw - mapW * v.zoom), Math.min(0, v.x))
+    v.y = Math.max(Math.min(0, sh - mapH * v.zoom), Math.min(0, v.y))
 
-    world.x = view.x
-    world.y = view.y
-    world.scale.set(view.zoom)
-    setDisplayZoom(Math.round(view.zoom * 100))
-  }, [setDisplayZoom])
+    world.x = v.x
+    world.y = v.y
+    world.scale.set(v.zoom)
+
+    setZoomPct(Math.round(v.zoom * 100))
+  }, [])
+
+  // -------------------------------------------------------------------------
+  // Initialise pixi.js on mount
+  // -------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!canvasRef.current) return
-
+    if (!mountRef.current) return
     let app: PIXI.Application
 
     const init = async () => {
       app = new PIXI.Application()
       await app.init({
         background: 0x0f172a,
-        resizeTo: canvasRef.current!,
+        resizeTo: mountRef.current!,
         antialias: true,
       })
 
-      canvasRef.current!.appendChild(app.canvas)
+      mountRef.current!.appendChild(app.canvas)
       appRef.current = app
 
       const world = new PIXI.Container()
       app.stage.addChild(world)
-      worldContainerRef.current = world
+      worldRef.current = world
 
-      // Center map initially
-      const { COLS, ROWS, CELL_SIZE } = MAP_CONFIG
-      const mapW = COLS * CELL_SIZE
-      const mapH = ROWS * CELL_SIZE
-      viewRef.current = {
-        x: (app.renderer.width - mapW) / 2,
-        y: (app.renderer.height - mapH) / 2,
-        zoom: 0.25,
+      // Centre map at 25 % zoom initially
+      const { w: mapW, h: mapH } = worldSize()
+      const initialZoom = 0.25
+      view.current = {
+        x: (app.renderer.width - mapW * initialZoom) / 2,
+        y: (app.renderer.height - mapH * initialZoom) / 2,
+        zoom: initialZoom,
       }
 
-      renderWorld()
+      drawWorld()
       applyView()
 
-      // --- Pointer events for pan ---
+      // ---- Pan ----
       app.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
-        isDraggingRef.current = true
-        lastPointerRef.current = { x: e.clientX, y: e.clientY }
+        dragging.current = true
+        lastPtr.current = { x: e.clientX, y: e.clientY }
         app.canvas.setPointerCapture(e.pointerId)
+        ;(app.canvas as HTMLCanvasElement).style.cursor = 'grabbing'
       })
 
       app.canvas.addEventListener('pointermove', (e: PointerEvent) => {
-        if (!isDraggingRef.current) return
-        const dx = e.clientX - lastPointerRef.current.x
-        const dy = e.clientY - lastPointerRef.current.y
-        lastPointerRef.current = { x: e.clientX, y: e.clientY }
-        viewRef.current.x += dx
-        viewRef.current.y += dy
+        // Update hovered-cell display
+        const rect = app.canvas.getBoundingClientRect()
+        const sx = e.clientX - rect.left
+        const sy = e.clientY - rect.top
+        const wx = (sx - view.current.x) / view.current.zoom
+        const wy = (sy - view.current.y) / view.current.zoom
+        const col = Math.floor(wx / MAP_CONFIG.CELL_SIZE)
+        const row = Math.floor(wy / MAP_CONFIG.CELL_SIZE)
+        const inBounds =
+          col >= 0 && col < MAP_CONFIG.COLS && row >= 0 && row < MAP_CONFIG.ROWS
+        setMouseCell(inBounds ? { col, row } : null)
+
+        if (!dragging.current) return
+        const dx = e.clientX - lastPtr.current.x
+        const dy = e.clientY - lastPtr.current.y
+        lastPtr.current = { x: e.clientX, y: e.clientY }
+        view.current.x += dx
+        view.current.y += dy
         applyView()
       })
 
       app.canvas.addEventListener('pointerup', () => {
-        isDraggingRef.current = false
+        dragging.current = false
+        ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
       })
 
-      // --- Mouse wheel for zoom ---
-      app.canvas.addEventListener('wheel', (e: WheelEvent) => {
-        e.preventDefault()
+      app.canvas.addEventListener('pointerleave', () => {
+        dragging.current = false
+        setMouseCell(null)
+        ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
+      })
 
-        const rect = app.canvas.getBoundingClientRect()
-        const mouseX = e.clientX - rect.left
-        const mouseY = e.clientY - rect.top
+      // ---- Zoom via scroll wheel ----
+      app.canvas.addEventListener(
+        'wheel',
+        (e: WheelEvent) => {
+          e.preventDefault()
+          const rect = app.canvas.getBoundingClientRect()
+          const mx = e.clientX - rect.left
+          const my = e.clientY - rect.top
 
-        const oldZoom = viewRef.current.zoom
-        const delta = e.deltaY < 0 ? 1.1 : 0.9
-        const newZoom = Math.max(
-          MAP_CONFIG.MIN_ZOOM,
-          Math.min(MAP_CONFIG.MAX_ZOOM, oldZoom * delta)
-        )
+          const oldZ = view.current.zoom
+          const factor = e.deltaY < 0 ? 1.12 : 0.89
+          const newZ = Math.max(
+            MAP_CONFIG.MIN_ZOOM,
+            Math.min(MAP_CONFIG.MAX_ZOOM, oldZ * factor),
+          )
 
-        // Zoom toward mouse pointer
-        viewRef.current.x = mouseX - (mouseX - viewRef.current.x) * (newZoom / oldZoom)
-        viewRef.current.y = mouseY - (mouseY - viewRef.current.y) * (newZoom / oldZoom)
-        viewRef.current.zoom = newZoom
+          // Zoom toward cursor
+          view.current.x = mx - (mx - view.current.x) * (newZ / oldZ)
+          view.current.y = my - (my - view.current.y) * (newZ / oldZ)
+          view.current.zoom = newZ
+          applyView()
+        },
+        { passive: false },
+      )
 
-        applyView()
-        setDisplayZoom(Math.round(newZoom * 100))
-      }, { passive: false })
+      ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
     }
 
     init()
 
     return () => {
-      if (appRef.current) {
-        appRef.current.destroy(true, { children: true })
-        appRef.current = null
-      }
+      appRef.current?.destroy(true, { children: true })
+      appRef.current = null
     }
-  }, [renderWorld, applyView])
+  }, [drawWorld, applyView])
 
-  const handleZoomIn = () => {
-    viewRef.current.zoom = Math.min(MAP_CONFIG.MAX_ZOOM, viewRef.current.zoom + MAP_CONFIG.ZOOM_STEP)
+  // -------------------------------------------------------------------------
+  // Button handlers
+  // -------------------------------------------------------------------------
+
+  const zoomIn = () => {
+    view.current.zoom = Math.min(MAP_CONFIG.MAX_ZOOM, view.current.zoom + MAP_CONFIG.ZOOM_STEP)
     applyView()
   }
 
-  const handleZoomOut = () => {
-    viewRef.current.zoom = Math.max(MAP_CONFIG.MIN_ZOOM, viewRef.current.zoom - MAP_CONFIG.ZOOM_STEP)
+  const zoomOut = () => {
+    view.current.zoom = Math.max(MAP_CONFIG.MIN_ZOOM, view.current.zoom - MAP_CONFIG.ZOOM_STEP)
     applyView()
   }
 
-  const handleResetView = () => {
-    if (!appRef.current) return
-    const { COLS, ROWS, CELL_SIZE } = MAP_CONFIG
-    const mapW = COLS * CELL_SIZE
-    const mapH = ROWS * CELL_SIZE
-    const zoom = 0.25
-    viewRef.current = {
-      x: (appRef.current.renderer.width - mapW * zoom) / 2,
-      y: (appRef.current.renderer.height - mapH * zoom) / 2,
-      zoom,
+  const resetView = () => {
+    const app = appRef.current
+    if (!app) return
+    const { w: mapW, h: mapH } = worldSize()
+    const z = 0.25
+    view.current = {
+      x: (app.renderer.width - mapW * z) / 2,
+      y: (app.renderer.height - mapH * z) / 2,
+      zoom: z,
     }
     applyView()
   }
+
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-900">
-      {/* pixi canvas container */}
-      <div ref={canvasRef} className="absolute inset-0" style={{ cursor: 'grab' }} />
+      {/* Pixi canvas mount point */}
+      <div ref={mountRef} className="absolute inset-0" />
 
-      {/* HUD overlay */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <h1 className="text-xl font-bold text-white/80 tracking-wider text-center">
+      {/* Title */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none select-none text-center">
+        <p className="text-lg font-bold text-white/75 tracking-widest uppercase">
           2D Grid Explorer
-        </h1>
-        <p className="text-xs text-slate-400 text-center mt-1">
-          Drag to pan &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Map: {MAP_CONFIG.COLS}×{MAP_CONFIG.ROWS} cells
+        </p>
+        <p className="text-xs text-slate-500 mt-0.5">
+          {MAP_CONFIG.COLS} × {MAP_CONFIG.ROWS} cells &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp; scroll to zoom
         </p>
       </div>
 
-      {/* Zoom controls */}
+      {/* Zoom level */}
+      <div className="absolute top-4 right-4 z-10 bg-slate-800/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-slate-700 text-xs text-slate-400 select-none">
+        {zoomPct}%
+      </div>
+
+      {/* Hovered cell coordinates */}
+      <div className="absolute top-12 right-4 z-10 bg-slate-800/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-slate-700 text-xs text-slate-400 select-none min-w-[90px] text-center">
+        {mouseCell ? `${mouseCell.col}, ${mouseCell.row}` : '—'}
+      </div>
+
+      {/* Zoom / reset buttons */}
       <div className="absolute bottom-6 right-6 z-10 flex flex-col gap-2">
-        <button
-          onClick={handleZoomIn}
-          className="w-10 h-10 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xl font-bold shadow-lg transition-colors"
-          title="Zoom in"
-        >
-          +
-        </button>
-        <button
-          onClick={handleZoomOut}
-          className="w-10 h-10 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xl font-bold shadow-lg transition-colors"
-          title="Zoom out"
-        >
-          −
-        </button>
-        <button
-          onClick={handleResetView}
-          className="w-10 h-10 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold shadow-lg transition-colors"
-          title="Reset view"
-        >
-          ⌂
-        </button>
+        {(
+          [
+            { label: '+', title: 'Zoom in', fn: zoomIn },
+            { label: '−', title: 'Zoom out', fn: zoomOut },
+            { label: '⌂', title: 'Reset view', fn: resetView },
+          ] as const
+        ).map(({ label, title, fn }) => (
+          <button
+            key={title}
+            onClick={fn}
+            title={title}
+            className="w-10 h-10 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white rounded-lg text-lg font-bold shadow-lg transition-colors"
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-6 left-6 z-10 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 border border-slate-700 text-sm text-slate-300">
-        <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Objects</p>
+      <div className="absolute bottom-6 left-6 z-10 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 border border-slate-700 select-none">
+        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2">
+          Objects
+        </p>
         {GRID_OBJECTS.map((obj) => (
-          <div key={obj.id} className="flex items-center gap-2 mb-1">
+          <div key={obj.id} className="flex items-center gap-2 mb-1 last:mb-0">
             <div
-              className="w-3 h-3 rounded-sm flex-shrink-0"
+              className="w-3 h-3 flex-shrink-0"
               style={{
                 background: `#${obj.color.toString(16).padStart(6, '0')}`,
                 borderRadius: obj.type === 'circle' ? '50%' : '2px',
               }}
             />
-            <span>{obj.label}</span>
-            <span className="text-slate-500 text-xs">
+            <span className="text-xs text-slate-300">{obj.label}</span>
+            <span className="text-[10px] text-slate-500">
               ({obj.col}, {obj.row})
             </span>
           </div>
         ))}
-      </div>
-
-      {/* Zoom level indicator */}
-      <div className="absolute top-4 right-4 z-10 bg-slate-800/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-slate-700 text-xs text-slate-400">
-        Zoom: {displayZoom}%
       </div>
     </div>
   )
