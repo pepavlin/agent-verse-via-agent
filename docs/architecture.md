@@ -72,6 +72,30 @@ cellCol = Math.floor(worldX / CELL_SIZE)
 - `zoom` is clamped to `[MIN_ZOOM, MAX_ZOOM]`.
 - `x/y` are clamped so the map never fully leaves the viewport (user always sees part of it).
 
+## Deployment
+
+### Docker Compose
+
+The application ships with a multi-stage `Dockerfile` that leverages Next.js `output: "standalone"` mode:
+
+| Stage | Base image | Purpose |
+|---|---|---|
+| `deps` | `node:22-alpine` | Install npm dependencies |
+| `builder` | `node:22-alpine` | Run `next build` and produce standalone output |
+| `runner` | `node:22-alpine` | Minimal production image running `node server.js` |
+
+The final image contains only the standalone bundle, static assets, and public files — `node_modules` are not included.
+
+`docker-compose.yml` exposes port **3000** and restarts the container unless stopped manually.
+
+```bash
+# Build and start
+docker compose up --build
+
+# Stop
+docker compose down
+```
+
 ## Object Format
 
 ```ts

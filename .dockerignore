@@ -33,3 +33,6 @@ README.md
 # Database
 *.db
 dev.db
+
+# Temp
+/tmp

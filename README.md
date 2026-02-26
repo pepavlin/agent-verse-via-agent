@@ -13,6 +13,16 @@ Interactive 2D grid with zoom and pan, built with Next.js and pixi.js.
 
 ## Getting Started
 
+### Docker Compose (recommended)
+
+```bash
+docker compose up --build
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### Local development
+
 ```bash
 npm install
 npm run dev
