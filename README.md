@@ -10,6 +10,9 @@ Interactive 2D grid with zoom and pan, built with Next.js and pixi.js.
 - **Coordinate display** — hover to see cell coordinates in real time
 - **Two objects** — a square (Alpha) and a circle (Beta) placed on the grid
 - **Reset view** — ⌂ button centres the map at 25 %
+- **Walking agents** — 4 animated stick figures (Alice, Bob, Carol, Dave) that wander the grid autonomously
+- **Agent context menu** — click any agent to open a small menu with Follow / Stop following / Dismiss actions
+- **Camera follow** — select "Follow" to lock the camera onto the chosen agent
 
 ## Getting Started
 
@@ -38,10 +41,11 @@ Open [http://localhost:3000](http://localhost:3000).
 | Zoom in | Scroll up / `+` button |
 | Zoom out | Scroll down / `−` button |
 | Reset view | `⌂` button (bottom-right) |
+| Open agent menu | Click on a walking agent |
+| Follow agent | Click agent → "Follow" |
+| Close menu | Click "Dismiss" or click empty space |
 
 ## Configuration
-
-All constants live at the top of `app/components/Grid2D.tsx`.
 
 ### Grid
 
@@ -56,12 +60,23 @@ export const MAP_CONFIG = {
 }
 ```
 
-### Objects
+### Objects (`app/components/grid-config.ts`)
 
 ```ts
 export const GRID_OBJECTS: GridObject[] = [
   { id: 'square-1', type: 'square', col: 8,  row: 8,  color: 0x6366f1, size: 4, label: 'Alpha' },
   { id: 'circle-1', type: 'circle', col: 30, row: 22, color: 0xf59e0b, size: 4, label: 'Beta'  },
+]
+```
+
+### Agents (`app/components/agents-config.ts`)
+
+```ts
+export const AGENTS: AgentDef[] = [
+  { id: 'agent-alice', name: 'Alice', role: 'Explorer', color: 0xff6b6b, startCol: 5,  startRow: 5  },
+  { id: 'agent-bob',   name: 'Bob',   role: 'Builder',  color: 0x4ecdc4, startCol: 20, startRow: 15 },
+  { id: 'agent-carol', name: 'Carol', role: 'Scout',    color: 0xffe66d, startCol: 35, startRow: 30 },
+  { id: 'agent-dave',  name: 'Dave',  role: 'Defender', color: 0xa78bfa, startCol: 12, startRow: 38 },
 ]
 ```
 

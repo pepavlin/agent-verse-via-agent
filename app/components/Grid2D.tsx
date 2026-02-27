@@ -3,19 +3,34 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import * as PIXI from 'pixi.js'
 import { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
+import { AGENTS } from './agents-config'
+import { AgentState, createAgentState, updateAgent, hitTestAgent } from './agent-logic'
+import { drawStickFigure } from './agent-drawing'
 
 // Re-export so external code can import from either location
 export { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
 export type { GridObject } from './grid-config'
 
 // ---------------------------------------------------------------------------
-// Internal view state (updated imperatively — no React re-renders)
+// Internal types
 // ---------------------------------------------------------------------------
 
 interface ViewState {
   x: number
   y: number
   zoom: number
+}
+
+interface AgentEntry {
+  state: AgentState
+  gfx: PIXI.Graphics
+  container: PIXI.Container
+}
+
+interface SelectedAgentInfo {
+  id: string
+  name: string
+  role: string
 }
 
 // ---------------------------------------------------------------------------
@@ -30,11 +45,18 @@ export default function Grid2D() {
   const dragging = useRef(false)
   const lastPtr = useRef({ x: 0, y: 0 })
 
+  // Agent system refs (updated imperatively — no React re-renders)
+  const agentsRef = useRef<Map<string, AgentEntry>>(new Map())
+  const selectedAgentIdRef = useRef<string | null>(null)
+  const followingAgentRef = useRef<string | null>(null)
+  const menuDivRef = useRef<HTMLDivElement | null>(null)
+
   const [zoomPct, setZoomPct] = useState(25)
   const [mouseCell, setMouseCell] = useState<{ col: number; row: number } | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<SelectedAgentInfo | null>(null)
 
   // -------------------------------------------------------------------------
-  // Draw everything into the world container
+  // Draw static world (grid + objects)
   // -------------------------------------------------------------------------
 
   const drawWorld = useCallback(() => {
@@ -66,7 +88,7 @@ export default function Grid2D() {
     lines.stroke()
     world.addChild(lines)
 
-    // Map border (outermost edge)
+    // Map border
     const border = new PIXI.Graphics()
     border.rect(0, 0, W, H)
     border.stroke({ color: 0x475569, width: 3, alignment: 1 })
@@ -97,7 +119,6 @@ export default function Grid2D() {
 
       world.addChild(g)
 
-      // Label below the object
       const lbl = new PIXI.Text({
         text: obj.label,
         style: {
@@ -127,7 +148,6 @@ export default function Grid2D() {
     const { w: mapW, h: mapH } = worldSize()
     const v = view.current
 
-    // Clamp zoom
     v.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, v.zoom))
 
     const sw = app.renderer.width
@@ -135,11 +155,7 @@ export default function Grid2D() {
     const scaledW = mapW * v.zoom
     const scaledH = mapH * v.zoom
 
-    // Minimum px of the map that must stay visible inside the viewport.
-    // This lets users freely drag a small (zoomed-out) map around while
-    // ensuring they can never pan it completely off-screen.
     const MARGIN = 50
-
     v.x = Math.max(MARGIN - scaledW, Math.min(sw - MARGIN, v.x))
     v.y = Math.max(MARGIN - scaledH, Math.min(sh - MARGIN, v.y))
 
@@ -173,7 +189,7 @@ export default function Grid2D() {
       app.stage.addChild(world)
       worldRef.current = world
 
-      // Centre map at 25 % zoom initially
+      // Centre map at 25 % zoom
       const { w: mapW, h: mapH } = worldSize()
       const initialZoom = 0.25
       view.current = {
@@ -185,8 +201,82 @@ export default function Grid2D() {
       drawWorld()
       applyView()
 
+      // ---- Create agent layer ----
+      const agentLayer = new PIXI.Container()
+      world.addChild(agentLayer)
+
+      const agentsMap = new Map<string, AgentEntry>()
+      for (const def of AGENTS) {
+        const state = createAgentState(def)
+        const container = new PIXI.Container()
+        const gfx = new PIXI.Graphics()
+
+        const label = new PIXI.Text({
+          text: def.name,
+          style: {
+            fontSize: 10,
+            fill: 0xffffff,
+            fontFamily: 'ui-monospace, monospace',
+            fontWeight: 'bold',
+            dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.9 },
+          },
+        })
+        // Centre label above head; anchor (0.5, 1) = horizontal centre, bottom edge
+        label.anchor.set(0.5, 1)
+        label.y = -34
+
+        container.addChild(gfx)
+        container.addChild(label)
+        container.x = state.x
+        container.y = state.y
+        agentLayer.addChild(container)
+
+        agentsMap.set(def.id, { state, gfx, container })
+      }
+      agentsRef.current = agentsMap
+
+      // ---- Ticker: animate agents each frame ----
+      app.ticker.add((ticker: PIXI.Ticker) => {
+        const { w: mW, h: mH } = worldSize()
+
+        for (const [id, entry] of agentsRef.current) {
+          entry.state = updateAgent(entry.state, ticker.deltaMS, mW, mH)
+          entry.container.x = entry.state.x
+          entry.container.y = entry.state.y
+          drawStickFigure(entry.gfx, entry.state, selectedAgentIdRef.current === id)
+        }
+
+        // Follow selected agent (centre view on it)
+        if (followingAgentRef.current) {
+          const followEntry = agentsRef.current.get(followingAgentRef.current)
+          if (followEntry) {
+            view.current.x =
+              app.renderer.width / 2 - followEntry.state.x * view.current.zoom
+            view.current.y =
+              app.renderer.height / 2 - followEntry.state.y * view.current.zoom
+            applyView()
+          }
+        }
+
+        // Update menu position imperatively (no React re-render needed)
+        if (selectedAgentIdRef.current && menuDivRef.current) {
+          const entry = agentsRef.current.get(selectedAgentIdRef.current)
+          if (entry) {
+            const sx = entry.state.x * view.current.zoom + view.current.x
+            const sy = entry.state.y * view.current.zoom + view.current.y
+            menuDivRef.current.style.left = `${sx}px`
+            menuDivRef.current.style.top = `${sy}px`
+          }
+        }
+      })
+
       // ---- Pan ----
+      let pointerDownX = 0
+      let pointerDownY = 0
+
       app.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+        pointerDownX = e.clientX
+        pointerDownY = e.clientY
         dragging.current = true
         lastPtr.current = { x: e.clientX, y: e.clientY }
         app.canvas.setPointerCapture(e.pointerId)
@@ -215,7 +305,37 @@ export default function Grid2D() {
         applyView()
       })
 
-      app.canvas.addEventListener('pointerup', () => {
+      app.canvas.addEventListener('pointerup', (e: PointerEvent) => {
+        const movedX = e.clientX - pointerDownX
+        const movedY = e.clientY - pointerDownY
+        const isClick = movedX * movedX + movedY * movedY < 25 // < 5 px
+
+        if (isClick) {
+          const rect = app.canvas.getBoundingClientRect()
+          const sx = e.clientX - rect.left
+          const sy = e.clientY - rect.top
+          const wx = (sx - view.current.x) / view.current.zoom
+          const wy = (sy - view.current.y) / view.current.zoom
+
+          let hitId: string | null = null
+          for (const [id, entry] of agentsRef.current) {
+            if (hitTestAgent(entry.state, wx, wy)) {
+              hitId = id
+              break
+            }
+          }
+
+          if (hitId) {
+            selectedAgentIdRef.current = hitId
+            followingAgentRef.current = null // stop following on new selection
+            const entry = agentsRef.current.get(hitId)!
+            setSelectedAgent({ id: hitId, name: entry.state.name, role: entry.state.role })
+          } else {
+            selectedAgentIdRef.current = null
+            setSelectedAgent(null)
+          }
+        }
+
         dragging.current = false
         ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
       })
@@ -242,7 +362,6 @@ export default function Grid2D() {
             Math.min(MAP_CONFIG.MAX_ZOOM, oldZ * factor),
           )
 
-          // Zoom toward cursor
           view.current.x = mx - (mx - view.current.x) * (newZ / oldZ)
           view.current.y = my - (my - view.current.y) * (newZ / oldZ)
           view.current.zoom = newZ
@@ -289,6 +408,24 @@ export default function Grid2D() {
     applyView()
   }
 
+  // ---- Agent menu handlers ----
+
+  const closeMenu = () => {
+    selectedAgentIdRef.current = null
+    followingAgentRef.current = null
+    setSelectedAgent(null)
+  }
+
+  const followAgent = () => {
+    if (selectedAgent) {
+      followingAgentRef.current = selectedAgent.id
+    }
+  }
+
+  const stopFollowing = () => {
+    followingAgentRef.current = null
+  }
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -304,7 +441,8 @@ export default function Grid2D() {
           2D Grid Explorer
         </p>
         <p className="text-xs text-slate-500 mt-0.5">
-          {MAP_CONFIG.COLS} × {MAP_CONFIG.ROWS} cells &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp; scroll to zoom
+          {MAP_CONFIG.COLS} × {MAP_CONFIG.ROWS} cells &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp;
+          scroll to zoom &nbsp;·&nbsp; click agents
         </p>
       </div>
 
@@ -317,6 +455,59 @@ export default function Grid2D() {
       <div className="absolute top-12 right-4 z-10 bg-slate-800/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-slate-700 text-xs text-slate-400 select-none min-w-[90px] text-center">
         {mouseCell ? `${mouseCell.col}, ${mouseCell.row}` : '—'}
       </div>
+
+      {/* Agent context menu — positioned imperatively via menuDivRef */}
+      {selectedAgent && (
+        <div
+          ref={menuDivRef}
+          className="absolute z-20 pointer-events-auto"
+          style={{ transform: 'translate(-50%, calc(-100% - 44px))' }}
+        >
+          <div className="bg-slate-800/95 backdrop-blur-sm border border-slate-600 rounded-xl shadow-2xl p-3 min-w-[168px]">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-white font-bold text-sm leading-tight">
+                {selectedAgent.name}
+              </span>
+              <button
+                onClick={closeMenu}
+                className="text-slate-400 hover:text-white text-xs ml-2 leading-none w-5 h-5 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
+                aria-label="Close menu"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-indigo-400 text-[11px] font-mono mb-3">{selectedAgent.role}</div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-1.5">
+              <button
+                onClick={followAgent}
+                className="text-xs bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg transition-colors text-left font-medium"
+              >
+                Follow
+              </button>
+              <button
+                onClick={stopFollowing}
+                className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1.5 rounded-lg transition-colors text-left"
+              >
+                Stop following
+              </button>
+              <button
+                onClick={closeMenu}
+                className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-400 px-2.5 py-1.5 rounded-lg transition-colors text-left"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+
+          {/* Down-pointing arrow */}
+          <div className="flex justify-center -mt-px overflow-hidden h-3">
+            <div className="w-4 h-4 bg-slate-800 border-b border-r border-slate-600 rotate-45 translate-y-[-50%]" />
+          </div>
+        </div>
+      )}
 
       {/* Zoom / reset buttons */}
       <div className="absolute bottom-6 right-6 z-10 flex flex-col gap-2">
@@ -356,6 +547,20 @@ export default function Grid2D() {
             <span className="text-[10px] text-slate-500">
               ({obj.col}, {obj.row})
             </span>
+          </div>
+        ))}
+
+        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2 mt-3">
+          Agents
+        </p>
+        {AGENTS.map((agent) => (
+          <div key={agent.id} className="flex items-center gap-2 mb-1 last:mb-0">
+            <div
+              className="w-3 h-3 rounded-full flex-shrink-0"
+              style={{ background: `#${agent.color.toString(16).padStart(6, '0')}` }}
+            />
+            <span className="text-xs text-slate-300">{agent.name}</span>
+            <span className="text-[10px] text-slate-500">{agent.role}</span>
           </div>
         ))}
       </div>
