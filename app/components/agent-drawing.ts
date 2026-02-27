@@ -4,6 +4,7 @@
 
 import * as PIXI from 'pixi.js'
 import type { AgentState } from './agent-logic'
+import { calcPulseRing, calcCompletionGlow } from './agent-run-effects'
 
 // ---------------------------------------------------------------------------
 // Layout constants (world pixels, centred at container origin)
@@ -25,14 +26,43 @@ const FOOT_Y = 30
 
 /**
  * Clear `g` and redraw the stick figure for the current `state`.
- * Pass `selected = true` to draw a white glow ring around the head.
+ *
+ * @param g              pixi.js Graphics to draw into (cleared on each call).
+ * @param state          Current agent state (position, animation timers, colour).
+ * @param selected       When true, draws a white glow ring around the head.
+ * @param runTime        Seconds elapsed since the run started; `null` = not running.
+ *                       When provided, a pulsing colour ring is drawn around the head.
+ * @param completionAge  Milliseconds since the run completed; `null` = no recent completion.
+ *                       When provided (and within GLOW_DURATION_MS), an expanding glow is drawn.
  */
-export function drawStickFigure(g: PIXI.Graphics, state: AgentState, selected: boolean): void {
+export function drawStickFigure(
+  g: PIXI.Graphics,
+  state: AgentState,
+  selected: boolean,
+  runTime: number | null = null,
+  completionAge: number | null = null,
+): void {
   g.clear()
 
   const c = state.color
   const isMoving = Math.hypot(state.x - state.targetX, state.y - state.targetY) > 3
   const swing = isMoving ? Math.sin(state.walkTime) * 9 : 0
+
+  // ---- Completion glow (expanding ring, drawn behind everything) ----
+  if (completionAge !== null) {
+    const glow = calcCompletionGlow(completionAge)
+    if (glow.active) {
+      g.circle(0, HEAD_Y, HEAD_R + glow.radiusOffset)
+      g.stroke({ color: 0xffffff, width: glow.strokeWidth, alpha: glow.alpha })
+    }
+  }
+
+  // ---- Pulse ring (shown while running, drawn behind the head) ----
+  if (runTime !== null) {
+    const pulse = calcPulseRing(runTime, HEAD_R)
+    g.circle(0, HEAD_Y, pulse.radiusOffset)
+    g.stroke({ color: c, width: 2, alpha: pulse.alpha })
+  }
 
   // ---- Shadow ----
   g.ellipse(0, FOOT_Y + 3, 14, 5)
