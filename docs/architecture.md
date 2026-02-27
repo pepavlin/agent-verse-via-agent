@@ -13,14 +13,22 @@ app/
   globals.css           – Base styles (Tailwind 4 reset)
   components/
     Grid2D.tsx          – Grid component: rendering, input, agents integration
+    AgentPanel.tsx      – Unified agent panel (Run / Edit modes)
     grid-config.ts      – MAP_CONFIG, GRID_OBJECTS, GridObject interface, worldSize()
     agents-config.ts    – AGENTS array (AgentDef definitions, no pixi.js dep)
     agent-logic.ts      – Pure agent state functions (no pixi.js dep, fully testable)
     agent-drawing.ts    – Stick-figure drawing via PIXI.Graphics
+  run-engine/
+    types.ts            – Run interface, RunStatus enum, RunEventType, RunEngineOptions
+    results.ts          – Pure result-text generation (generateResult, templates)
+    engine.ts           – RunEngine class (createRun, startRun, events, querying)
+    index.ts            – Re-exports public API
 tests/
   grid.test.ts          – Unit tests for config, worldSize(), and objects
   agents.test.ts        – Unit tests for agent logic, hit testing, and rect selection
   controls.test.ts      – Unit tests for click-threshold and coord-conversion helpers
+  agent-panel.test.tsx  – Unit tests for AgentPanel component (Run mode, Edit mode, tabs)
+  run-engine.test.ts    – Unit tests for RunEngine lifecycle, events, delays, querying
   setup.ts              – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
@@ -134,12 +142,39 @@ The grid supports two ways to select agents:
 
 **Visual feedback:** `drawStickFigure` receives `selected = true` for every agent whose ID is in `selectedAgentIdsRef`. Selected agents show a white glow ring around their head.
 
-### Context menus
+### Agent Panel
+
+A unified dialog panel opens when the user clicks a single agent. It has two modes switchable via tabs:
+
+| Mode | Purpose |
+|---|---|
+| **Run** | Enter a task description (textarea), choose delivery method (Počkat / Inbox), click Spustit to submit. |
+| **Edit** | Edit the agent's name, goal, and persona inline; click Uložit to apply. |
+
+The panel is a centered fixed overlay (`AgentPanel` component). Clicking the backdrop or the × button dismisses it. On dismiss, selection is cleared.
+
+**State management for the panel:**
+- `panelAgentId: string | null` (React state in `Grid2D`) — which agent's panel is open.
+- `agentDefs: AgentDef[]` (React state in `Grid2D`) — mutable copy of agent definitions updated by Edit saves.
+- On `handleEditSave`, both `agentDefs` state and the live `agentsRef` entry are updated.
+- On `handleRunTask`, the payload is logged to console (placeholder for future task runner integration).
+
+**File:** `app/components/AgentPanel.tsx`
+
+**Exports:**
+- `AgentPanel` — default export, the panel component.
+- `PanelMode` — `'run' | 'edit'`
+- `DeliveryMode` — `'wait' | 'inbox'`
+- `RunTaskPayload` — `{ agentId, task, delivery }`
+- `EditSavePayload` — `{ agentId, name, goal, persona }`
+- `AgentPanelProps` — props interface
+
+### Selection UI
 
 | Selection size | UI |
 |---|---|
-| 0 agents | No menu |
-| 1 agent | Floating panel anchored above the agent (position updated imperatively via `menuDivRef` in ticker). Actions: Follow, Stop following, Dismiss. |
+| 0 agents | No panel |
+| 1 agent | Agent Panel dialog (Run / Edit modes) |
 | 2+ agents | Fixed panel centred at bottom of screen listing all selected agents with name, role and colour dot. Action: Dismiss all. |
 
 ### Coordinate Mapping
@@ -154,6 +189,82 @@ cellCol = Math.floor(worldX / CELL_SIZE)
 
 - `zoom` is clamped to `[MIN_ZOOM, MAX_ZOOM]`.
 - `x/y` are clamped so the map never fully leaves the viewport (user always sees part of it).
+
+## Run Engine
+
+### Overview
+
+The Run engine manages the lifecycle of task executions ("runs"). It lives entirely in `app/run-engine/` and has no dependency on pixi.js or React — it is fully testable with Vitest and fake timers.
+
+### Run Lifecycle
+
+```
+createRun()  ──►  pending
+startRun()   ──►  running  ──► [2–6 s delay] ──►  completed
+```
+
+| State | Description |
+|---|---|
+| `pending` | Run created, not yet started |
+| `running` | Run is executing; a completion timer is scheduled |
+| `completed` | Run finished; `result` text is available |
+| `failed` | Reserved for future error handling |
+
+### Public API
+
+```ts
+const engine = new RunEngine(options?)
+
+// Create a run (status: 'pending')
+const run = engine.createRun(agentId, agentName, agentRole, taskDescription)
+
+// Transition to 'running', schedule completion in 2–6 s
+engine.startRun(run.id)
+
+// Query
+engine.getRun(run.id)           // → Run | undefined
+engine.getAllRuns()              // → Run[]
+engine.getRunsByAgent(agentId)  // → Run[]
+
+// Events
+const unsub = engine.on('run:completed', (run) => console.log(run.result))
+unsub()  // unsubscribe
+engine.off('run:created', handler)
+```
+
+### Events
+
+| Event | When fired |
+|---|---|
+| `run:created` | After `createRun()` — status is `pending` |
+| `run:started` | After `startRun()` — status is `running` |
+| `run:completed` | After the delay expires — status is `completed`, `result` is set |
+| `run:failed` | Reserved for future use |
+
+### Configuration
+
+```ts
+new RunEngine({
+  minDelayMs: 2000,      // default
+  maxDelayMs: 6000,      // default
+  delayFn: (min, max) => /* custom delay */ // injectable for tests
+})
+```
+
+### Result Generation
+
+`generateResult(agentName, agentRole, taskDescription, pickIndex?)` is a pure function
+that selects one of several plain-prose result templates and fills in agent context.
+An optional `pickIndex` enables deterministic selection in tests.
+
+### Modules
+
+| File | Purpose |
+|---|---|
+| `types.ts` | `Run`, `RunStatus`, `RunEventType`, `RunEventHandler`, `RunEngineOptions` |
+| `results.ts` | `generateResult()`, `RESULT_TEMPLATE_COUNT`, template array |
+| `engine.ts` | `RunEngine` class, `AgentMeta` interface |
+| `index.ts` | Re-exports for external consumers |
 
 ## Deployment
 
