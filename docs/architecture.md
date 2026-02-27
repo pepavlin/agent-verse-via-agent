@@ -12,9 +12,14 @@ app/
   layout.tsx            – HTML shell, metadata, globals.css import
   globals.css           – Base styles (Tailwind 4 reset)
   components/
-    Grid2D.tsx          – Entire grid component: config, types, rendering, input
+    Grid2D.tsx          – Grid component: rendering, input, agents integration
+    grid-config.ts      – MAP_CONFIG, GRID_OBJECTS, GridObject interface, worldSize()
+    agents-config.ts    – AGENTS array (AgentDef definitions, no pixi.js dep)
+    agent-logic.ts      – Pure agent state functions (no pixi.js dep, fully testable)
+    agent-drawing.ts    – Stick-figure drawing via PIXI.Graphics
 tests/
   grid.test.ts          – Unit tests for config, worldSize(), and objects
+  agents.test.ts        – Unit tests for agent logic and hit testing
   setup.ts              – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
@@ -42,6 +47,10 @@ docs/
 | `view` | `{ x, y, zoom }` — current camera state |
 | `dragging` | Whether the user is currently panning |
 | `lastPtr` | Last pointer position for delta calculation |
+| `agentsRef` | Map of `id → { state, gfx, container }` for all walking agents |
+| `selectedAgentIdRef` | ID of the currently selected agent (or null) |
+| `followingAgentRef` | ID of the agent the camera is following (or null) |
+| `menuDivRef` | Ref to the agent context-menu DOM element for imperative positioning |
 
 ### State (React – triggers re-render)
 
@@ -49,15 +58,56 @@ docs/
 |---|---|
 | `zoomPct` | Displayed zoom percentage in the HUD |
 | `mouseCell` | Current hovered cell `{ col, row }` or null |
+| `selectedAgent` | `{ id, name, role }` of the clicked agent — controls menu visibility |
 
 ### Rendering
 
 1. `useEffect` initialises `PIXI.Application` and attaches the canvas.
 2. `drawWorld()` populates `worldRef` with: background fill, grid lines, map border, objects, labels.
-3. `applyView()` clamps `view.zoom` and `view.x/y`, then applies them to `worldRef.x/y/scale`.
-4. Pointer events handle pan (`pointerdown/move/up/leave`).
-5. Wheel event handles zoom-toward-cursor.
-6. Three HUD buttons call `zoomIn`, `zoomOut`, `resetView`.
+3. Agent layer is created and populated with stick-figure containers (one per agent).
+4. `app.ticker` runs every frame: updates agent states, redraws figures, follows camera target, positions the context menu div imperatively (zero React re-renders per frame).
+5. `applyView()` clamps `view.zoom` and `view.x/y`, then applies them to `worldRef.x/y/scale`.
+6. Pointer events handle pan (`pointerdown/move/up/leave`) and click-vs-drag detection (threshold: 5 px).
+7. Wheel event handles zoom-toward-cursor.
+8. Three HUD buttons call `zoomIn`, `zoomOut`, `resetView`.
+
+## Agent System
+
+### Data flow
+
+```
+AGENTS (AgentDef[])
+  └─ createAgentState()  →  AgentState (pure, no PIXI)
+       └─ updateAgent()  →  new AgentState each tick (pure)
+
+AgentState + PIXI.Graphics
+  └─ drawStickFigure()   →  mutates graphics commands
+```
+
+### Walking behaviour
+
+Agents wander within the grid bounds. On reaching their target they idle for 1–5 s then pick a new random target. Speed varies per agent (40–80 px/s at zoom 1).
+
+### Stick figure layout (y=0 at container centre)
+
+```
+y = -30  top of head
+y = -21  head centre   (radius 9)
+y =  -7  shoulders
+y =  +4  arm attachment
+y = +10  hips
+y = +30  feet / shadow
+```
+
+Legs and arms swing with `sin(walkTime)`, amplitude 9 px, only when the agent is moving.
+
+### Click detection
+
+On `pointerup`, if the pointer moved < 5 px since `pointerdown`, it is treated as a click. The click position is converted from screen → world coordinates and compared to each agent's position via `hitTestAgent` (circular radius 28 px).
+
+### Context menu
+
+The menu is a React `div` rendered when `selectedAgent` is non-null. Its screen position is updated imperatively via `menuDivRef.current.style` inside the ticker — no React re-renders occur per frame. Actions available: **Follow** (camera tracks agent), **Stop following**, **Dismiss** (close menu).
 
 ### Coordinate Mapping
 
