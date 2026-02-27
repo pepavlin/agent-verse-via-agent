@@ -7,6 +7,8 @@ import { AGENTS, type AgentDef } from './agents-config'
 import { AgentState, createAgentState, updateAgent, hitTestAgent, agentInRect, WorldRect } from './agent-logic'
 import { drawStickFigure } from './agent-drawing'
 import AgentPanel, { type RunTaskPayload, type EditSavePayload } from './AgentPanel'
+import { RunEngine } from '../run-engine'
+import { GLOW_DURATION_MS } from './agent-run-effects'
 
 // Re-export so external code can import from either location
 export { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
@@ -34,6 +36,19 @@ interface SelectedAgentInfo {
   role: string
 }
 
+/**
+ * Per-agent run animation state, kept in a ref so the pixi ticker can read
+ * it without triggering React re-renders.
+ */
+interface AgentRunInfo {
+  /** 'running' while a run is active; null when idle or completed. */
+  runState: 'running' | null
+  /** Timestamp (ms) when the latest run completed; null if no recent completion. */
+  completionStart: number | null
+  /** Accumulated seconds of running time — used as phase for the pulse effect. */
+  runTime: number
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -57,6 +72,11 @@ export default function Grid2D() {
   const rectSelectStartRef = useRef<{ x: number; y: number } | null>(null)
   const rectSelectEndRef = useRef<{ x: number; y: number } | null>(null)
   const selectionRectGfxRef = useRef<PIXI.Graphics | null>(null)
+
+  // Run engine — persistent singleton; drives pulse/glow animations via events
+  const runEngineRef = useRef<RunEngine>(new RunEngine())
+  // Per-agent run animation state, read each frame by the pixi ticker
+  const agentRunInfoRef = useRef<Map<string, AgentRunInfo>>(new Map())
 
   const [zoomPct, setZoomPct] = useState(25)
   const [mouseCell, setMouseCell] = useState<{ col: number; row: number } | null>(null)
@@ -267,13 +287,42 @@ export default function Grid2D() {
 
       // ---- Ticker: animate agents each frame ----
       app.ticker.add((ticker: PIXI.Ticker) => {
+        const now = Date.now()
         const { w: mW, h: mH } = worldSize()
 
         for (const [id, entry] of agentsRef.current) {
           entry.state = updateAgent(entry.state, ticker.deltaMS, mW, mH)
           entry.container.x = entry.state.x
           entry.container.y = entry.state.y
-          drawStickFigure(entry.gfx, entry.state, selectedAgentIdsRef.current.has(id))
+
+          // ---- Compute run-state animation params ----
+          let runTime: number | null = null
+          let completionAge: number | null = null
+
+          const runInfo = agentRunInfoRef.current.get(id)
+          if (runInfo) {
+            if (runInfo.runState === 'running') {
+              runInfo.runTime += ticker.deltaMS / 1000
+              runTime = runInfo.runTime
+            }
+            if (runInfo.completionStart !== null) {
+              const age = now - runInfo.completionStart
+              if (age < GLOW_DURATION_MS) {
+                completionAge = age
+              } else {
+                // Glow expired — clear so we stop rendering it
+                runInfo.completionStart = null
+              }
+            }
+          }
+
+          drawStickFigure(
+            entry.gfx,
+            entry.state,
+            selectedAgentIdsRef.current.has(id),
+            runTime,
+            completionAge,
+          )
         }
 
         // Follow selected agent (centre view on first selected)
@@ -484,9 +533,32 @@ export default function Grid2D() {
       ;(app.canvas as HTMLCanvasElement).style.cursor = 'default'
     }
 
+    // ---- Subscribe to RunEngine events ----
+    // These handlers run outside the pixi ticker (async, event-driven) and
+    // write into agentRunInfoRef which the ticker reads each frame.
+    const engine = runEngineRef.current
+
+    const unsubStarted = engine.on('run:started', (run) => {
+      agentRunInfoRef.current.set(run.agentId, {
+        runState: 'running',
+        completionStart: null,
+        runTime: 0,
+      })
+    })
+
+    const unsubCompleted = engine.on('run:completed', (run) => {
+      agentRunInfoRef.current.set(run.agentId, {
+        runState: null,
+        completionStart: Date.now(),
+        runTime: 0,
+      })
+    })
+
     init()
 
     return () => {
+      unsubStarted()
+      unsubCompleted()
       appRef.current?.destroy(true, { children: true })
       appRef.current = null
     }
@@ -537,8 +609,12 @@ export default function Grid2D() {
   }
 
   const handleRunTask = (payload: RunTaskPayload) => {
-    // Placeholder: log task submission. Connect to backend task runner here.
-    console.log('[AgentPanel] Run task:', payload)
+    const def = agentDefs.find((d) => d.id === payload.agentId)
+    if (def) {
+      const engine = runEngineRef.current
+      const run = engine.createRun(payload.agentId, def.name, def.role, payload.task)
+      engine.startRun(run.id)
+    }
     handlePanelClose()
   }
 

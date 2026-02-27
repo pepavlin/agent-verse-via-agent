@@ -18,18 +18,20 @@ app/
     agents-config.ts    – AGENTS array (AgentDef definitions, no pixi.js dep)
     agent-logic.ts      – Pure agent state functions (no pixi.js dep, fully testable)
     agent-drawing.ts    – Stick-figure drawing via PIXI.Graphics
+    agent-run-effects.ts – Pure animation math for run-state effects (no pixi.js dep)
   run-engine/
     types.ts            – Run interface, RunStatus enum, RunEventType, RunEngineOptions
     results.ts          – Pure result-text generation (generateResult, templates)
     engine.ts           – RunEngine class (createRun, startRun, events, querying)
     index.ts            – Re-exports public API
 tests/
-  grid.test.ts          – Unit tests for config, worldSize(), and objects
-  agents.test.ts        – Unit tests for agent logic, hit testing, and rect selection
-  controls.test.ts      – Unit tests for click-threshold and coord-conversion helpers
-  agent-panel.test.tsx  – Unit tests for AgentPanel component (Run mode, Edit mode, tabs)
-  run-engine.test.ts    – Unit tests for RunEngine lifecycle, events, delays, querying
-  setup.ts              – @testing-library/jest-dom setup
+  grid.test.ts              – Unit tests for config, worldSize(), and objects
+  agents.test.ts            – Unit tests for agent logic, hit testing, and rect selection
+  controls.test.ts          – Unit tests for click-threshold and coord-conversion helpers
+  agent-panel.test.tsx      – Unit tests for AgentPanel component (Run mode, Edit mode, tabs)
+  run-engine.test.ts        – Unit tests for RunEngine lifecycle, events, delays, querying
+  agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
+  setup.ts                  – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
 ```
@@ -64,6 +66,8 @@ docs/
 | `rectSelectStartRef` | Screen-space start point of the selection rect |
 | `rectSelectEndRef` | Screen-space current end point of the selection rect |
 | `selectionRectGfxRef` | `PIXI.Graphics` overlay (on stage, screen space) for the selection rect |
+| `runEngineRef` | `RunEngine` singleton that drives task run lifecycle |
+| `agentRunInfoRef` | `Map<id, AgentRunInfo>` — per-agent run animation state read by ticker |
 
 ### State (React – triggers re-render)
 
@@ -157,7 +161,7 @@ The panel is a centered fixed overlay (`AgentPanel` component). Clicking the bac
 - `panelAgentId: string | null` (React state in `Grid2D`) — which agent's panel is open.
 - `agentDefs: AgentDef[]` (React state in `Grid2D`) — mutable copy of agent definitions updated by Edit saves.
 - On `handleEditSave`, both `agentDefs` state and the live `agentsRef` entry are updated.
-- On `handleRunTask`, the payload is logged to console (placeholder for future task runner integration).
+- On `handleRunTask`, the payload is forwarded to `runEngineRef.current` via `createRun()` + `startRun()`. The resulting run events drive visual effects on the agent (see Run-State Visual Effects below).
 
 **File:** `app/components/AgentPanel.tsx`
 
@@ -189,6 +193,57 @@ cellCol = Math.floor(worldX / CELL_SIZE)
 
 - `zoom` is clamped to `[MIN_ZOOM, MAX_ZOOM]`.
 - `x/y` are clamped so the map never fully leaves the viewport (user always sees part of it).
+
+## Run-State Visual Effects
+
+When the user submits a task via the Agent Panel, the run lifecycle is connected to the 2D world in real time, producing two visual effects on the targeted agent:
+
+### Pulse ring (run is `running`)
+
+A coloured ring drawn around the agent's head pulses rhythmically while the run is executing.
+
+- **Colour:** agent's own colour
+- **Frequency:** 2.5 rad/s (`PULSE_FREQ`)
+- **Radius:** `HEAD_R + 7 ± 3 px` (sinusoidal oscillation)
+- **Alpha:** `0.45 ± 0.25` (sinusoidal oscillation)
+- Rendered _behind_ the head so it does not obscure the figure
+
+### Completion glow (run just `completed`)
+
+A bright white expanding ring flashes and fades out when a run completes.
+
+- **Duration:** 1 500 ms (`GLOW_DURATION_MS`)
+- **Expansion:** radius grows from `HEAD_R + 5 px` to `HEAD_R + 33 px`
+- **Alpha:** fades linearly from `0.85` to `0`
+- **Stroke width:** decreases from `3 px` to `1 px`
+- After `GLOW_DURATION_MS` the effect is cleared and no longer rendered
+
+### Data flow
+
+```
+User submits task (AgentPanel)
+  └─ Grid2D.handleRunTask()
+       └─ RunEngine.createRun() + startRun()
+            ├─ run:started  → agentRunInfoRef[agentId].runState = 'running'
+            └─ run:completed → agentRunInfoRef[agentId].completionStart = Date.now()
+
+pixi ticker (every frame)
+  └─ reads agentRunInfoRef[id]
+       ├─ accumulates runTime while running
+       ├─ computes completionAge from completionStart
+       └─ drawStickFigure(gfx, state, selected, runTime, completionAge)
+            ├─ calcPulseRing(runTime, HEAD_R)   → ring params
+            └─ calcCompletionGlow(completionAge) → glow params
+```
+
+### Pure animation helpers (`agent-run-effects.ts`)
+
+| Function | Input | Output |
+|---|---|---|
+| `calcPulseRing(runTime, headR)` | seconds elapsed, head radius | `{ radiusOffset, alpha }` |
+| `calcCompletionGlow(completionAge, duration?)` | ms since completion | `{ active, radiusOffset, alpha, strokeWidth }` |
+
+These functions have no pixi.js dependency and are covered by unit tests in `tests/agent-run-effects.test.ts`.
 
 ## Run Engine
 
