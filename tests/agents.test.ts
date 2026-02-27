@@ -4,7 +4,9 @@ import {
   createAgentState,
   updateAgent,
   hitTestAgent,
+  agentInRect,
   AGENT_HIT_RADIUS,
+  WorldRect,
 } from '../app/components/agent-logic'
 import { MAP_CONFIG } from '../app/components/grid-config'
 
@@ -173,5 +175,73 @@ describe('hitTestAgent', () => {
     expect(hitTestAgent(state, state.x - r, state.y)).toBe(true)
     expect(hitTestAgent(state, state.x, state.y + r)).toBe(true)
     expect(hitTestAgent(state, state.x, state.y - r)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// agentInRect
+// ---------------------------------------------------------------------------
+
+describe('agentInRect', () => {
+  function makeRect(x1: number, y1: number, x2: number, y2: number): WorldRect {
+    return { x1, y1, x2, y2 }
+  }
+
+  it('returns true when agent centre is inside the rect', () => {
+    const state = createAgentState(AGENTS[0])
+    const rect = makeRect(state.x - 50, state.y - 50, state.x + 50, state.y + 50)
+    expect(agentInRect(state, rect)).toBe(true)
+  })
+
+  it('returns true when agent centre is exactly on the rect boundary', () => {
+    const state = createAgentState(AGENTS[0])
+    const rect = makeRect(state.x, state.y, state.x + 100, state.y + 100)
+    expect(agentInRect(state, rect)).toBe(true)
+  })
+
+  it('returns false when agent is to the left of the rect', () => {
+    const state = createAgentState(AGENTS[0])
+    const rect = makeRect(state.x + 10, state.y - 50, state.x + 100, state.y + 50)
+    expect(agentInRect(state, rect)).toBe(false)
+  })
+
+  it('returns false when agent is to the right of the rect', () => {
+    const state = createAgentState(AGENTS[0])
+    const rect = makeRect(state.x - 100, state.y - 50, state.x - 10, state.y + 50)
+    expect(agentInRect(state, rect)).toBe(false)
+  })
+
+  it('returns false when agent is above the rect', () => {
+    const state = createAgentState(AGENTS[0])
+    const rect = makeRect(state.x - 50, state.y + 10, state.x + 50, state.y + 100)
+    expect(agentInRect(state, rect)).toBe(false)
+  })
+
+  it('returns false when agent is below the rect', () => {
+    const state = createAgentState(AGENTS[0])
+    const rect = makeRect(state.x - 50, state.y - 100, state.x + 50, state.y - 10)
+    expect(agentInRect(state, rect)).toBe(false)
+  })
+
+  it('returns false for a zero-size rect that does not overlap the agent', () => {
+    const state = createAgentState(AGENTS[0])
+    const rect = makeRect(state.x + 100, state.y + 100, state.x + 100, state.y + 100)
+    expect(agentInRect(state, rect)).toBe(false)
+  })
+
+  it('correctly selects only agents whose centres fall within the rect', () => {
+    // Two agents at known positions
+    const def0 = AGENTS[0]
+    const def1 = AGENTS[1]
+    const s0 = createAgentState(def0)
+    const s1 = createAgentState(def1)
+
+    // Rect that tightly wraps agent 0 but excludes agent 1
+    const rect = makeRect(s0.x - 10, s0.y - 10, s0.x + 10, s0.y + 10)
+    expect(agentInRect(s0, rect)).toBe(true)
+    // Only expect false if agents are not coincident
+    if (Math.abs(s0.x - s1.x) > 10 || Math.abs(s0.y - s1.y) > 10) {
+      expect(agentInRect(s1, rect)).toBe(false)
+    }
   })
 })

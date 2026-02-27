@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import * as PIXI from 'pixi.js'
 import { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
 import { AGENTS } from './agents-config'
-import { AgentState, createAgentState, updateAgent, hitTestAgent } from './agent-logic'
+import { AgentState, createAgentState, updateAgent, hitTestAgent, agentInRect, WorldRect } from './agent-logic'
 import { drawStickFigure } from './agent-drawing'
 
 // Re-export so external code can import from either location
@@ -47,13 +47,21 @@ export default function Grid2D() {
 
   // Agent system refs (updated imperatively — no React re-renders)
   const agentsRef = useRef<Map<string, AgentEntry>>(new Map())
-  const selectedAgentIdRef = useRef<string | null>(null)
+  // Multi-selection: a Set of selected agent IDs
+  const selectedAgentIdsRef = useRef<Set<string>>(new Set())
   const followingAgentRef = useRef<string | null>(null)
   const menuDivRef = useRef<HTMLDivElement | null>(null)
 
+  // Rectangle selection refs
+  const isRectSelectingRef = useRef(false)
+  const rectSelectStartRef = useRef<{ x: number; y: number } | null>(null)
+  const rectSelectEndRef = useRef<{ x: number; y: number } | null>(null)
+  const selectionRectGfxRef = useRef<PIXI.Graphics | null>(null)
+
   const [zoomPct, setZoomPct] = useState(25)
   const [mouseCell, setMouseCell] = useState<{ col: number; row: number } | null>(null)
-  const [selectedAgent, setSelectedAgent] = useState<SelectedAgentInfo | null>(null)
+  // Array of selected agents (empty = nothing selected, 1 = single, 2+ = multi)
+  const [selectedAgents, setSelectedAgents] = useState<SelectedAgentInfo[]>([])
 
   // -------------------------------------------------------------------------
   // Draw static world (grid + objects)
@@ -189,6 +197,11 @@ export default function Grid2D() {
       app.stage.addChild(world)
       worldRef.current = world
 
+      // Selection rect overlay — lives on stage (screen space), above world
+      const selectionRectGfx = new PIXI.Graphics()
+      app.stage.addChild(selectionRectGfx)
+      selectionRectGfxRef.current = selectionRectGfx
+
       // Centre map at 25 % zoom
       const { w: mapW, h: mapH } = worldSize()
       const initialZoom = 0.25
@@ -235,6 +248,18 @@ export default function Grid2D() {
       }
       agentsRef.current = agentsMap
 
+      /** Sync selectedAgentIdsRef → React state (for UI re-render) */
+      function syncSelectionState() {
+        const infos: SelectedAgentInfo[] = []
+        for (const id of selectedAgentIdsRef.current) {
+          const entry = agentsRef.current.get(id)
+          if (entry) {
+            infos.push({ id, name: entry.state.name, role: entry.state.role })
+          }
+        }
+        setSelectedAgents(infos)
+      }
+
       // ---- Ticker: animate agents each frame ----
       app.ticker.add((ticker: PIXI.Ticker) => {
         const { w: mW, h: mH } = worldSize()
@@ -243,10 +268,10 @@ export default function Grid2D() {
           entry.state = updateAgent(entry.state, ticker.deltaMS, mW, mH)
           entry.container.x = entry.state.x
           entry.container.y = entry.state.y
-          drawStickFigure(entry.gfx, entry.state, selectedAgentIdRef.current === id)
+          drawStickFigure(entry.gfx, entry.state, selectedAgentIdsRef.current.has(id))
         }
 
-        // Follow selected agent (centre view on it)
+        // Follow selected agent (centre view on first selected)
         if (followingAgentRef.current) {
           const followEntry = agentsRef.current.get(followingAgentRef.current)
           if (followEntry) {
@@ -258,9 +283,11 @@ export default function Grid2D() {
           }
         }
 
-        // Update menu position imperatively (no React re-render needed)
-        if (selectedAgentIdRef.current && menuDivRef.current) {
-          const entry = agentsRef.current.get(selectedAgentIdRef.current)
+        // Update single-agent menu position imperatively (no React re-render needed)
+        const selectedIds = selectedAgentIdsRef.current
+        if (selectedIds.size === 1 && menuDivRef.current) {
+          const [singleId] = selectedIds
+          const entry = agentsRef.current.get(singleId)
           if (entry) {
             const sx = entry.state.x * view.current.zoom + view.current.x
             const sy = entry.state.y * view.current.zoom + view.current.y
@@ -268,26 +295,62 @@ export default function Grid2D() {
             menuDivRef.current.style.top = `${sy}px`
           }
         }
+
+        // Draw selection rect overlay (screen space)
+        const selGfx = selectionRectGfxRef.current
+        if (selGfx) {
+          selGfx.clear()
+          if (
+            isRectSelectingRef.current &&
+            rectSelectStartRef.current &&
+            rectSelectEndRef.current
+          ) {
+            const { x: x1, y: y1 } = rectSelectStartRef.current
+            const { x: x2, y: y2 } = rectSelectEndRef.current
+            const rx = Math.min(x1, x2)
+            const ry = Math.min(y1, y2)
+            const rw = Math.abs(x2 - x1)
+            const rh = Math.abs(y2 - y1)
+            selGfx.rect(rx, ry, rw, rh)
+            selGfx.fill({ color: 0x6366f1, alpha: 0.15 })
+            selGfx.rect(rx, ry, rw, rh)
+            selGfx.stroke({ color: 0x6366f1, width: 1.5, alpha: 0.85 })
+          }
+        }
       })
 
-      // ---- Pan ----
+      // ---- Pointer events ----
       let pointerDownX = 0
       let pointerDownY = 0
 
       app.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
         pointerDownX = e.clientX
         pointerDownY = e.clientY
-        dragging.current = true
-        lastPtr.current = { x: e.clientX, y: e.clientY }
         app.canvas.setPointerCapture(e.pointerId)
-        ;(app.canvas as HTMLCanvasElement).style.cursor = 'grabbing'
+
+        const canvasRect = app.canvas.getBoundingClientRect()
+        const sx = e.clientX - canvasRect.left
+        const sy = e.clientY - canvasRect.top
+
+        if (e.shiftKey) {
+          // Enter rectangle selection mode
+          isRectSelectingRef.current = true
+          rectSelectStartRef.current = { x: sx, y: sy }
+          rectSelectEndRef.current = { x: sx, y: sy }
+          ;(app.canvas as HTMLCanvasElement).style.cursor = 'crosshair'
+        } else {
+          // Pan mode
+          dragging.current = true
+          lastPtr.current = { x: e.clientX, y: e.clientY }
+          ;(app.canvas as HTMLCanvasElement).style.cursor = 'grabbing'
+        }
       })
 
       app.canvas.addEventListener('pointermove', (e: PointerEvent) => {
         // Update hovered-cell display
-        const rect = app.canvas.getBoundingClientRect()
-        const sx = e.clientX - rect.left
-        const sy = e.clientY - rect.top
+        const canvasRect = app.canvas.getBoundingClientRect()
+        const sx = e.clientX - canvasRect.left
+        const sy = e.clientY - canvasRect.top
         const wx = (sx - view.current.x) / view.current.zoom
         const wy = (sy - view.current.y) / view.current.zoom
         const col = Math.floor(wx / MAP_CONFIG.CELL_SIZE)
@@ -295,6 +358,12 @@ export default function Grid2D() {
         const inBounds =
           col >= 0 && col < MAP_CONFIG.COLS && row >= 0 && row < MAP_CONFIG.ROWS
         setMouseCell(inBounds ? { col, row } : null)
+
+        if (isRectSelectingRef.current) {
+          // Update rect end point
+          rectSelectEndRef.current = { x: sx, y: sy }
+          return
+        }
 
         if (!dragging.current) return
         const dx = e.clientX - lastPtr.current.x
@@ -310,38 +379,95 @@ export default function Grid2D() {
         const movedY = e.clientY - pointerDownY
         const isClick = movedX * movedX + movedY * movedY < 25 // < 5 px
 
-        if (isClick) {
-          const rect = app.canvas.getBoundingClientRect()
-          const sx = e.clientX - rect.left
-          const sy = e.clientY - rect.top
-          const wx = (sx - view.current.x) / view.current.zoom
-          const wy = (sy - view.current.y) / view.current.zoom
+        const canvasRect = app.canvas.getBoundingClientRect()
+        const sx = e.clientX - canvasRect.left
+        const sy = e.clientY - canvasRect.top
+        const wx = (sx - view.current.x) / view.current.zoom
+        const wy = (sy - view.current.y) / view.current.zoom
 
-          let hitId: string | null = null
-          for (const [id, entry] of agentsRef.current) {
-            if (hitTestAgent(entry.state, wx, wy)) {
-              hitId = id
-              break
+        if (isRectSelectingRef.current) {
+          if (!isClick) {
+            // Commit rectangle selection
+            const start = rectSelectStartRef.current!
+            const worldRect: WorldRect = {
+              x1: (Math.min(start.x, sx) - view.current.x) / view.current.zoom,
+              y1: (Math.min(start.y, sy) - view.current.y) / view.current.zoom,
+              x2: (Math.max(start.x, sx) - view.current.x) / view.current.zoom,
+              y2: (Math.max(start.y, sy) - view.current.y) / view.current.zoom,
             }
+
+            // Shift+drag adds to existing selection; plain-drag replaces it
+            const newIds: Set<string> = e.shiftKey
+              ? new Set(selectedAgentIdsRef.current)
+              : new Set()
+
+            for (const [id, entry] of agentsRef.current) {
+              if (agentInRect(entry.state, worldRect)) {
+                newIds.add(id)
+              }
+            }
+            selectedAgentIdsRef.current = newIds
+            followingAgentRef.current = null
+            syncSelectionState()
           }
 
-          if (hitId) {
-            selectedAgentIdRef.current = hitId
-            followingAgentRef.current = null // stop following on new selection
-            const entry = agentsRef.current.get(hitId)!
-            setSelectedAgent({ id: hitId, name: entry.state.name, role: entry.state.role })
-          } else {
-            selectedAgentIdRef.current = null
-            setSelectedAgent(null)
-          }
+          // Reset rect state
+          isRectSelectingRef.current = false
+          rectSelectStartRef.current = null
+          rectSelectEndRef.current = null
+          ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
+          dragging.current = false
+          return
         }
 
         dragging.current = false
         ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
+
+        if (!isClick) return
+
+        // --- Click handling ---
+        let hitId: string | null = null
+        for (const [id, entry] of agentsRef.current) {
+          if (hitTestAgent(entry.state, wx, wy)) {
+            hitId = id
+            break
+          }
+        }
+
+        if (e.shiftKey) {
+          // Shift+click: toggle the clicked agent without clearing others
+          if (hitId) {
+            const newIds = new Set(selectedAgentIdsRef.current)
+            if (newIds.has(hitId)) {
+              newIds.delete(hitId)
+            } else {
+              newIds.add(hitId)
+            }
+            selectedAgentIdsRef.current = newIds
+            followingAgentRef.current = null
+            syncSelectionState()
+          }
+          // Shift+click on empty space: preserve current selection
+        } else {
+          // Regular click
+          if (hitId) {
+            selectedAgentIdsRef.current = new Set([hitId])
+            followingAgentRef.current = null
+            syncSelectionState()
+          } else {
+            // Click on empty: deselect all
+            selectedAgentIdsRef.current = new Set()
+            followingAgentRef.current = null
+            setSelectedAgents([])
+          }
+        }
       })
 
       app.canvas.addEventListener('pointerleave', () => {
         dragging.current = false
+        isRectSelectingRef.current = false
+        rectSelectStartRef.current = null
+        rectSelectEndRef.current = null
         setMouseCell(null)
         ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
       })
@@ -411,20 +537,22 @@ export default function Grid2D() {
   // ---- Agent menu handlers ----
 
   const closeMenu = () => {
-    selectedAgentIdRef.current = null
+    selectedAgentIdsRef.current = new Set()
     followingAgentRef.current = null
-    setSelectedAgent(null)
+    setSelectedAgents([])
   }
 
-  const followAgent = () => {
-    if (selectedAgent) {
-      followingAgentRef.current = selectedAgent.id
-    }
+  const followAgent = (id: string) => {
+    followingAgentRef.current = id
   }
 
   const stopFollowing = () => {
     followingAgentRef.current = null
   }
+
+  // Derived helpers
+  const singleSelected = selectedAgents.length === 1 ? selectedAgents[0] : null
+  const multiSelected = selectedAgents.length > 1 ? selectedAgents : null
 
   // -------------------------------------------------------------------------
   // Render
@@ -442,7 +570,7 @@ export default function Grid2D() {
         </p>
         <p className="text-xs text-slate-500 mt-0.5">
           {MAP_CONFIG.COLS} × {MAP_CONFIG.ROWS} cells &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp;
-          scroll to zoom &nbsp;·&nbsp; click agents
+          scroll to zoom &nbsp;·&nbsp; click agents &nbsp;·&nbsp; shift+drag to select
         </p>
       </div>
 
@@ -456,8 +584,8 @@ export default function Grid2D() {
         {mouseCell ? `${mouseCell.col}, ${mouseCell.row}` : '—'}
       </div>
 
-      {/* Agent context menu — positioned imperatively via menuDivRef */}
-      {selectedAgent && (
+      {/* ── Single-agent context menu — floats above the selected agent ── */}
+      {singleSelected && (
         <div
           ref={menuDivRef}
           className="absolute z-20 pointer-events-auto"
@@ -467,7 +595,7 @@ export default function Grid2D() {
             {/* Header */}
             <div className="flex items-center justify-between mb-0.5">
               <span className="text-white font-bold text-sm leading-tight">
-                {selectedAgent.name}
+                {singleSelected.name}
               </span>
               <button
                 onClick={closeMenu}
@@ -477,12 +605,12 @@ export default function Grid2D() {
                 ✕
               </button>
             </div>
-            <div className="text-indigo-400 text-[11px] font-mono mb-3">{selectedAgent.role}</div>
+            <div className="text-indigo-400 text-[11px] font-mono mb-3">{singleSelected.role}</div>
 
             {/* Actions */}
             <div className="flex flex-col gap-1.5">
               <button
-                onClick={followAgent}
+                onClick={() => followAgent(singleSelected.id)}
                 className="text-xs bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg transition-colors text-left font-medium"
               >
                 Follow
@@ -505,6 +633,67 @@ export default function Grid2D() {
           {/* Down-pointing arrow */}
           <div className="flex justify-center -mt-px overflow-hidden h-3">
             <div className="w-4 h-4 bg-slate-800 border-b border-r border-slate-600 rotate-45 translate-y-[-50%]" />
+          </div>
+        </div>
+      )}
+
+      {/* ── Multi-agent selection panel ── */}
+      {multiSelected && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+          <div className="bg-slate-800/95 backdrop-blur-sm border border-indigo-500/60 rounded-xl shadow-2xl p-4 min-w-[220px] max-w-xs">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-indigo-300 font-bold text-sm tracking-wide">
+                {multiSelected.length} agents selected
+              </span>
+              <button
+                onClick={closeMenu}
+                className="text-slate-400 hover:text-white text-xs ml-2 leading-none w-5 h-5 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
+                aria-label="Dismiss selection"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Agent list */}
+            <ul className="flex flex-col gap-1.5 mb-3">
+              {multiSelected.map((agent) => {
+                const agentDef = AGENTS.find((a) => a.id === agent.id)
+                const colorHex = agentDef
+                  ? `#${agentDef.color.toString(16).padStart(6, '0')}`
+                  : '#94a3b8'
+                return (
+                  <li
+                    key={agent.id}
+                    className="flex items-center gap-2 bg-slate-700/60 rounded-lg px-2.5 py-1.5"
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ background: colorHex }}
+                    />
+                    <span className="text-white text-xs font-medium leading-tight">
+                      {agent.name}
+                    </span>
+                    <span className="text-slate-400 text-[10px] font-mono ml-auto truncate max-w-[80px]">
+                      {agent.role}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+
+            {/* Actions */}
+            <button
+              onClick={closeMenu}
+              className="w-full text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1.5 rounded-lg transition-colors text-center"
+            >
+              Dismiss all
+            </button>
+          </div>
+
+          {/* Up-pointing arrow */}
+          <div className="flex justify-center -mb-px overflow-hidden h-3 rotate-180">
+            <div className="w-4 h-4 bg-slate-800 border-b border-r border-indigo-500/60 rotate-45 translate-y-[-50%]" />
           </div>
         </div>
       )}

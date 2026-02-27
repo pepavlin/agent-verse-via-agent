@@ -19,7 +19,7 @@ app/
     agent-drawing.ts    – Stick-figure drawing via PIXI.Graphics
 tests/
   grid.test.ts          – Unit tests for config, worldSize(), and objects
-  agents.test.ts        – Unit tests for agent logic and hit testing
+  agents.test.ts        – Unit tests for agent logic, hit testing, and rect selection
   setup.ts              – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
@@ -48,9 +48,13 @@ docs/
 | `dragging` | Whether the user is currently panning |
 | `lastPtr` | Last pointer position for delta calculation |
 | `agentsRef` | Map of `id → { state, gfx, container }` for all walking agents |
-| `selectedAgentIdRef` | ID of the currently selected agent (or null) |
+| `selectedAgentIdsRef` | `Set<string>` of currently selected agent IDs |
 | `followingAgentRef` | ID of the agent the camera is following (or null) |
-| `menuDivRef` | Ref to the agent context-menu DOM element for imperative positioning |
+| `menuDivRef` | Ref to the single-agent context-menu DOM element for imperative positioning |
+| `isRectSelectingRef` | Whether a rectangle selection drag is in progress |
+| `rectSelectStartRef` | Screen-space start point of the selection rect |
+| `rectSelectEndRef` | Screen-space current end point of the selection rect |
+| `selectionRectGfxRef` | `PIXI.Graphics` overlay (on stage, screen space) for the selection rect |
 
 ### State (React – triggers re-render)
 
@@ -58,7 +62,7 @@ docs/
 |---|---|
 | `zoomPct` | Displayed zoom percentage in the HUD |
 | `mouseCell` | Current hovered cell `{ col, row }` or null |
-| `selectedAgent` | `{ id, name, role }` of the clicked agent — controls menu visibility |
+| `selectedAgents` | `SelectedAgentInfo[]` — empty = none, 1 = single, 2+ = multi |
 
 ### Rendering
 
@@ -101,13 +105,30 @@ y = +30  feet / shadow
 
 Legs and arms swing with `sin(walkTime)`, amplitude 9 px, only when the agent is moving.
 
-### Click detection
+### Selection system
 
-On `pointerup`, if the pointer moved < 5 px since `pointerdown`, it is treated as a click. The click position is converted from screen → world coordinates and compared to each agent's position via `hitTestAgent` (circular radius 28 px).
+The grid supports three ways to select agents:
 
-### Context menu
+| Interaction | Result |
+|---|---|
+| Click on agent | Single-select that agent (deselects others) |
+| Shift + click on agent | Toggle that agent in/out of the current selection |
+| Shift + drag on empty space | Rectangle selection — selects all agents whose centre falls within the drawn rect |
+| Click on empty space | Deselects all agents |
 
-The menu is a React `div` rendered when `selectedAgent` is non-null. Its screen position is updated imperatively via `menuDivRef.current.style` inside the ticker — no React re-renders occur per frame. Actions available: **Follow** (camera tracks agent), **Stop following**, **Dismiss** (close menu).
+**Click detection:** On `pointerup`, if the pointer moved < 5 px since `pointerdown`, it is treated as a click. The click position is converted from screen → world coordinates and compared to each agent's position via `hitTestAgent` (circular radius 28 px).
+
+**Rectangle selection:** When `Shift` is held on `pointerdown`, `isRectSelectingRef` is set and the start point recorded. On each `pointermove` the end point is updated. The ticker draws a semi-transparent indigo rect in screen space via `selectionRectGfxRef` (a `PIXI.Graphics` on `app.stage`). On `pointerup`, the rect corners are converted to world coords and `agentInRect` tests each agent.
+
+**Visual feedback:** `drawStickFigure` receives `selected = true` for every agent whose ID is in `selectedAgentIdsRef`. Selected agents show a white glow ring around their head.
+
+### Context menus
+
+| Selection size | UI |
+|---|---|
+| 0 agents | No menu |
+| 1 agent | Floating panel anchored above the agent (position updated imperatively via `menuDivRef` in ticker). Actions: Follow, Stop following, Dismiss. |
+| 2+ agents | Fixed panel centred at bottom of screen listing all selected agents with name, role and colour dot. Action: Dismiss all. |
 
 ### Coordinate Mapping
 

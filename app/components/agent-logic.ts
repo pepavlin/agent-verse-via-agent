@@ -118,3 +118,26 @@ export function hitTestAgent(state: AgentState, worldX: number, worldY: number):
   const dy = worldY - state.y
   return dx * dx + dy * dy < AGENT_HIT_RADIUS * AGENT_HIT_RADIUS
 }
+
+// ---------------------------------------------------------------------------
+// Rect selection
+// ---------------------------------------------------------------------------
+
+/**
+ * An axis-aligned rectangle in world pixels.
+ * x1 <= x2 and y1 <= y2 (pre-normalized).
+ */
+export interface WorldRect {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
+/**
+ * Returns true if the agent's world position falls within the given rect.
+ * Uses the agent centre point — not the hit radius.
+ */
+export function agentInRect(state: AgentState, rect: WorldRect): boolean {
+  return state.x >= rect.x1 && state.x <= rect.x2 && state.y >= rect.y1 && state.y <= rect.y2
+}
