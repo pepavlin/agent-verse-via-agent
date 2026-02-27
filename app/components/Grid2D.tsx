@@ -3,9 +3,10 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import * as PIXI from 'pixi.js'
 import { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
-import { AGENTS } from './agents-config'
+import { AGENTS, type AgentDef } from './agents-config'
 import { AgentState, createAgentState, updateAgent, hitTestAgent, agentInRect, WorldRect } from './agent-logic'
 import { drawStickFigure } from './agent-drawing'
+import AgentPanel, { type RunTaskPayload, type EditSavePayload } from './AgentPanel'
 
 // Re-export so external code can import from either location
 export { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
@@ -50,7 +51,6 @@ export default function Grid2D() {
   // Multi-selection: a Set of selected agent IDs
   const selectedAgentIdsRef = useRef<Set<string>>(new Set())
   const followingAgentRef = useRef<string | null>(null)
-  const menuDivRef = useRef<HTMLDivElement | null>(null)
 
   // Rectangle selection refs
   const isRectSelectingRef = useRef(false)
@@ -62,6 +62,11 @@ export default function Grid2D() {
   const [mouseCell, setMouseCell] = useState<{ col: number; row: number } | null>(null)
   // Array of selected agents (empty = nothing selected, 1 = single, 2+ = multi)
   const [selectedAgents, setSelectedAgents] = useState<SelectedAgentInfo[]>([])
+
+  // Agent Panel state
+  const [panelAgentId, setPanelAgentId] = useState<string | null>(null)
+  // Mutable copy of agent definitions (allows editing name/goal/persona at runtime)
+  const [agentDefs, setAgentDefs] = useState<AgentDef[]>(AGENTS)
 
   // -------------------------------------------------------------------------
   // Draw static world (grid + objects)
@@ -283,19 +288,6 @@ export default function Grid2D() {
           }
         }
 
-        // Update single-agent menu position imperatively (no React re-render needed)
-        const selectedIds = selectedAgentIdsRef.current
-        if (selectedIds.size === 1 && menuDivRef.current) {
-          const [singleId] = selectedIds
-          const entry = agentsRef.current.get(singleId)
-          if (entry) {
-            const sx = entry.state.x * view.current.zoom + view.current.x
-            const sy = entry.state.y * view.current.zoom + view.current.y
-            menuDivRef.current.style.left = `${sx}px`
-            menuDivRef.current.style.top = `${sy}px`
-          }
-        }
-
         // Draw selection rect overlay (screen space)
         const selGfx = selectionRectGfxRef.current
         if (selGfx) {
@@ -321,8 +313,8 @@ export default function Grid2D() {
 
       // ---- Pointer events ----
       // Controls:
-      //   Left button drag  → rectangle selection
-      //   Left button click → select / deselect agent
+      //   Left button drag   → rectangle selection
+      //   Left button click  → open Agent Panel on agent hit; deselect on empty
       //   Middle button drag → pan camera
       //   Scroll wheel       → zoom
       let pointerDownX = 0
@@ -440,6 +432,8 @@ export default function Grid2D() {
               selectedAgentIdsRef.current = new Set([hitId])
               followingAgentRef.current = null
               syncSelectionState()
+              // Open Agent Panel for single-agent click
+              setPanelAgentId(hitId)
             } else {
               selectedAgentIdsRef.current = new Set()
               followingAgentRef.current = null
@@ -525,25 +519,48 @@ export default function Grid2D() {
     applyView()
   }
 
-  // ---- Agent menu handlers ----
+  // ---- Multi-selection panel handler ----
 
-  const closeMenu = () => {
+  const closeMultiSelection = () => {
     selectedAgentIdsRef.current = new Set()
     followingAgentRef.current = null
     setSelectedAgents([])
   }
 
-  const followAgent = (id: string) => {
-    followingAgentRef.current = id
+  // ---- Agent Panel handlers ----
+
+  const handlePanelClose = () => {
+    setPanelAgentId(null)
+    selectedAgentIdsRef.current = new Set()
+    followingAgentRef.current = null
+    setSelectedAgents([])
   }
 
-  const stopFollowing = () => {
-    followingAgentRef.current = null
+  const handleRunTask = (payload: RunTaskPayload) => {
+    // Placeholder: log task submission. Connect to backend task runner here.
+    console.log('[AgentPanel] Run task:', payload)
+    handlePanelClose()
+  }
+
+  const handleEditSave = (payload: EditSavePayload) => {
+    // Update mutable agent definitions
+    setAgentDefs((prev) =>
+      prev.map((def) =>
+        def.id === payload.agentId
+          ? { ...def, name: payload.name, goal: payload.goal, persona: payload.persona }
+          : def,
+      ),
+    )
+    // Propagate name/goal/persona into live agent state
+    const entry = agentsRef.current.get(payload.agentId)
+    if (entry) {
+      entry.state = { ...entry.state, name: payload.name, goal: payload.goal, persona: payload.persona }
+    }
   }
 
   // Derived helpers
-  const singleSelected = selectedAgents.length === 1 ? selectedAgents[0] : null
   const multiSelected = selectedAgents.length > 1 ? selectedAgents : null
+  const panelAgentDef = panelAgentId ? agentDefs.find((d) => d.id === panelAgentId) ?? null : null
 
   // -------------------------------------------------------------------------
   // Render
@@ -575,58 +592,13 @@ export default function Grid2D() {
         {mouseCell ? `${mouseCell.col}, ${mouseCell.row}` : '—'}
       </div>
 
-      {/* ── Single-agent context menu — floats above the selected agent ── */}
-      {singleSelected && (
-        <div
-          ref={menuDivRef}
-          className="absolute z-20 pointer-events-auto"
-          style={{ transform: 'translate(-50%, calc(-100% - 44px))' }}
-        >
-          <div className="bg-slate-800/95 backdrop-blur-sm border border-slate-600 rounded-xl shadow-2xl p-3 min-w-[168px]">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-white font-bold text-sm leading-tight">
-                {singleSelected.name}
-              </span>
-              <button
-                onClick={closeMenu}
-                className="text-slate-400 hover:text-white text-xs ml-2 leading-none w-5 h-5 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
-                aria-label="Close menu"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="text-indigo-400 text-[11px] font-mono mb-3">{singleSelected.role}</div>
-
-            {/* Actions */}
-            <div className="flex flex-col gap-1.5">
-              <button
-                onClick={() => followAgent(singleSelected.id)}
-                className="text-xs bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg transition-colors text-left font-medium"
-              >
-                Follow
-              </button>
-              <button
-                onClick={stopFollowing}
-                className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1.5 rounded-lg transition-colors text-left"
-              >
-                Stop following
-              </button>
-              <button
-                onClick={closeMenu}
-                className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-400 px-2.5 py-1.5 rounded-lg transition-colors text-left"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-
-          {/* Down-pointing arrow */}
-          <div className="flex justify-center -mt-px overflow-hidden h-3">
-            <div className="w-4 h-4 bg-slate-800 border-b border-r border-slate-600 rotate-45 translate-y-[-50%]" />
-          </div>
-        </div>
-      )}
+      {/* ── Agent Panel (single-agent click) ── */}
+      <AgentPanel
+        agentDef={panelAgentDef}
+        onClose={handlePanelClose}
+        onRunTask={handleRunTask}
+        onEditSave={handleEditSave}
+      />
 
       {/* ── Multi-agent selection panel ── */}
       {multiSelected && (
@@ -638,7 +610,7 @@ export default function Grid2D() {
                 {multiSelected.length} agents selected
               </span>
               <button
-                onClick={closeMenu}
+                onClick={closeMultiSelection}
                 className="text-slate-400 hover:text-white text-xs ml-2 leading-none w-5 h-5 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
                 aria-label="Dismiss selection"
               >
@@ -649,7 +621,7 @@ export default function Grid2D() {
             {/* Agent list */}
             <ul className="flex flex-col gap-1.5 mb-3">
               {multiSelected.map((agent) => {
-                const agentDef = AGENTS.find((a) => a.id === agent.id)
+                const agentDef = agentDefs.find((a) => a.id === agent.id)
                 const colorHex = agentDef
                   ? `#${agentDef.color.toString(16).padStart(6, '0')}`
                   : '#94a3b8'
@@ -675,7 +647,7 @@ export default function Grid2D() {
 
             {/* Actions */}
             <button
-              onClick={closeMenu}
+              onClick={closeMultiSelection}
               className="w-full text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1.5 rounded-lg transition-colors text-center"
             >
               Dismiss all
@@ -733,7 +705,7 @@ export default function Grid2D() {
         <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2 mt-3">
           Agents
         </p>
-        {AGENTS.map((agent) => (
+        {agentDefs.map((agent) => (
           <div key={agent.id} className="flex items-center gap-2 mb-1 last:mb-0">
             <div
               className="w-3 h-3 rounded-full flex-shrink-0"

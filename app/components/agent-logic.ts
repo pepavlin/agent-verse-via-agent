@@ -33,6 +33,10 @@ export interface AgentState {
   facingLeft: boolean
   /** Seconds remaining before the agent picks a new target */
   idleTimer: number
+  /** What this agent is trying to achieve */
+  goal?: string
+  /** How this agent behaves / personality description */
+  persona?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +60,8 @@ export function createAgentState(def: AgentDef): AgentState {
     walkTime: Math.random() * Math.PI * 2,
     facingLeft: false,
     idleTimer: Math.random() * 3,
+    goal: def.goal,
+    persona: def.persona,
   }
 }
 

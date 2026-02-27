@@ -12,6 +12,10 @@ export interface AgentDef {
   startCol: number
   /** Starting row (0-based) */
   startRow: number
+  /** What this agent is trying to achieve */
+  goal?: string
+  /** How this agent behaves / personality description */
+  persona?: string
 }
 
 export const AGENTS: AgentDef[] = [
@@ -22,6 +26,8 @@ export const AGENTS: AgentDef[] = [
     color: 0xff6b6b,
     startCol: 5,
     startRow: 5,
+    goal: 'Map all unexplored areas of the grid',
+    persona: 'Curious and bold. Always the first to venture into unknown territory.',
   },
   {
     id: 'agent-bob',
@@ -30,6 +36,8 @@ export const AGENTS: AgentDef[] = [
     color: 0x4ecdc4,
     startCol: 20,
     startRow: 15,
+    goal: 'Construct and maintain structures across the grid',
+    persona: 'Methodical and reliable. Prefers a solid plan before starting any project.',
   },
   {
     id: 'agent-carol',
@@ -38,6 +46,8 @@ export const AGENTS: AgentDef[] = [
     color: 0xffe66d,
     startCol: 35,
     startRow: 30,
+    goal: 'Gather intelligence and report back quickly',
+    persona: 'Fast and observant. Never lingers — always on the move.',
   },
   {
     id: 'agent-dave',
@@ -46,5 +56,7 @@ export const AGENTS: AgentDef[] = [
     color: 0xa78bfa,
     startCol: 12,
     startRow: 38,
+    goal: 'Protect key locations and prevent intrusions',
+    persona: 'Steadfast and vigilant. Takes responsibility seriously and never abandons a post.',
   },
 ]
