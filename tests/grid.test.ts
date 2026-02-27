@@ -46,8 +46,8 @@ describe('worldSize', () => {
 // ---------------------------------------------------------------------------
 
 describe('GRID_OBJECTS', () => {
-  it('contains at least one object', () => {
-    expect(GRID_OBJECTS.length).toBeGreaterThan(0)
+  it('is an array', () => {
+    expect(Array.isArray(GRID_OBJECTS)).toBe(true)
   })
 
   it('every object has a unique id', () => {

@@ -35,26 +35,7 @@ export interface GridObject {
   label: string
 }
 
-export const GRID_OBJECTS: GridObject[] = [
-  {
-    id: 'square-1',
-    type: 'square',
-    col: 8,
-    row: 8,
-    color: 0x6366f1,
-    size: 4,
-    label: 'Alpha',
-  },
-  {
-    id: 'circle-1',
-    type: 'circle',
-    col: 30,
-    row: 22,
-    color: 0xf59e0b,
-    size: 4,
-    label: 'Beta',
-  },
-]
+export const GRID_OBJECTS: GridObject[] = []
 
 // ---------------------------------------------------------------------------
 // Utility
