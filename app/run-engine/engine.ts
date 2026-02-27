@@ -1,0 +1,204 @@
+// ---------------------------------------------------------------------------
+// RunEngine — manages the lifecycle of task runs
+// ---------------------------------------------------------------------------
+
+import type {
+  Run,
+  RunStatus,
+  RunEventType,
+  RunEventHandler,
+  RunEngineOptions,
+} from './types'
+import { generateResult } from './results'
+
+/** Agent metadata the engine needs to generate results. */
+export interface AgentMeta {
+  name: string
+  role: string
+}
+
+/** Default random delay: uniform distribution in [minMs, maxMs]. */
+function defaultDelayFn(minMs: number, maxMs: number): number {
+  return minMs + Math.random() * (maxMs - minMs)
+}
+
+/** Generate a unique, time-ordered run ID. */
+function generateId(): string {
+  return `run-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+// ---------------------------------------------------------------------------
+// RunEngine
+// ---------------------------------------------------------------------------
+
+/**
+ * RunEngine manages task run lifecycles.
+ *
+ * Lifecycle:
+ *   createRun()  → Run(status='pending')
+ *   startRun()   → Run(status='running') — schedules completion after 2–6 s
+ *   [timeout]    → Run(status='completed') with generated result text
+ *
+ * Usage:
+ * ```ts
+ * const engine = new RunEngine()
+ *
+ * engine.on('run:completed', (run) => console.log(run.result))
+ *
+ * const run = engine.createRun('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
+ * engine.startRun(run.id)
+ * ```
+ */
+export class RunEngine {
+  private readonly _runs = new Map<string, Run>()
+  private readonly _listeners = new Map<RunEventType, Set<RunEventHandler>>()
+  private readonly _minDelayMs: number
+  private readonly _maxDelayMs: number
+  private readonly _delayFn: (minMs: number, maxMs: number) => number
+  /** Tracks pending timeout handles so they can be cleared if needed. */
+  private readonly _pendingTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+  constructor(options: RunEngineOptions = {}) {
+    this._minDelayMs = options.minDelayMs ?? 2_000
+    this._maxDelayMs = options.maxDelayMs ?? 6_000
+    this._delayFn = options.delayFn ?? defaultDelayFn
+  }
+
+  // -------------------------------------------------------------------------
+  // Public API — create & start
+  // -------------------------------------------------------------------------
+
+  /**
+   * Create a new run in 'pending' state.
+   *
+   * @param agentId         Identifier of the executing agent
+   * @param agentName       Display name used for result generation
+   * @param agentRole       Role label used for result generation
+   * @param taskDescription Plain-language description of the task
+   * @returns               The newly created Run
+   */
+  createRun(
+    agentId: string,
+    agentName: string,
+    agentRole: string,
+    taskDescription: string,
+  ): Run {
+    const run: Run = {
+      id: generateId(),
+      agentId,
+      taskDescription,
+      status: 'pending',
+      createdAt: Date.now(),
+    }
+    // Store agent meta alongside the run for result generation later
+    this._agentMeta.set(run.id, { name: agentName, role: agentRole })
+    this._runs.set(run.id, run)
+    this._emit('run:created', run)
+    return run
+  }
+
+  /**
+   * Transition a pending run to 'running' and schedule its completion.
+   *
+   * @throws Error if the run does not exist or is not in 'pending' state.
+   */
+  startRun(runId: string): void {
+    const run = this._getOrThrow(runId)
+
+    if (run.status !== 'pending') {
+      throw new Error(
+        `Cannot start run "${runId}": expected status 'pending' but got '${run.status}'.`,
+      )
+    }
+
+    const started: Run = { ...run, status: 'running', startedAt: Date.now() }
+    this._runs.set(runId, started)
+    this._emit('run:started', started)
+
+    const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
+    const handle = setTimeout(() => {
+      this._completeRun(runId)
+      this._pendingTimeouts.delete(runId)
+    }, delayMs)
+    this._pendingTimeouts.set(runId, handle)
+  }
+
+  // -------------------------------------------------------------------------
+  // Public API — querying
+  // -------------------------------------------------------------------------
+
+  /** Return the current snapshot of a run, or undefined if not found. */
+  getRun(runId: string): Run | undefined {
+    return this._runs.get(runId)
+  }
+
+  /** Return snapshots of all runs in creation order. */
+  getAllRuns(): Run[] {
+    return Array.from(this._runs.values())
+  }
+
+  /** Return all runs for a given agent. */
+  getRunsByAgent(agentId: string): Run[] {
+    return this.getAllRuns().filter((r) => r.agentId === agentId)
+  }
+
+  // -------------------------------------------------------------------------
+  // Public API — events
+  // -------------------------------------------------------------------------
+
+  /**
+   * Subscribe to a run lifecycle event.
+   *
+   * @returns An unsubscribe function — call it to remove the handler.
+   */
+  on(event: RunEventType, handler: RunEventHandler): () => void {
+    if (!this._listeners.has(event)) {
+      this._listeners.set(event, new Set())
+    }
+    this._listeners.get(event)!.add(handler)
+    return () => this.off(event, handler)
+  }
+
+  /** Remove a previously registered event handler. */
+  off(event: RunEventType, handler: RunEventHandler): void {
+    this._listeners.get(event)?.delete(handler)
+  }
+
+  // -------------------------------------------------------------------------
+  // Private helpers
+  // -------------------------------------------------------------------------
+
+  /** Secondary map that keeps agent meta (name/role) keyed by run ID. */
+  private readonly _agentMeta = new Map<string, AgentMeta>()
+
+  private _completeRun(runId: string): void {
+    const run = this._runs.get(runId)
+    if (!run || run.status !== 'running') return
+
+    const meta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
+    const result = generateResult(meta.name, meta.role, run.taskDescription)
+
+    const completed: Run = {
+      ...run,
+      status: 'completed',
+      completedAt: Date.now(),
+      result,
+    }
+    this._runs.set(runId, completed)
+    this._emit('run:completed', completed)
+  }
+
+  private _getOrThrow(runId: string): Run {
+    const run = this._runs.get(runId)
+    if (!run) throw new Error(`Run "${runId}" not found.`)
+    return run
+  }
+
+  private _emit(event: RunEventType, run: Run): void {
+    const handlers = this._listeners.get(event)
+    if (!handlers) return
+    for (const handler of handlers) {
+      handler(run)
+    }
+  }
+}
