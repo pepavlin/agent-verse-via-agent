@@ -320,6 +320,11 @@ export default function Grid2D() {
       })
 
       // ---- Pointer events ----
+      // Controls:
+      //   Left button drag  → rectangle selection
+      //   Left button click → select / deselect agent
+      //   Middle button drag → pan camera
+      //   Scroll wheel       → zoom
       let pointerDownX = 0
       let pointerDownY = 0
 
@@ -332,17 +337,18 @@ export default function Grid2D() {
         const sx = e.clientX - canvasRect.left
         const sy = e.clientY - canvasRect.top
 
-        if (e.shiftKey) {
-          // Enter rectangle selection mode
+        if (e.button === 1) {
+          // Middle mouse button: pan camera
+          e.preventDefault()
+          dragging.current = true
+          lastPtr.current = { x: e.clientX, y: e.clientY }
+          ;(app.canvas as HTMLCanvasElement).style.cursor = 'grabbing'
+        } else if (e.button === 0) {
+          // Left mouse button: start rectangle selection
           isRectSelectingRef.current = true
           rectSelectStartRef.current = { x: sx, y: sy }
           rectSelectEndRef.current = { x: sx, y: sy }
           ;(app.canvas as HTMLCanvasElement).style.cursor = 'crosshair'
-        } else {
-          // Pan mode
-          dragging.current = true
-          lastPtr.current = { x: e.clientX, y: e.clientY }
-          ;(app.canvas as HTMLCanvasElement).style.cursor = 'grabbing'
         }
       })
 
@@ -366,6 +372,7 @@ export default function Grid2D() {
         }
 
         if (!dragging.current) return
+        // Camera pan via middle mouse button
         const dx = e.clientX - lastPtr.current.x
         const dy = e.clientY - lastPtr.current.y
         lastPtr.current = { x: e.clientX, y: e.clientY }
@@ -385,6 +392,13 @@ export default function Grid2D() {
         const wx = (sx - view.current.x) / view.current.zoom
         const wy = (sy - view.current.y) / view.current.zoom
 
+        if (e.button === 1) {
+          // Middle mouse released: stop pan
+          dragging.current = false
+          ;(app.canvas as HTMLCanvasElement).style.cursor = 'default'
+          return
+        }
+
         if (isRectSelectingRef.current) {
           if (!isClick) {
             // Commit rectangle selection
@@ -396,11 +410,7 @@ export default function Grid2D() {
               y2: (Math.max(start.y, sy) - view.current.y) / view.current.zoom,
             }
 
-            // Shift+drag adds to existing selection; plain-drag replaces it
-            const newIds: Set<string> = e.shiftKey
-              ? new Set(selectedAgentIdsRef.current)
-              : new Set()
-
+            const newIds: Set<string> = new Set()
             for (const [id, entry] of agentsRef.current) {
               if (agentInRect(entry.state, worldRect)) {
                 newIds.add(id)
@@ -415,50 +425,26 @@ export default function Grid2D() {
           isRectSelectingRef.current = false
           rectSelectStartRef.current = null
           rectSelectEndRef.current = null
-          ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
-          dragging.current = false
-          return
-        }
+          ;(app.canvas as HTMLCanvasElement).style.cursor = 'default'
 
-        dragging.current = false
-        ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
-
-        if (!isClick) return
-
-        // --- Click handling ---
-        let hitId: string | null = null
-        for (const [id, entry] of agentsRef.current) {
-          if (hitTestAgent(entry.state, wx, wy)) {
-            hitId = id
-            break
-          }
-        }
-
-        if (e.shiftKey) {
-          // Shift+click: toggle the clicked agent without clearing others
-          if (hitId) {
-            const newIds = new Set(selectedAgentIdsRef.current)
-            if (newIds.has(hitId)) {
-              newIds.delete(hitId)
-            } else {
-              newIds.add(hitId)
+          // If it was just a click (not a drag), handle agent selection
+          if (isClick) {
+            let hitId: string | null = null
+            for (const [id, entry] of agentsRef.current) {
+              if (hitTestAgent(entry.state, wx, wy)) {
+                hitId = id
+                break
+              }
             }
-            selectedAgentIdsRef.current = newIds
-            followingAgentRef.current = null
-            syncSelectionState()
-          }
-          // Shift+click on empty space: preserve current selection
-        } else {
-          // Regular click
-          if (hitId) {
-            selectedAgentIdsRef.current = new Set([hitId])
-            followingAgentRef.current = null
-            syncSelectionState()
-          } else {
-            // Click on empty: deselect all
-            selectedAgentIdsRef.current = new Set()
-            followingAgentRef.current = null
-            setSelectedAgents([])
+            if (hitId) {
+              selectedAgentIdsRef.current = new Set([hitId])
+              followingAgentRef.current = null
+              syncSelectionState()
+            } else {
+              selectedAgentIdsRef.current = new Set()
+              followingAgentRef.current = null
+              setSelectedAgents([])
+            }
           }
         }
       })
@@ -469,7 +455,12 @@ export default function Grid2D() {
         rectSelectStartRef.current = null
         rectSelectEndRef.current = null
         setMouseCell(null)
-        ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
+        ;(app.canvas as HTMLCanvasElement).style.cursor = 'default'
+      })
+
+      // Prevent middle-click from triggering browser scroll mode
+      app.canvas.addEventListener('auxclick', (e: MouseEvent) => {
+        e.preventDefault()
       })
 
       // ---- Zoom via scroll wheel ----
@@ -496,7 +487,7 @@ export default function Grid2D() {
         { passive: false },
       )
 
-      ;(app.canvas as HTMLCanvasElement).style.cursor = 'grab'
+      ;(app.canvas as HTMLCanvasElement).style.cursor = 'default'
     }
 
     init()
@@ -569,8 +560,8 @@ export default function Grid2D() {
           2D Grid Explorer
         </p>
         <p className="text-xs text-slate-500 mt-0.5">
-          {MAP_CONFIG.COLS} × {MAP_CONFIG.ROWS} cells &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp;
-          scroll to zoom &nbsp;·&nbsp; click agents &nbsp;·&nbsp; shift+drag to select
+          {MAP_CONFIG.COLS} × {MAP_CONFIG.ROWS} cells &nbsp;·&nbsp; middle-drag to pan &nbsp;·&nbsp;
+          scroll to zoom &nbsp;·&nbsp; click to select &nbsp;·&nbsp; drag to rect-select
         </p>
       </div>
 

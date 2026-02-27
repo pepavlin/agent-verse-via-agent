@@ -20,6 +20,7 @@ app/
 tests/
   grid.test.ts          – Unit tests for config, worldSize(), and objects
   agents.test.ts        – Unit tests for agent logic, hit testing, and rect selection
+  controls.test.ts      – Unit tests for click-threshold and coord-conversion helpers
   setup.ts              – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
@@ -71,7 +72,7 @@ docs/
 3. Agent layer is created and populated with stick-figure containers (one per agent).
 4. `app.ticker` runs every frame: updates agent states, redraws figures, follows camera target, positions the context menu div imperatively (zero React re-renders per frame).
 5. `applyView()` clamps `view.zoom` and `view.x/y`, then applies them to `worldRef.x/y/scale`.
-6. Pointer events handle pan (`pointerdown/move/up/leave`) and click-vs-drag detection (threshold: 5 px).
+6. Pointer events handle left-drag rect-select and middle-drag pan; click-vs-drag threshold is 5 px.
 7. Wheel event handles zoom-toward-cursor.
 8. Three HUD buttons call `zoomIn`, `zoomOut`, `resetView`.
 
@@ -105,20 +106,31 @@ y = +30  feet / shadow
 
 Legs and arms swing with `sin(walkTime)`, amplitude 9 px, only when the agent is moving.
 
+### Control scheme
+
+| Input | Action |
+|---|---|
+| Left button click on agent | Single-select that agent (deselects others) |
+| Left button click on empty space | Deselect all agents |
+| Left button drag | Rectangle selection — selects all agents whose centre falls within the drawn rect |
+| Middle button drag | Pan the camera |
+| Scroll wheel | Zoom toward cursor |
+
 ### Selection system
 
-The grid supports three ways to select agents:
+The grid supports two ways to select agents:
 
 | Interaction | Result |
 |---|---|
 | Click on agent | Single-select that agent (deselects others) |
-| Shift + click on agent | Toggle that agent in/out of the current selection |
-| Shift + drag on empty space | Rectangle selection — selects all agents whose centre falls within the drawn rect |
+| Drag on canvas | Rectangle selection — selects all agents whose centre falls within the drawn rect |
 | Click on empty space | Deselects all agents |
 
 **Click detection:** On `pointerup`, if the pointer moved < 5 px since `pointerdown`, it is treated as a click. The click position is converted from screen → world coordinates and compared to each agent's position via `hitTestAgent` (circular radius 28 px).
 
-**Rectangle selection:** When `Shift` is held on `pointerdown`, `isRectSelectingRef` is set and the start point recorded. On each `pointermove` the end point is updated. The ticker draws a semi-transparent indigo rect in screen space via `selectionRectGfxRef` (a `PIXI.Graphics` on `app.stage`). On `pointerup`, the rect corners are converted to world coords and `agentInRect` tests each agent.
+**Rectangle selection:** On left `pointerdown`, `isRectSelectingRef` is set and the start point recorded. On each `pointermove` the end point is updated. The ticker draws a semi-transparent indigo rect in screen space via `selectionRectGfxRef` (a `PIXI.Graphics` on `app.stage`). On `pointerup`, if the pointer moved ≥ 5 px, the rect corners are converted to world coords and `agentInRect` tests each agent. If the pointer barely moved (click), it falls through to agent hit-test selection instead.
+
+**Camera pan:** Middle mouse button (`button === 1`) on `pointerdown` sets `dragging = true`. `pointermove` accumulates delta and calls `applyView()`. Middle `pointerup` clears `dragging`.
 
 **Visual feedback:** `drawStickFigure` receives `selected = true` for every agent whose ID is in `selectedAgentIdsRef`. Selected agents show a white glow ring around their head.
 
