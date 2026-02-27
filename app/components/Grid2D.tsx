@@ -132,10 +132,16 @@ export default function Grid2D() {
 
     const sw = app.renderer.width
     const sh = app.renderer.height
+    const scaledW = mapW * v.zoom
+    const scaledH = mapH * v.zoom
 
-    // Clamp pan so the map always overlaps the viewport
-    v.x = Math.max(Math.min(0, sw - mapW * v.zoom), Math.min(0, v.x))
-    v.y = Math.max(Math.min(0, sh - mapH * v.zoom), Math.min(0, v.y))
+    // Minimum px of the map that must stay visible inside the viewport.
+    // This lets users freely drag a small (zoomed-out) map around while
+    // ensuring they can never pan it completely off-screen.
+    const MARGIN = 50
+
+    v.x = Math.max(MARGIN - scaledW, Math.min(sw - MARGIN, v.x))
+    v.y = Math.max(MARGIN - scaledH, Math.min(sh - MARGIN, v.y))
 
     world.x = v.x
     world.y = v.y
