@@ -1,4 +1,4 @@
-# Inbox — Message Feed
+# Inbox — Visual Message Feed
 
 ## Overview
 
@@ -10,15 +10,26 @@ the user gets a non-blocking notification card in the Inbox when the agent finis
 
 ## Message Types
 
-| Type     | Label (CZ) | Icon | Description |
-|----------|-----------|------|-------------|
-| `done`     | Hotovo    | ✓    | Task completed successfully (green accent) |
-| `question` | Otázka    | ?    | Task in progress OR agent waiting for answer (indigo) |
-| `error`    | Chyba     | ✕    | Task failed (red accent) |
+| Type       | Label (CZ) | Icon | Description |
+|------------|------------|------|-------------|
+| `done`     | Hotovo     | ✓    | Task completed successfully (emerald accent) |
+| `question` | Otázka     | ?    | Task in progress OR agent waiting for answer (indigo) |
+| `error`    | Chyba      | ✕    | Task failed (red accent) |
 
 The `question` type covers two sub-states:
 - **Working** (`awaitingAnswer: false`) — agent is processing; icon pulses.
 - **Awaiting answer** (`awaitingAnswer: true`) — agent paused with a clarifying question; an inline reply form appears.
+
+---
+
+## Design Principles
+
+- **No tables, no IDs, no raw timestamps** — only human-readable content.
+- **Type communicated visually first** — large coloured icon + label is the dominant element.
+- **Coloured card backgrounds** — each type has a subtle tinted background (emerald/indigo/red).
+- **Left accent border** — thick coloured left border reinforces the message type at a glance.
+- **Agent identity** — colour dot matching the 2D world + agent name.
+- **Feed layout** — newest cards first, scrollable, compact.
 
 ---
 
@@ -29,7 +40,8 @@ Grid2D
   ├── RunEngine (runEngineRef) — singleton, executes tasks asynchronously
   ├── useInbox() — pure state hook: messages[], unreadCount, CRUD
   ├── InboxToggleButton — floating button with unread badge
-  └── InboxPanel — slide-in panel with message cards
+  └── InboxPanel — slide-in panel with message feed
+        └── MessageCard — individual feed card (one per message)
 ```
 
 ### Data flow
@@ -44,7 +56,7 @@ Grid2D
    `engine.resumeRun()`. The message returns to a "processing" state.
 6. When `run:completed` fires, the message is updated to type `done` with the result.
    When `run:failed` fires, it becomes type `error`.
-5. The unread badge on the toggle button increments on each terminal event
+7. The unread badge on the toggle button increments on each terminal event
    (`done` or `error`). Clicking the toggle calls `markRead()` to reset it.
 
 ---
@@ -54,7 +66,7 @@ Grid2D
 ### `useInbox` (`app/components/use-inbox.ts`)
 
 Custom React hook, owns inbox state. Framework-agnostic — works independently
-of RunEngine, coordination is done at the Grid2D level.
+of RunEngine; coordination is done at the Grid2D level.
 
 ```ts
 const {
@@ -72,9 +84,9 @@ const {
 
 ```ts
 interface InboxMessage {
-  id: string              // Matches RunEngine run.id
+  id: string              // Matches RunEngine run.id (internal, not shown in UI)
   type: 'done' | 'question' | 'error'
-  agentName: string       // Display name (not stored in Run, resolved from AgentDef)
+  agentName: string       // Display name
   agentColor: number      // 0xRRGGBB agent brand colour
   task: string            // Original task description
   text: string            // Status/result prose
@@ -91,35 +103,58 @@ Props: `{ unreadCount, isOpen, onClick }`
 
 ### `InboxPanel` (`app/components/Inbox.tsx`)
 
-Fixed-position panel on the right side of the screen. Scrollable list of
+Fixed-position panel on the right side of the screen. Scrollable feed of
 message cards. Each card has a dismiss button; the header has a "Vymazat vše"
-(clear all) button.
+(clear all) button and a count display.
 
 Props: `{ messages, isOpen, onClose, onDismiss, onClearAll, onReply? }`
 
-When `onReply` is provided and a message has `awaitingAnswer: true`, an inline textarea + submit button is rendered inside the card. Submitting calls `onReply(id, trimmedAnswer)`.
+### `MessageCard` (internal, `app/components/Inbox.tsx`)
+
+Visual card for a single message in the feed. Key visual elements:
+- **Large type icon** (w-7 h-7 coloured circle) with label
+- **Type-coloured card background** (subtle tint: emerald/indigo/red)
+- **Left accent border** (border-l-4) matching the type colour
+- **Agent identity** (colour dot + name)
+- **Task description** (context, smaller text)
+- **Result/status text** (main content, lighter text)
+- **Inline reply form** (shown when `type === 'question'` and `awaitingAnswer === true`)
+
+When `onReply` is provided and a message has `awaitingAnswer: true`, an inline
+textarea + submit button is rendered inside the card. Submitting calls
+`onReply(id, trimmedAnswer)`.
 
 ### `QuestionModal` (`app/components/QuestionModal.tsx`)
 
-A blocking modal overlay shown for **wait** delivery runs when the agent transitions to `awaiting`. Displays the agent's question with a textarea for the user's answer.
+A blocking modal overlay shown for **wait** delivery runs when the agent transitions
+to `awaiting`. Displays the agent's question with a textarea for the user's answer.
 
 Props: `{ pending: PendingQuestion | null, onAnswer, onDismiss }`
 
-- `pending` is set by `Grid2D` when `run:awaiting` fires for a wait-delivery run.
-- `onAnswer(runId, answer)` triggers `engine.resumeRun()` and closes the modal.
-- `onDismiss(runId)` closes the modal without answering (run stays `awaiting`).
-
 ---
 
-## Visual Design Decisions
+## Visual Design
 
-- **No tables, no IDs, no raw timestamps** — only human-readable text.
-- Cards use a coloured left border to communicate type at a glance.
-- The `question` icon pulses (CSS `animate-pulse`) to indicate activity.
-- Agent identity is shown via a coloured dot (matching the 2D world colour)
-  and the agent name.
-- The panel overlays the grid but has a semi-transparent backdrop that closes
-  it on click, keeping the UI non-intrusive.
+### Card structure
+
+```
+┌─ [colour border] ──────────────────────────────────────┐
+│  [●icon] Hotovo              ● AgentName           [✕] │
+│                                                        │
+│  Task description text (smaller, slate-400)            │
+│  Result / status text (main content, slate-100)        │
+│                                                        │
+│  [Inline reply form — only for awaiting questions]     │
+└────────────────────────────────────────────────────────┘
+```
+
+### Colour scheme per type
+
+| Type     | Card bg           | Border           | Icon bg            | Icon / label  |
+|----------|-------------------|------------------|--------------------|---------------|
+| done     | `emerald-950/40`  | `emerald-500`    | `emerald-500/20`   | `emerald-400` |
+| question | `indigo-950/40`   | `indigo-500`     | `indigo-500/20`    | `indigo-400`  |
+| error    | `red-950/40`      | `red-500`        | `red-500/20`       | `red-400`     |
 
 ---
 
@@ -133,3 +168,5 @@ Tests live in `tests/inbox.test.tsx` and cover:
   clear all, backdrop click, message count footer
 - **Inline reply form**: visibility conditions, disabled state, submit with trim,
   Enter key, Shift+Enter no-op, whitespace guard, dismiss still works
+
+All 43 tests pass.
