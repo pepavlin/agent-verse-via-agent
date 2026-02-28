@@ -10,6 +10,7 @@ import { drawStickFigure } from './agent-drawing'
 import AgentPanel, { type RunTaskPayload, type EditSavePayload } from './AgentPanel'
 import { RunEngine } from '../run-engine'
 import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from './agent-run-state'
+import { RUNE_CHARS, RUNE_COUNT, calcRuneOrbit, calcRuneFlash } from './agent-runes'
 import { useInbox } from './use-inbox'
 import { InboxToggleButton, InboxPanel } from './Inbox'
 import AccountSettings from './AccountSettings'
@@ -32,6 +33,8 @@ interface AgentEntry {
   state: AgentState
   gfx: PIXI.Graphics
   container: PIXI.Container
+  /** Rune glyph Text objects that orbit the agent during task runs. */
+  runeTexts: PIXI.Text[]
 }
 
 interface SelectedAgentInfo {
@@ -262,13 +265,32 @@ export default function Grid2D() {
         label.anchor.set(0.5, 1)
         label.y = -34
 
+        // ---- Rune glyph Text objects (orbit agent head during task runs) ----
+        const runeTexts = RUNE_CHARS.slice(0, RUNE_COUNT).map((char) => {
+          const text = new PIXI.Text({
+            text: char,
+            style: {
+              fontSize: 14,
+              fill: 0xffffff,
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+              dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.6 },
+            },
+          })
+          text.anchor.set(0.5, 0.5)
+          text.visible = false
+          return text
+        })
+
+        // Runes sit below the name label so the label stays readable on top.
         container.addChild(gfx)
+        for (const r of runeTexts) container.addChild(r)
         container.addChild(label)
         container.x = state.x
         container.y = state.y
         agentLayer.addChild(container)
 
-        agentsMap.set(def.id, { state, gfx, container })
+        agentsMap.set(def.id, { state, gfx, container, runeTexts })
       }
       agentsRef.current = agentsMap
 
@@ -318,6 +340,31 @@ export default function Grid2D() {
             runTime,
             completionAge,
           )
+
+          // ---- Animate rune glyphs ----
+          entry.runeTexts.forEach((runeText, i) => {
+            if (runTime !== null) {
+              // Orbiting pulse while running
+              const rs = calcRuneOrbit(i, RUNE_COUNT, runTime, entry.state.color)
+              runeText.visible = rs.visible
+              runeText.x = rs.x
+              runeText.y = rs.y
+              runeText.alpha = rs.alpha
+              runeText.scale.set(rs.scale)
+              runeText.tint = rs.tint
+            } else if (completionAge !== null) {
+              // Expanding flash on completion
+              const rs = calcRuneFlash(completionAge, i, RUNE_COUNT)
+              runeText.visible = rs.visible
+              runeText.x = rs.x
+              runeText.y = rs.y
+              runeText.alpha = rs.alpha
+              runeText.scale.set(rs.scale)
+              runeText.tint = rs.tint
+            } else {
+              runeText.visible = false
+            }
+          })
         }
 
         // Follow selected agent (centre view on first selected)

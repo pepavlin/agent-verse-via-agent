@@ -20,6 +20,7 @@ app/
     agent-drawing.ts    – Stick-figure drawing via PIXI.Graphics
     agent-run-effects.ts – Pure animation math for run-state effects (no pixi.js dep)
     agent-run-state.ts  – Pure run animation state machine: factory fns + tickRunInfo()
+    agent-runes.ts      – Pure rune glyph animation math (orbit + flash, no pixi.js dep)
   run-engine/
     types.ts            – Run interface, RunStatus enum, RunEventType, RunEngineOptions
     results.ts          – Pure result-text generation (generateResult, templates)
@@ -33,6 +34,7 @@ tests/
   run-engine.test.ts        – Unit tests for RunEngine lifecycle, events, delays, querying
   agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
   agent-run-state.test.ts   – Unit tests for run animation state machine (transitions + ticks)
+  agent-runes.test.ts       – Unit tests for rune orbit and flash animation math
   setup.ts                  – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
@@ -259,6 +261,62 @@ Pure functions with no pixi.js / React dependency, fully covered by unit tests i
 - `runTime` is non-null while `runState === 'running'`; used as phase for `calcPulseRing`.
 - `completionAge` is non-null while the glow animation is active; used by `calcCompletionGlow`.
 - `glowExpired` signals when the caller should clear `completionStart` from the stored ref.
+
+### Rune glyphs (`agent-runes.ts`)
+
+Elder Futhark Unicode glyphs that orbit around an agent's head to make task execution visually dramatic.
+
+#### Running state — orbiting pulse
+
+Four rune characters (`ᚠ ᚱ ᚾ ᛏ`) orbit the head at `RUNE_ORBIT_RADIUS = 26 px` with angular velocity `RUNE_ORBIT_SPEED = 0.7 rad/s`. Each rune also pulses independently:
+
+| Property | Range | Frequency |
+|---|---|---|
+| alpha | 0.25 – 0.85 | 2.0 rad/s |
+| scale | 0.8 – 1.2 | 2.0 rad/s |
+| tint | agent colour | — |
+
+The pulse phases are staggered by `2π/RUNE_COUNT` per rune so they do not all blink in unison.
+
+#### Completion state — flash outward
+
+When the run completes the runes switch to a brief `1 000 ms` flash:
+
+- Angle is fixed (evenly distributed, no more orbiting).
+- Radius expands from `RUNE_ORBIT_RADIUS` → `+22 px` over the flash lifetime.
+- Alpha rises quickly (first 15 %) then fades to zero.
+- Scale grows from 1 → 1.5×.
+- Tint switches to **white** (`0xffffff`) for maximum brightness.
+
+#### Implementation
+
+Rune texts are `PIXI.Text` children of each agent's `PIXI.Container`. They are created once (with `fill: 0xffffff`) and their `x/y/alpha/scale/tint/visible` properties are updated imperatively every pixi ticker frame via `calcRuneOrbit` or `calcRuneFlash`. No React re-renders are involved.
+
+```
+AgentEntry {
+  state: AgentState
+  gfx: PIXI.Graphics      ← stick figure (cleared + redrawn each frame)
+  runeTexts: PIXI.Text[]  ← 4 rune glyphs (updated in place each frame)
+  container: PIXI.Container
+}
+```
+
+#### Updated data flow
+
+```
+pixi ticker (every frame)
+  └─ tickRunInfo(runInfo, deltaSeconds, now)
+       ├─ returns { runTime, completionAge, glowExpired }
+       ├─ drawStickFigure(gfx, state, selected, runTime, completionAge)
+       │    ├─ calcPulseRing(runTime, HEAD_R)    → ring params
+       │    └─ calcCompletionGlow(completionAge) → glow params
+       └─ forEach runeText[i]:
+            ├─ if runTime     → calcRuneOrbit(i, RUNE_COUNT, runTime, agentColor)
+            ├─ if completionAge → calcRuneFlash(completionAge, i, RUNE_COUNT)
+            └─ else           → runeText.visible = false
+```
+
+Pure helper functions are in `app/components/agent-runes.ts` and covered by unit tests in `tests/agent-runes.test.ts`.
 
 ### Pure animation helpers (`agent-run-effects.ts`)
 
