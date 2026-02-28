@@ -355,6 +355,193 @@ describe('MockLLM.asExecutor() — RunEngine integration (question path)', () =>
 })
 
 // ---------------------------------------------------------------------------
+// MockLLM — realistic generation with goal and persona
+// ---------------------------------------------------------------------------
+
+describe('MockLLM — goal and persona options', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('isRealistic is false by default (no goal or persona)', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK)
+    expect(mock.isRealistic).toBe(false)
+  })
+
+  it('isRealistic is true when goal is provided', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal: 'Map all unexplored areas of the grid',
+    })
+    expect(mock.isRealistic).toBe(true)
+  })
+
+  it('isRealistic is true when persona is provided', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      persona: 'Curious and bold.',
+    })
+    expect(mock.isRealistic).toBe(true)
+  })
+
+  it('isRealistic can be forced to true via useRealisticGeneration', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      useRealisticGeneration: true,
+    })
+    expect(mock.isRealistic).toBe(true)
+  })
+
+  it('isRealistic can be forced to false even when goal is provided', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal: 'Some goal',
+      useRealisticGeneration: false,
+    })
+    expect(mock.isRealistic).toBe(false)
+  })
+
+  it('goal accessor returns the provided goal', () => {
+    const goal = 'Map all unexplored areas'
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { goal })
+    expect(mock.goal).toBe(goal)
+  })
+
+  it('persona accessor returns the provided persona', () => {
+    const persona = 'Curious and bold'
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { persona })
+    expect(mock.persona).toBe(persona)
+  })
+
+  it('goal accessor is undefined when not provided', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK)
+    expect(mock.goal).toBeUndefined()
+  })
+
+  it('persona accessor is undefined when not provided', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK)
+    expect(mock.persona).toBeUndefined()
+  })
+})
+
+describe('MockLLM — realistic result generation (with goal)', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('resolves with kind: "result" when realistic mode is active', async () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal: 'Map all unexplored areas',
+      questionProbability: 0,
+      delayFn: () => 0,
+    })
+    const promise = mock.run()
+    vi.runAllTimers()
+    const response = await promise
+    expect(response.kind).toBe('result')
+  })
+
+  it('result text contains the agent name in realistic mode', async () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal: 'Map all unexplored areas',
+      questionProbability: 0,
+      delayFn: () => 0,
+    })
+    const promise = mock.run()
+    vi.runAllTimers()
+    const response = await promise
+    expect(response.text).toContain(AGENT_NAME)
+  })
+
+  it('result text contains the goal when goal is provided', async () => {
+    const goal = 'Map all unexplored areas of the grid'
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal,
+      questionProbability: 0,
+      delayFn: () => 0,
+    })
+    const promise = mock.run()
+    vi.runAllTimers()
+    const response = await promise
+    expect(response.text).toContain(goal)
+  })
+
+  it('result text is non-empty in realistic mode', async () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal: 'Map all unexplored areas',
+      persona: 'Curious and bold. Always the first to venture.',
+      questionProbability: 0,
+      delayFn: () => 0,
+    })
+    const promise = mock.run()
+    vi.runAllTimers()
+    const response = await promise
+    expect(response.text.length).toBeGreaterThan(0)
+  })
+})
+
+describe('MockLLM — realistic question generation (with goal)', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('resolves with kind: "question" in realistic mode', async () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal: 'Map all unexplored areas',
+      questionProbability: 1,
+      delayFn: () => 0,
+    })
+    const promise = mock.run()
+    vi.runAllTimers()
+    const response = await promise
+    expect(response.kind).toBe('question')
+  })
+
+  it('question text contains the agent name in realistic mode', async () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal: 'Map all unexplored areas',
+      questionProbability: 1,
+      delayFn: () => 0,
+    })
+    const promise = mock.run()
+    vi.runAllTimers()
+    const response = await promise
+    expect(response.text).toContain(AGENT_NAME)
+  })
+
+  it('question text is non-empty in realistic mode', async () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      persona: 'Curious and bold.',
+      questionProbability: 1,
+      delayFn: () => 0,
+    })
+    const promise = mock.run()
+    vi.runAllTimers()
+    const response = await promise
+    expect(response.text.length).toBeGreaterThan(0)
+  })
+})
+
+describe('MockLLM — realistic mode integrates with RunEngine', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('transitions run to "completed" with goal-aware result text', async () => {
+    const goal = 'Map all unexplored areas of the grid'
+    const engine = new RunEngine()
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal,
+      questionProbability: 0,
+      delayFn: () => 0,
+    })
+
+    engine.startRun(run.id, mock.asExecutor())
+    vi.runAllTimers()
+
+    await vi.waitFor(() => expect(engine.getRun(run.id)!.status).toBe('completed'))
+
+    const completed = engine.getRun(run.id)!
+    expect(completed.result).toBeDefined()
+    expect(completed.result).toContain(AGENT_NAME)
+    expect(completed.result).toContain(goal)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // RunEngine — backward compatibility: plain string executor still works
 // ---------------------------------------------------------------------------
 

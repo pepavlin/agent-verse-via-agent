@@ -24,8 +24,9 @@ app/
   run-engine/
     types.ts            – Run interface, RunStatus enum, RunEventType, RunEngineOptions, MockLLMResponse
     results.ts          – Pure result-text generation (generateResult, templates)
+    realistic-results.ts – Realistic result/question generation: topic detection, persona style, goal injection
     engine.ts           – RunEngine class (createRun, startRun, events, querying)
-    mock-llm.ts         – MockLLM class (simulated LLM executor, result or question)
+    mock-llm.ts         – MockLLM class (simulated LLM executor, result or question, realistic mode)
     index.ts            – Re-exports public API
 tests/
   grid.test.ts              – Unit tests for config, worldSize(), and objects
@@ -37,7 +38,8 @@ tests/
   run-engine-executor.test.ts – Unit tests for RunEngine executor (real LLM) path
   run-engine-resume.test.ts – Unit tests for RunEngine.resumeRun() (needs_user feature)
   run-engine-children.test.ts – Unit tests for child agent delegation (startRunWithChildren, composeDelegatedResults)
-  mock-llm.test.ts          – Unit tests for MockLLM (result/question paths, delay, RunEngine integration)
+  mock-llm.test.ts          – Unit tests for MockLLM (result/question paths, delay, RunEngine integration, goal/persona, realistic mode)
+  realistic-results.test.ts – Unit tests for realistic result/question generation (topic detection, persona style, all templates)
   agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
   agent-run-state.test.ts   – Unit tests for run animation state machine (transitions + ticks)
   agent-runes.test.ts       – Unit tests for rune orbit and flash animation math
@@ -564,13 +566,72 @@ new RunEngine({
 
 ### Result and Question Generation
 
-Both generators are pure functions in `results.ts`:
+#### Generic templates (`results.ts`)
+
+Pure functions with no side effects:
 
 - `generateResult(agentName, agentRole, taskDescription, pickIndex?)` — selects one of 8 completion templates.
 - `generateQuestion(agentName, agentRole, taskDescription, pickIndex?)` — selects one of 8 clarifying-question templates.
 - `composeDelegatedResults(parentAgentName, childOutcomes[])` — assembles a delegation report from child sub-run outcomes. Used by `startRunWithChildren` in mock mode.
 
 An optional `pickIndex` enables deterministic template selection in tests.
+
+#### Realistic templates (`realistic-results.ts`)
+
+Topic-aware, persona-driven result and question generation for MockLLM. Used automatically when `goal` or `persona` are supplied to `MockLLM`.
+
+**Pipeline:**
+
+```
+taskDescription ──► detectTopic()      → TopicCategory
+persona         ──► detectPersonaStyle() → PersonaStyle
+                         │
+              pick template set for topic
+                         │
+              interpolate agentName / agentRole / agentGoal / taskDescription
+```
+
+**Topic detection (`detectTopic`)** — keyword heuristics on the task description text:
+
+| Topic | Detected keywords (examples) |
+|---|---|
+| `exploration` | map, explore, survey, navigate, chart, terrain, sector |
+| `construction` | build, construct, install, repair, maintain, erect |
+| `intelligence` | scout, intel, recon, observe, gather, locate |
+| `defense` | defend, protect, secure, guard, patrol, monitor |
+| `coding` | code, debug, implement, script, algorithm, api |
+| `research` | analyze, research, investigate, review, assess |
+| `communication` | send, message, notify, broadcast, relay, alert |
+| `planning` | plan, coordinate, schedule, strategize, roadmap |
+| `general` | fallback when no keywords match |
+
+Each topic has at least 5 result templates and 3 question templates. Templates are rich, multi-sentence prose that reads like realistic agent output for that domain.
+
+**Persona style detection (`detectPersonaStyle`)** — keyword matching on the persona string:
+
+| Style | Detected keywords |
+|---|---|
+| `bold` | bold, curious, adventurous, fearless, venture |
+| `methodical` | methodical, reliable, careful, systematic, precise |
+| `swift` | fast, quick, observant, agile, rapid |
+| `steadfast` | steadfast, vigilant, responsible, duty |
+| `neutral` | fallback |
+
+**Goal injection** — when a `goal` string is supplied, it is appended to the result text as a mission-alignment note: _"This aligns with the primary mission: `<goal>`."_
+
+**Public API:**
+
+```ts
+import {
+  detectTopic,          // (taskDescription: string) => TopicCategory
+  detectPersonaStyle,   // (persona?: string) => PersonaStyle
+  generateRealisticResult,   // (name, role, task, goal?, persona?, pickIndex?) => string
+  generateRealisticQuestion, // (name, role, task, goal?, persona?, pickIndex?) => string
+  REALISTIC_RESULT_TEMPLATE_COUNTS,   // Record<TopicCategory, number>
+  REALISTIC_QUESTION_TEMPLATE_COUNTS, // Record<TopicCategory, number>
+  ALL_TOPIC_CATEGORIES, // TopicCategory[]
+} from '@/app/run-engine/realistic-results'
+```
 
 ### Mock mode — result vs question
 
@@ -591,12 +652,28 @@ After a configurable delay `MockLLM.run()` resolves with a `MockLLMResponse`:
 - `{ kind: 'result', text }` — the RunEngine transitions the run to `'completed'`.
 - `{ kind: 'question', text }` — the RunEngine transitions the run to `'awaiting'`.
 
+When `goal` or `persona` are supplied, MockLLM automatically switches to **realistic generation mode** (`realistic-results.ts`), producing topic-aware, mission-grounded responses.
+
 ```ts
+// Basic usage (generic templates)
 const mock = new MockLLM(agentName, agentRole, taskDescription, {
   questionProbability: 0.3,  // 30 % chance of question (default)
   minDelayMs: 2_000,         // default
   maxDelayMs: 6_000,         // default
   delayFn: (min, max) => …,  // injectable for tests
+})
+
+// Realistic usage (topic-aware + goal-grounded responses)
+const mock = new MockLLM(agentName, agentRole, taskDescription, {
+  goal: 'Map all unexplored areas of the grid',
+  persona: 'Curious and bold. Always the first to venture into unknown territory.',
+  questionProbability: 0.3,
+})
+
+// Force or disable realistic generation explicitly
+const mock = new MockLLM(agentName, agentRole, taskDescription, {
+  useRealisticGeneration: true,   // always realistic
+  useRealisticGeneration: false,  // always generic
 })
 
 // Use directly
@@ -606,7 +683,21 @@ const response = await mock.run()
 
 // Integrate with RunEngine
 engine.startRun(run.id, mock.asExecutor())
+
+// Inspect configuration
+mock.isRealistic  // boolean
+mock.goal         // string | undefined
+mock.persona      // string | undefined
 ```
+
+#### Realistic generation mode (automatic)
+
+| Condition | Generation mode |
+|---|---|
+| `useRealisticGeneration: true` | Always realistic |
+| `useRealisticGeneration: false` | Always generic |
+| `goal` or `persona` provided (default) | Realistic |
+| Neither `goal` nor `persona`, no override | Generic |
 
 #### Executor routing in RunEngine
 
@@ -625,6 +716,7 @@ engine.startRun(run.id, mock.asExecutor())
 |---|---|
 | `types.ts` | `Run`, `RunStatus` (incl. `delegating`), `RunEventType`, `RunEventHandler`, `RunEngineOptions`, `MockLLMResponse` |
 | `results.ts` | `generateResult()`, `RESULT_TEMPLATE_COUNT`, `generateQuestion()`, `QUESTION_TEMPLATE_COUNT`, `composeDelegatedResults()`, `ChildRunOutcome` |
+| `realistic-results.ts` | Realistic, topic-aware result/question generation: `detectTopic()`, `detectPersonaStyle()`, `generateRealisticResult()`, `generateRealisticQuestion()` |
 | `engine.ts` | `RunEngine` class (`dispatch`, `createRun`, `startRun`, `startRunWithChildren`, `resumeRun`, `getChildRuns`, `getParentRun`, events, querying), `AgentMeta`, `RunExecutor`, `ChildAgentDef`, `ParentExecutorFactory` |
 | `mock-llm.ts` | `MockLLM` class, `MockLLMOptions` interface |
 | `index.ts` | Re-exports for external consumers |
