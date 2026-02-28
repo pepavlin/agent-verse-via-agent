@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import AgentPanel from '../app/components/AgentPanel'
 import type { AgentDef } from '../app/components/agents-config'
 import type { RunTaskPayload, EditSavePayload, WaitRunPhase } from '../app/components/AgentPanel'
+import type { HistoryEntry } from '../app/components/use-agent-history'
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -31,15 +32,18 @@ function renderPanel(
     onRunTask?: (p: RunTaskPayload) => void
     onEditSave?: (p: EditSavePayload) => void
     onNewTask?: () => void
+    onClearHistory?: () => void
     waitPhase?: WaitRunPhase
     waitResult?: string
     waitError?: string
+    history?: HistoryEntry[]
   } = {},
 ) {
   const onClose = overrides.onClose ?? vi.fn()
   const onRunTask = overrides.onRunTask ?? vi.fn()
   const onEditSave = overrides.onEditSave ?? vi.fn()
   const onNewTask = overrides.onNewTask ?? vi.fn()
+  const onClearHistory = overrides.onClearHistory ?? vi.fn()
 
   const result = render(
     <AgentPanel
@@ -48,13 +52,31 @@ function renderPanel(
       onRunTask={onRunTask}
       onEditSave={onEditSave}
       onNewTask={onNewTask}
+      onClearHistory={onClearHistory}
       waitPhase={overrides.waitPhase}
       waitResult={overrides.waitResult}
       waitError={overrides.waitError}
+      history={overrides.history}
     />,
   )
 
-  return { onClose, onRunTask, onEditSave, onNewTask, ...result }
+  return { onClose, onRunTask, onEditSave, onNewTask, onClearHistory, ...result }
+}
+
+// ---------------------------------------------------------------------------
+// History entry fixture helper
+// ---------------------------------------------------------------------------
+
+function makeHistoryEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
+  return {
+    id: `hist-${Math.random().toString(36).slice(2)}`,
+    agentId: 'agent-test',
+    task: 'Explore the northern sector',
+    type: 'done',
+    result: 'Northern sector fully mapped.',
+    timestamp: Date.now(),
+    ...overrides,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -475,5 +497,115 @@ describe('AgentPanel wait-delivery: Edit tab still works during non-idle phase',
     renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Finished.' })
     fireEvent.click(screen.getByTestId('tab-edit'))
     expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Log tab — agent history in chat style
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel Log tab', () => {
+  it('shows the Log tab button', () => {
+    renderPanel()
+    expect(screen.getByTestId('tab-log')).toBeInTheDocument()
+  })
+
+  it('switches to Log mode when Log tab is clicked', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.queryByTestId('run-task-input')).toBeNull()
+    expect(screen.queryByTestId('edit-name-input')).toBeNull()
+  })
+
+  it('shows empty state message when history is empty', () => {
+    renderPanel(mockAgent, { history: [] })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId('agent-history-empty')).toBeInTheDocument()
+  })
+
+  it('shows empty state when history prop is omitted', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId('agent-history-empty')).toBeInTheDocument()
+  })
+
+  it('shows the history view when entries are present', () => {
+    const entry = makeHistoryEntry()
+    renderPanel(mockAgent, { history: [entry] })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId('agent-history-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-history-empty')).toBeNull()
+  })
+
+  it('renders task bubble for each history entry', () => {
+    const entry = makeHistoryEntry({ task: 'Explore the western caves' })
+    renderPanel(mockAgent, { history: [entry] })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId(`history-task-${entry.id}`)).toHaveTextContent('Explore the western caves')
+  })
+
+  it('renders result bubble for each history entry', () => {
+    const entry = makeHistoryEntry({ result: 'Western caves fully mapped.' })
+    renderPanel(mockAgent, { history: [entry] })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId(`history-result-${entry.id}`)).toHaveTextContent('Western caves fully mapped.')
+  })
+
+  it('shows "Hotovo" label for done entries', () => {
+    const entry = makeHistoryEntry({ type: 'done' })
+    renderPanel(mockAgent, { history: [entry] })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId(`history-entry-${entry.id}`)).toHaveTextContent('Hotovo')
+  })
+
+  it('shows "Otázka" label for question entries', () => {
+    const entry = makeHistoryEntry({ type: 'question', result: 'What is the priority?' })
+    renderPanel(mockAgent, { history: [entry] })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId(`history-entry-${entry.id}`)).toHaveTextContent('Otázka')
+  })
+
+  it('shows "Chyba" label for error entries', () => {
+    const entry = makeHistoryEntry({ type: 'error', result: 'Network timeout.' })
+    renderPanel(mockAgent, { history: [entry] })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId(`history-entry-${entry.id}`)).toHaveTextContent('Chyba')
+  })
+
+  it('shows multiple history entries', () => {
+    const entries = [
+      makeHistoryEntry({ task: 'Task one', result: 'Done one.' }),
+      makeHistoryEntry({ task: 'Task two', result: 'Done two.', type: 'error' }),
+    ]
+    renderPanel(mockAgent, { history: entries })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    expect(screen.getByTestId('agent-history-list').children).toHaveLength(2)
+  })
+
+  it('calls onClearHistory when clear button is clicked', () => {
+    const entry = makeHistoryEntry()
+    const { onClearHistory } = renderPanel(mockAgent, { history: [entry] })
+    fireEvent.click(screen.getByTestId('tab-log'))
+    fireEvent.click(screen.getByTestId('agent-history-clear-btn'))
+    expect(onClearHistory).toHaveBeenCalledOnce()
+  })
+
+  it('shows entry count in the tab label when history is non-empty', () => {
+    const entries = [makeHistoryEntry(), makeHistoryEntry()]
+    renderPanel(mockAgent, { history: entries })
+    expect(screen.getByTestId('tab-log')).toHaveTextContent('Log (2)')
+  })
+
+  it('does not show entry count in the tab label when history is empty', () => {
+    renderPanel(mockAgent, { history: [] })
+    expect(screen.getByTestId('tab-log')).toHaveTextContent('Log')
+    expect(screen.getByTestId('tab-log')).not.toHaveTextContent('(')
+  })
+
+  it('can switch back to Run mode from Log mode', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('tab-log'))
+    fireEvent.click(screen.getByTestId('tab-run'))
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
   })
 })

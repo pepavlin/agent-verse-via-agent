@@ -13,7 +13,8 @@ app/
   globals.css           – Base styles (Tailwind 4 reset)
   components/
     Grid2D.tsx          – Grid component: rendering, input, agents integration
-    AgentPanel.tsx      – Unified agent panel (Run / Edit modes)
+    AgentPanel.tsx      – Unified agent panel (Run / Edit / Log modes)
+    use-agent-history.ts – useAgentHistory hook: per-agent chat-style interaction log
     grid-config.ts      – MAP_CONFIG, GRID_OBJECTS, GridObject interface, worldSize()
     agents-config.ts    – AGENTS array (AgentDef definitions, no pixi.js dep)
     agent-logic.ts      – Pure agent state functions (no pixi.js dep, fully testable)
@@ -46,6 +47,7 @@ tests/
   agent-run-state.test.ts   – Unit tests for run animation state machine (transitions + ticks)
   agent-runes.test.ts       – Unit tests for rune orbit and flash animation math
   inbox.test.tsx             – Unit tests for useInbox hook, InboxPanel, and reply form
+  agent-history.test.ts     – Unit tests for useAgentHistory hook (addEntry, getHistory, clearHistory)
   setup.ts                  – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
@@ -164,14 +166,15 @@ The grid supports two ways to select agents:
 
 ### Agent Panel
 
-A unified dialog panel opens when the user clicks a single agent. It has two focused modes switchable via tabs:
+A unified dialog panel opens when the user clicks a single agent. It has three focused modes switchable via tabs:
 
 | Mode | Contents | Purpose |
 |---|---|---|
 | **Run** | Textarea + Doručení toggle (Počkat / Inbox) + Spustit button | Submit a task to the agent — nothing else. |
 | **Edit** | Jméno input + Goal textarea + Persona textarea + Uložit button | Change the agent's identity and configuration. |
+| **Log** | Chat-style history of past interactions | Browse previous tasks and their outcomes. |
 
-**Design principle:** each mode does exactly one thing. The Run tab is intentionally minimal — it does not show or edit agent properties. Agent properties (name, goal, persona) are exclusively edited via the Edit tab.
+**Design principle:** each mode does exactly one thing. The Run tab is intentionally minimal — it does not show or edit agent properties. Agent properties (name, goal, persona) are exclusively edited via the Edit tab. The Log tab is read-only and shows a chronological conversation-style view.
 
 The panel is a centered fixed overlay (`AgentPanel` component). Clicking the backdrop or the × button dismisses it. On dismiss, selection is cleared.
 
@@ -187,7 +190,7 @@ The panel is a centered fixed overlay (`AgentPanel` component). Clicking the bac
 
 **Exports:**
 - `AgentPanel` — default export, the panel component.
-- `PanelMode` — `'run' | 'edit'`
+- `PanelMode` — `'run' | 'edit' | 'log'`
 - `DeliveryMode` — `'wait' | 'inbox'`
 - `WaitRunPhase` — `'idle' | 'running' | 'done' | 'error'`
 - `RunTaskPayload` — `{ agentId, task, delivery }`
@@ -202,6 +205,43 @@ type WaitRunPhase = 'idle' | 'running' | 'done' | 'error'
 interface RunTaskPayload { agentId: string; task: string; delivery: DeliveryMode }
 interface EditSavePayload { agentId: string; name: string; goal: string; persona: string }
 ```
+
+### Agent History
+
+Each agent maintains a chronological log of past interactions, displayed in the Log tab of the agent panel as a chat-style conversation.
+
+**Hook: `useAgentHistory` (`app/components/use-agent-history.ts`)**
+
+Manages a `Map<agentId, HistoryEntry[]>` in React state. Pure state — no side effects. The parent (`Grid2D`) calls `addEntry()` when run terminal events fire.
+
+```ts
+interface HistoryEntry {
+  id: string              // unique generated ID
+  agentId: string         // which agent
+  task: string            // user's task description (user bubble)
+  type: 'done' | 'question' | 'error'  // run outcome
+  result: string          // agent response text (agent bubble)
+  timestamp: number       // Unix ms — used for relative time labels
+}
+```
+
+**API:**
+- `getHistory(agentId)` — returns entries for an agent (oldest first)
+- `addEntry(entry)` — appends a new entry, auto-assigns a unique `id`
+- `clearHistory(agentId)` — removes all entries for an agent
+
+**When entries are added (in `Grid2D.handleRunTask`):**
+- `done` — on `run:completed` for both wait and inbox delivery
+- `error` — on `run:failed` for both wait and inbox delivery
+- `question` — on `run:awaiting` for both wait and inbox delivery
+
+**Chat-style display (`AgentHistoryView` inside `AgentPanel.tsx`):**
+- Task description rendered as a right-aligned user bubble (slate background)
+- Agent response rendered as a left-aligned agent bubble (color-tinted by outcome type)
+- Type badge: ✓ Hotovo (emerald), ? Otázka (indigo), ✕ Chyba (red)
+- Relative timestamp shown alongside the type badge
+- "Vymazat" button clears the history for that agent
+- Log tab badge shows entry count when non-empty: `Log (3)`
 
 ### Selection UI
 

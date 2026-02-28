@@ -18,6 +18,7 @@ import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from '
 import { RUNE_CHARS, RUNE_COUNT, HEAD_Y as RUNE_HEAD_Y, calcRuneOrbit, calcRuneFlash, calcRuneDisplayScale } from './agent-runes'
 import { useInbox } from './use-inbox'
 import { InboxToggleButton, InboxPanel } from './Inbox'
+import { useAgentHistory } from './use-agent-history'
 import QuestionModal, { type PendingQuestion } from './QuestionModal'
 import AccountSettings from './AccountSettings'
 import type { AgentRunParams } from '../../lib/llm'
@@ -152,6 +153,9 @@ export default function Grid2D() {
   // Inbox state — manages message feed for inbox-delivery task results
   const { messages, unreadCount, addMessage, updateMessage, addChildMessage, dismissMessage, clearAll, markRead } = useInbox()
   const [inboxOpen, setInboxOpen] = useState(false)
+
+  // Agent history — per-agent chat-style log of past interactions
+  const { getHistory, addEntry: addHistoryEntry, clearHistory } = useAgentHistory()
 
   // Question modal — shown for wait-delivery runs when agent needs user clarification
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null)
@@ -940,7 +944,9 @@ export default function Grid2D() {
         // When parent delegation completes
         const unsubRunCompleted = engine.on('run:completed', (completedRun) => {
           if (completedRun.id !== run.id) return
-          updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.', awaitingAnswer: false })
+          const resultText = completedRun.result ?? 'Hotovo.'
+          updateMessage(run.id, { type: 'done', text: resultText, awaitingAnswer: false })
+          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'done', result: resultText, timestamp: Date.now() })
           unsubChildStarted()
           unsubChildCompleted()
           unsubChildFailed()
@@ -950,7 +956,9 @@ export default function Grid2D() {
 
         const unsubRunFailed = engine.on('run:failed', (failedRun) => {
           if (failedRun.id !== run.id) return
-          updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.', awaitingAnswer: false })
+          const errorText = failedRun.error ?? 'Nastala chyba.'
+          updateMessage(run.id, { type: 'error', text: errorText, awaitingAnswer: false })
+          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'error', result: errorText, timestamp: Date.now() })
           unsubChildStarted()
           unsubChildCompleted()
           unsubChildFailed()
@@ -961,7 +969,9 @@ export default function Grid2D() {
         // Subscribe to this specific run's terminal events (non-delegation)
         const unsubRunCompleted = engine.on('run:completed', (completedRun) => {
           if (completedRun.id !== run.id) return
-          updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.', awaitingAnswer: false })
+          const resultText = completedRun.result ?? 'Hotovo.'
+          updateMessage(run.id, { type: 'done', text: resultText, awaitingAnswer: false })
+          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'done', result: resultText, timestamp: Date.now() })
           unsubRunCompleted()
         })
 
@@ -969,12 +979,14 @@ export default function Grid2D() {
           if (awaitingRun.id !== run.id) return
           // Show pulse-stopped completion glow
           agentRunInfoRef.current.set(awaitingRun.agentId, runCompleted())
+          const questionText = awaitingRun.question ?? 'Agent potřebuje upřesnění.'
           // Update inbox card: show question + enable reply form
           updateMessage(run.id, {
             type: 'question',
-            text: awaitingRun.question ?? 'Agent potřebuje upřesnění.',
+            text: questionText,
             awaitingAnswer: true,
           })
+          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'question', result: questionText, timestamp: Date.now() })
           unsubRunAwaiting()
 
           // Subscribe to resumed (re-running)
@@ -991,7 +1003,9 @@ export default function Grid2D() {
 
         const unsubRunFailed = engine.on('run:failed', (failedRun) => {
           if (failedRun.id !== run.id) return
-          updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.', awaitingAnswer: false })
+          const errorText = failedRun.error ?? 'Nastala chyba.'
+          updateMessage(run.id, { type: 'error', text: errorText, awaitingAnswer: false })
+          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'error', result: errorText, timestamp: Date.now() })
           unsubRunFailed()
         })
       }
@@ -1012,13 +1026,15 @@ export default function Grid2D() {
         if (awaitingRun.id !== run.id) return
         // Show completion glow while waiting for answer
         agentRunInfoRef.current.set(awaitingRun.agentId, runCompleted())
+        const questionText = awaitingRun.question ?? 'Agent potřebuje upřesnění.'
         // Open question modal
         setPendingQuestion({
           runId: awaitingRun.id,
           agentName: def.name,
           agentColor: def.color,
-          question: awaitingRun.question ?? 'Agent potřebuje upřesnění.',
+          question: questionText,
         })
+        addHistoryEntry({ agentId: def.id, task: payload.task, type: 'question', result: questionText, timestamp: Date.now() })
         unsubWaitAwaiting()
       })
 
@@ -1030,11 +1046,13 @@ export default function Grid2D() {
       unsubWaitCompleted = engine.on('run:completed', (completedRun) => {
         if (completedRun.id !== run.id) return
         agentRunInfoRef.current.set(completedRun.agentId, runCompleted())
+        const resultText = completedRun.result ?? 'Hotovo.'
         // Guard: only update UI if this run is still the active wait run
         if (waitRunIdRef.current === run.id) {
           setWaitPhase('done')
-          setWaitResult(completedRun.result ?? 'Hotovo.')
+          setWaitResult(resultText)
         }
+        addHistoryEntry({ agentId: def.id, task: payload.task, type: 'done', result: resultText, timestamp: Date.now() })
         unsubWaitCompleted?.()
         unsubWaitFailed?.()
       })
@@ -1042,11 +1060,13 @@ export default function Grid2D() {
       unsubWaitFailed = engine.on('run:failed', (failedRun) => {
         if (failedRun.id !== run.id) return
         agentRunInfoRef.current.set(failedRun.agentId, runFailed())
+        const errorText = failedRun.error ?? 'Nastala chyba.'
         // Guard: only update UI if this run is still the active wait run
         if (waitRunIdRef.current === run.id) {
           setWaitPhase('error')
-          setWaitError(failedRun.error ?? 'Nastala chyba.')
+          setWaitError(errorText)
         }
+        addHistoryEntry({ agentId: def.id, task: payload.task, type: 'error', result: errorText, timestamp: Date.now() })
         unsubWaitCompleted?.()
         unsubWaitFailed?.()
       })
@@ -1398,6 +1418,8 @@ export default function Grid2D() {
         waitResult={waitResult}
         waitError={waitError}
         onNewTask={handleNewTask}
+        history={panelAgentDef ? getHistory(panelAgentDef.id) : []}
+        onClearHistory={panelAgentDef ? () => clearHistory(panelAgentDef.id) : undefined}
       />
 
       {/* ── Account Settings Modal ── */}
