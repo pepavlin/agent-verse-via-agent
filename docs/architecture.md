@@ -163,14 +163,18 @@ The grid supports two ways to select agents:
 
 ### Agent Panel
 
-A unified dialog panel opens when the user clicks a single agent. It has two modes switchable via tabs:
+A unified dialog panel opens when the user clicks a single agent. It has two focused modes switchable via tabs:
 
-| Mode | Purpose |
-|---|---|
-| **Run** | Enter a task description (textarea), choose delivery method (Počkat / Inbox), click Spustit to submit. |
-| **Edit** | Edit the agent's name, goal, and persona inline; click Uložit to apply. |
+| Mode | Contents | Purpose |
+|---|---|---|
+| **Run** | Textarea + Doručení toggle (Počkat / Inbox) + Spustit button | Submit a task to the agent — nothing else. |
+| **Edit** | Jméno input + Goal textarea + Persona textarea + Uložit button | Change the agent's identity and configuration. |
+
+**Design principle:** each mode does exactly one thing. The Run tab is intentionally minimal — it does not show or edit agent properties. Agent properties (name, goal, persona) are exclusively edited via the Edit tab.
 
 The panel is a centered fixed overlay (`AgentPanel` component). Clicking the backdrop or the × button dismisses it. On dismiss, selection is cleared.
+
+**Header:** displays the agent colour dot, name (read-only), and role. Not editable inline — use the Edit tab instead.
 
 **State management for the panel:**
 - `panelAgentId: string | null` (React state in `Grid2D`) — which agent's panel is open.
@@ -184,9 +188,19 @@ The panel is a centered fixed overlay (`AgentPanel` component). Clicking the bac
 - `AgentPanel` — default export, the panel component.
 - `PanelMode` — `'run' | 'edit'`
 - `DeliveryMode` — `'wait' | 'inbox'`
+- `WaitRunPhase` — `'idle' | 'running' | 'done' | 'error'`
 - `RunTaskPayload` — `{ agentId, task, delivery }`
 - `EditSavePayload` — `{ agentId, name, goal, persona }`
 - `AgentPanelProps` — props interface
+
+**Key types:**
+
+```ts
+type DeliveryMode = 'wait' | 'inbox'
+type WaitRunPhase = 'idle' | 'running' | 'done' | 'error'
+interface RunTaskPayload { agentId: string; task: string; delivery: DeliveryMode }
+interface EditSavePayload { agentId: string; name: string; goal: string; persona: string }
+```
 
 ### Selection UI
 
@@ -196,42 +210,14 @@ The panel is a centered fixed overlay (`AgentPanel` component). Clicking the bac
 | 1 agent | Agent Panel dialog (Run / Edit modes) |
 | 2+ agents | Fixed panel centred at bottom of screen listing all selected agents with name, role and colour dot. Action: Dismiss all. |
 
-#### AgentPanel component (`app/components/AgentPanel.tsx`)
-
-**Props:**
-
-| Prop | Type | Purpose |
-|---|---|---|
-| `agent` | `AgentPanelAgent \| null` | Null = panel closed |
-| `isFollowing` | `boolean` | Whether camera is currently following this agent |
-| `onClose` | `() => void` | Close the panel |
-| `onRunTask` | `(RunTaskPayload) => void` | Dispatch a task to the agent |
-| `onEditSave` | `(EditSavePayload) => void` | Persist editable field overrides |
-| `onFollow` | `(id: string) => void` | Start camera follow |
-| `onStopFollow` | `() => void` | Stop camera follow |
-
-**Key types:**
-
-```ts
-interface AgentPanelAgent { id; name; role; colorHex; goal; persona }
-type DeliveryMode = 'wait' | 'inbox'
-interface RunTaskPayload { agentId; task; delivery: DeliveryMode }
-interface EditSavePayload { agentId; name; goal; persona }
-```
-
-**State management in Grid2D:**
-- `agentOverrides: Record<string, EditSavePayload>` stores user edits keyed by agent id.
-- On `onEditSave`, the record is updated; the legend and panel re-render with the new name.
-- `isFollowing: boolean` React state bridges `followingAgentRef` to the panel prop.
-
 #### AgentDef extensions (`app/components/agents-config.ts`)
 
 Two optional fields added to `AgentDef`:
 
 | Field | Type | Purpose |
 |---|---|---|
-| `goal` | `string?` | High-level objective shown in the Edit panel |
-| `persona` | `string?` | Personality description shown in the Edit panel |
+| `goal` | `string?` | High-level objective editable via the Edit panel |
+| `persona` | `string?` | Personality description editable via the Edit panel |
 
 All four built-in agents have default values for both fields.
 
