@@ -152,12 +152,12 @@ describe('AgentPanel Run mode', () => {
     })
   })
 
-  it('calls onRunTask with delivery=inbox when Inbox radio is selected', () => {
+  it('calls onRunTask with delivery=inbox when Inbox button is selected', () => {
     const { onRunTask } = renderPanel()
     fireEvent.change(screen.getByTestId('run-task-input'), {
       target: { value: 'Another task' },
     })
-    fireEvent.click(screen.getByLabelText('Inbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Inbox' }))
     fireEvent.click(screen.getByTestId('run-submit-btn'))
     expect(onRunTask).toHaveBeenCalledWith<[RunTaskPayload]>({
       agentId: 'agent-test',

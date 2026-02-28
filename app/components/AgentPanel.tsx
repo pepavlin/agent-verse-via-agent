@@ -52,7 +52,7 @@ export interface AgentPanelProps {
   onEditSave: (payload: EditSavePayload) => void
   /**
    * Optional list of child agent definitions resolved from agentDef.childAgentIds.
-   * Displayed in the Run panel so the user knows which sub-agents will be dispatched.
+   * When present, the submit button label changes to indicate delegation.
    */
   childAgentDefs?: AgentDef[]
   /**
@@ -110,6 +110,7 @@ export default function AgentPanel({
   if (!agentDef) return null
 
   const colorHex = `#${agentDef.color.toString(16).padStart(6, '0')}`
+  const hasDelegation = childAgentDefs && childAgentDefs.length > 0
 
   // ---- Handlers ----
 
@@ -135,9 +136,9 @@ export default function AgentPanel({
 
   return (
     <>
-      {/* Backdrop — click to close */}
+      {/* Backdrop */}
       <div
-        className="fixed inset-0 z-30"
+        className="fixed inset-0 z-30 bg-black/20 backdrop-blur-[1px]"
         aria-hidden="true"
         onClick={onClose}
         data-testid="agent-panel-backdrop"
@@ -150,15 +151,18 @@ export default function AgentPanel({
         aria-label={`Agent panel: ${agentDef.name}`}
         className="fixed z-40 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
                    w-full max-w-sm
-                   bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl
+                   bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl
                    flex flex-col overflow-hidden"
         data-testid="agent-panel"
       >
         {/* ── Header ── */}
-        <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-slate-700">
-          {/* Agent colour dot */}
+        <div
+          className="flex items-center gap-3 px-5 pt-5 pb-4"
+          style={{ borderBottom: `1px solid rgba(51,65,85,0.6)` }}
+        >
+          {/* Agent colour accent dot */}
           <span
-            className="w-3 h-3 rounded-full flex-shrink-0"
+            className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-2 ring-white/10"
             style={{ background: colorHex }}
             aria-hidden="true"
           />
@@ -166,36 +170,38 @@ export default function AgentPanel({
             <p className="text-white font-semibold text-sm leading-tight truncate">
               {agentDef.name}
             </p>
-            <p className="text-indigo-400 text-[11px] font-mono">{agentDef.role}</p>
+            <p className="text-slate-500 text-[11px] font-mono mt-0.5">{agentDef.role}</p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white w-6 h-6 flex items-center justify-center
-                       rounded-lg hover:bg-slate-700 transition-colors flex-shrink-0"
+            className="text-slate-500 hover:text-slate-200 w-7 h-7 flex items-center justify-center
+                       rounded-lg hover:bg-slate-800 transition-colors flex-shrink-0 text-base"
             aria-label="Zavřít panel"
           >
             ✕
           </button>
         </div>
 
-        {/* ── Tab bar ── */}
-        <div className="flex border-b border-slate-700">
-          <TabButton
-            label="Run"
-            active={mode === 'run'}
-            onClick={() => setMode('run')}
-            testId="tab-run"
-          />
-          <TabButton
-            label="Edit"
-            active={mode === 'edit'}
-            onClick={() => setMode('edit')}
-            testId="tab-edit"
-          />
+        {/* ── Mode toggle (pill) ── */}
+        <div className="px-5 pt-4 pb-0">
+          <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5">
+            <ModeButton
+              label="Run"
+              active={mode === 'run'}
+              onClick={() => setMode('run')}
+              testId="tab-run"
+            />
+            <ModeButton
+              label="Edit"
+              active={mode === 'edit'}
+              onClick={() => setMode('edit')}
+              testId="tab-edit"
+            />
+          </div>
         </div>
 
         {/* ── Body ── */}
-        <div className="px-4 py-4 flex flex-col gap-4">
+        <div className="px-5 py-4 flex flex-col gap-3">
           {mode === 'run' ? (
             waitPhase === 'idle' ? (
               <RunForm
@@ -204,7 +210,7 @@ export default function AgentPanel({
                 onTaskChange={setTask}
                 onDeliveryChange={setDelivery}
                 onSubmit={handleRun}
-                childAgentDefs={childAgentDefs}
+                hasDelegation={hasDelegation ?? false}
               />
             ) : (
               <WaitResult
@@ -235,22 +241,22 @@ export default function AgentPanel({
 // Sub-components
 // ---------------------------------------------------------------------------
 
-interface TabButtonProps {
+interface ModeButtonProps {
   label: string
   active: boolean
   onClick: () => void
   testId: string
 }
 
-function TabButton({ label, active, onClick, testId }: TabButtonProps) {
+function ModeButton({ label, active, onClick, testId }: ModeButtonProps) {
   return (
     <button
       onClick={onClick}
       data-testid={testId}
-      className={`flex-1 py-2 text-sm font-medium transition-colors
+      className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all
         ${active
-          ? 'text-white border-b-2 border-indigo-500 bg-slate-800'
-          : 'text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:bg-slate-700/50'
+          ? 'bg-slate-700 text-white shadow-sm'
+          : 'text-slate-500 hover:text-slate-300'
         }`}
     >
       {label}
@@ -266,13 +272,11 @@ interface RunFormProps {
   onTaskChange: (v: string) => void
   onDeliveryChange: (v: DeliveryMode) => void
   onSubmit: () => void
-  /** Child agents to be dispatched when this run starts (delegation mode). */
-  childAgentDefs?: AgentDef[]
+  /** Whether this agent delegates to child agents (changes button label). */
+  hasDelegation: boolean
 }
 
-function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit, childAgentDefs }: RunFormProps) {
-  const hasDelegation = childAgentDefs && childAgentDefs.length > 0
-
+function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit, hasDelegation }: RunFormProps) {
   return (
     <>
       {/* Task textarea */}
@@ -281,73 +285,24 @@ function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit, chi
         onChange={(e) => onTaskChange(e.target.value)}
         placeholder="Zadejte úkol pro agenta…"
         rows={4}
-        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2.5
-                   text-sm text-slate-100 placeholder:text-slate-500
-                   resize-none focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
+        className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-3.5 py-3
+                   text-sm text-slate-100 placeholder:text-slate-600
+                   resize-none focus:outline-none focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/50
                    transition-colors"
         data-testid="run-task-input"
       />
 
-      {/* Delegation badge — shows which child agents will be dispatched */}
-      {hasDelegation && (
-        <div
-          className="flex flex-col gap-1.5 rounded-lg bg-amber-950/30 border border-amber-700/40 px-3 py-2.5"
-          data-testid="delegation-badge"
-        >
-          <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">
-            Delegace · sub-agenti
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {childAgentDefs.map((child) => (
-              <span
-                key={child.id}
-                className="flex items-center gap-1 bg-slate-800/80 rounded-full px-2 py-0.5"
-                data-testid={`delegation-child-${child.id}`}
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ background: `#${child.color.toString(16).padStart(6, '0')}` }}
-                />
-                <span className="text-[11px] text-slate-200 font-medium">{child.name}</span>
-                <span className="text-[10px] text-slate-500 font-mono">{child.role}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Delivery choice */}
-      <fieldset>
-        <legend className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-          Doručení
-        </legend>
-        <div className="flex gap-5">
-          <RadioOption
-            id="delivery-wait"
-            name="delivery"
-            value="wait"
-            label="Počkat"
-            checked={delivery === 'wait'}
-            onChange={() => onDeliveryChange('wait')}
-          />
-          <RadioOption
-            id="delivery-inbox"
-            name="delivery"
-            value="inbox"
-            label="Inbox"
-            checked={delivery === 'inbox'}
-            onChange={() => onDeliveryChange('inbox')}
-          />
-        </div>
-      </fieldset>
+      {/* Delivery toggle */}
+      <DeliveryToggle value={delivery} onChange={onDeliveryChange} />
 
       {/* Submit */}
       <button
         onClick={onSubmit}
         disabled={!task.trim()}
-        className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors
+        className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all
                    bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
-                   text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                   text-white disabled:opacity-30 disabled:cursor-not-allowed
+                   shadow-sm"
         data-testid="run-submit-btn"
       >
         {hasDelegation ? 'Spustit s delegací' : 'Spustit'}
@@ -356,32 +311,59 @@ function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit, chi
   )
 }
 
-interface RadioOptionProps {
-  id: string
-  name: string
-  value: string
-  label: string
-  checked: boolean
-  onChange: () => void
+// ---- Delivery toggle (pill-style segmented control) ----
+
+interface DeliveryToggleProps {
+  value: DeliveryMode
+  onChange: (v: DeliveryMode) => void
 }
 
-function RadioOption({ id, name, value, label, checked, onChange }: RadioOptionProps) {
+function DeliveryToggle({ value, onChange }: DeliveryToggleProps) {
   return (
-    <label
-      htmlFor={id}
-      className="flex items-center gap-2 cursor-pointer text-sm text-slate-300 select-none"
+    <fieldset>
+      <legend className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2">
+        Doručení
+      </legend>
+      <div className="flex bg-slate-800/60 border border-slate-700/60 rounded-xl p-0.5 gap-0.5">
+        <DeliveryOption
+          id="delivery-wait"
+          label="Počkat"
+          active={value === 'wait'}
+          onClick={() => onChange('wait')}
+        />
+        <DeliveryOption
+          id="delivery-inbox"
+          label="Inbox"
+          active={value === 'inbox'}
+          onClick={() => onChange('inbox')}
+        />
+      </div>
+    </fieldset>
+  )
+}
+
+interface DeliveryOptionProps {
+  id: string
+  label: string
+  active: boolean
+  onClick: () => void
+}
+
+function DeliveryOption({ id, label, active, onClick }: DeliveryOptionProps) {
+  return (
+    <button
+      type="button"
+      id={id}
+      aria-pressed={active}
+      onClick={onClick}
+      className={`flex-1 py-1.5 text-sm rounded-lg transition-all font-medium
+        ${active
+          ? 'bg-slate-700 text-white shadow-sm'
+          : 'text-slate-500 hover:text-slate-300'
+        }`}
     >
-      <input
-        type="radio"
-        id={id}
-        name={name}
-        value={value}
-        checked={checked}
-        onChange={onChange}
-        className="accent-indigo-500 w-4 h-4 cursor-pointer"
-      />
       {label}
-    </label>
+    </button>
   )
 }
 
@@ -405,10 +387,10 @@ function WaitResult({ phase, result, error, onNewTask }: WaitResultProps) {
   if (phase === 'running') {
     return (
       <div
-        className="flex flex-col items-center gap-4 py-8 text-slate-300"
+        className="flex flex-col items-center gap-4 py-8 text-slate-400"
         data-testid="wait-running-indicator"
       >
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         <span className="text-sm">Zpracovávám…</span>
       </div>
     )
@@ -417,21 +399,21 @@ function WaitResult({ phase, result, error, onNewTask }: WaitResultProps) {
   const isDone = phase === 'done'
 
   return (
-    <div className="flex flex-col gap-4" data-testid="wait-result-panel">
+    <div className="flex flex-col gap-3" data-testid="wait-result-panel">
       {/* Status header */}
       <div
-        className={`flex items-center gap-2 text-sm font-semibold ${
-          isDone ? 'text-emerald-400' : 'text-red-400'
+        className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wider ${
+          isDone ? 'text-emerald-500' : 'text-red-500'
         }`}
       >
-        <span aria-hidden="true">{isDone ? '✓' : '✕'}</span>
+        <span aria-hidden="true" className="text-sm">{isDone ? '✓' : '✕'}</span>
         <span>{isDone ? 'Hotovo' : 'Chyba'}</span>
       </div>
 
       {/* Result / error body */}
       <div
-        className={`rounded-lg px-3 py-3 text-sm text-slate-200 bg-slate-900 border leading-relaxed whitespace-pre-wrap ${
-          isDone ? 'border-emerald-800/40' : 'border-red-800/40'
+        className={`rounded-xl px-3.5 py-3 text-sm text-slate-200 bg-slate-800/60 border leading-relaxed whitespace-pre-wrap ${
+          isDone ? 'border-emerald-800/30' : 'border-red-800/30'
         }`}
       >
         {isDone ? (result ?? '') : (error ?? '')}
@@ -440,8 +422,9 @@ function WaitResult({ phase, result, error, onNewTask }: WaitResultProps) {
       {/* Reset to form */}
       <button
         onClick={onNewTask}
-        className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors
-                   bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-slate-200"
+        className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all
+                   bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300
+                   border border-slate-700/60"
         data-testid="wait-new-task-btn"
       >
         Nový úkol
@@ -467,7 +450,7 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
     <>
       {/* Name */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="edit-name" className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <label htmlFor="edit-name" className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
           Jméno
         </label>
         <input
@@ -475,9 +458,9 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
           type="text"
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
-          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2
+          className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-3.5 py-2.5
                      text-sm text-slate-100
-                     focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
+                     focus:outline-none focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/50
                      transition-colors"
           data-testid="edit-name-input"
         />
@@ -485,7 +468,7 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
 
       {/* Goal */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="edit-goal" className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <label htmlFor="edit-goal" className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
           Goal
         </label>
         <textarea
@@ -494,9 +477,9 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
           onChange={(e) => onGoalChange(e.target.value)}
           placeholder="Co má agent dosáhnout?"
           rows={2}
-          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2
-                     text-sm text-slate-100 placeholder:text-slate-500
-                     resize-none focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
+          className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-3.5 py-2.5
+                     text-sm text-slate-100 placeholder:text-slate-600
+                     resize-none focus:outline-none focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/50
                      transition-colors"
           data-testid="edit-goal-input"
         />
@@ -504,7 +487,7 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
 
       {/* Persona */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="edit-persona" className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <label htmlFor="edit-persona" className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
           Persona
         </label>
         <textarea
@@ -513,9 +496,9 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
           onChange={(e) => onPersonaChange(e.target.value)}
           placeholder="Jak se agent chová a komunikuje?"
           rows={2}
-          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2
-                     text-sm text-slate-100 placeholder:text-slate-500
-                     resize-none focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
+          className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-3.5 py-2.5
+                     text-sm text-slate-100 placeholder:text-slate-600
+                     resize-none focus:outline-none focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/50
                      transition-colors"
           data-testid="edit-persona-input"
         />
@@ -525,9 +508,10 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
       <button
         onClick={onSave}
         disabled={!name.trim()}
-        className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors
+        className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all
                    bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
-                   text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                   text-white disabled:opacity-30 disabled:cursor-not-allowed
+                   shadow-sm"
         data-testid="edit-save-btn"
       >
         Uložit
