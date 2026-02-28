@@ -33,6 +33,7 @@ tests/
   controls.test.ts          – Unit tests for click-threshold and coord-conversion helpers
   agent-panel.test.tsx      – Unit tests for AgentPanel component (Run mode, Edit mode, tabs)
   run-engine.test.ts        – Unit tests for RunEngine lifecycle, events, delays, querying
+  run-engine-dispatch.test.ts – Unit tests for RunEngine.dispatch() convenience method
   run-engine-executor.test.ts – Unit tests for RunEngine executor (real LLM) path
   run-engine-resume.test.ts – Unit tests for RunEngine.resumeRun() (needs_user feature)
   mock-llm.test.ts          – Unit tests for MockLLM (result/question paths, delay, RunEngine integration)
@@ -367,6 +368,14 @@ resumeRun()              ◄──  awaiting  (user answered)   │
 ```ts
 const engine = new RunEngine(options?)
 
+// ── Primary entry point ─────────────────────────────────────────────────────
+// Create a run AND immediately start it in a single call (status: 'running').
+// After the configured delay (default 2–6 s) the run transitions to
+// 'completed' (mock) or to whatever the executor resolves to.
+const run = engine.dispatch(agentId, agentName, agentRole, taskDescription)            // mock mode
+const run = engine.dispatch(agentId, agentName, agentRole, taskDescription, executor)  // real LLM mode
+
+// ── Two-step alternative (equivalent to dispatch) ───────────────────────────
 // Create a run (status: 'pending')
 const run = engine.createRun(agentId, agentName, agentRole, taskDescription)
 
@@ -374,20 +383,42 @@ const run = engine.createRun(agentId, agentName, agentRole, taskDescription)
 engine.startRun(run.id)            // mock mode (no executor)
 engine.startRun(run.id, executor)  // real LLM mode
 
+// ── Resume ──────────────────────────────────────────────────────────────────
 // Resume an awaiting run after user answers the question
 engine.resumeRun(run.id, 'user answer')            // mock mode
 engine.resumeRun(run.id, 'user answer', executor)  // real LLM mode
 
-// Query
+// ── Query ───────────────────────────────────────────────────────────────────
 engine.getRun(run.id)           // → Run | undefined
 engine.getAllRuns()              // → Run[]
 engine.getRunsByAgent(agentId)  // → Run[]
 
-// Events
+// ── Events ──────────────────────────────────────────────────────────────────
 const unsub = engine.on('run:completed', (run) => console.log(run.result))
 unsub()  // unsubscribe
 engine.off('run:created', handler)
 ```
+
+#### `dispatch()` — the primary entry point
+
+`dispatch()` is the recommended way to start a run.  It is a thin convenience
+wrapper that calls `createRun()` and `startRun()` atomically and returns the
+already-running `Run` object:
+
+```
+dispatch(agentId, agentName, agentRole, task, executor?)
+  ├─ createRun()  →  Run(status='pending')   +  run:created  event
+  ├─ startRun()   →  Run(status='running')   +  run:started  event
+  └─ returns the 'running' snapshot immediately
+
+After delay (mock) / async resolution (executor):
+  ├─ Run(status='completed')  +  run:completed  event  [default path]
+  ├─ Run(status='awaiting')   +  run:awaiting   event  [question path / mock]
+  └─ Run(status='failed')     +  run:failed     event  [on executor rejection]
+```
+
+The two-step `createRun() + startRun()` API remains fully supported for callers
+that need to set up event listeners between the two calls.
 
 ### Events
 
@@ -473,7 +504,7 @@ engine.startRun(run.id, mock.asExecutor())
 |---|---|
 | `types.ts` | `Run`, `RunStatus`, `RunEventType`, `RunEventHandler`, `RunEngineOptions`, `MockLLMResponse` |
 | `results.ts` | `generateResult()`, `RESULT_TEMPLATE_COUNT`, `generateQuestion()`, `QUESTION_TEMPLATE_COUNT` |
-| `engine.ts` | `RunEngine` class, `AgentMeta` interface, `RunExecutor` type |
+| `engine.ts` | `RunEngine` class (`dispatch`, `createRun`, `startRun`, `resumeRun`, events, querying), `AgentMeta`, `RunExecutor` |
 | `mock-llm.ts` | `MockLLM` class, `MockLLMOptions` interface |
 | `index.ts` | Re-exports for external consumers |
 
