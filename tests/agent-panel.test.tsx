@@ -17,6 +17,7 @@ const mockAgent: AgentDef = {
   startRow: 5,
   goal: 'Run all tests',
   persona: 'Thorough and systematic',
+  configVersion: 1,
 }
 
 // ---------------------------------------------------------------------------
@@ -177,7 +178,238 @@ describe('AgentPanel Run mode', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Edit mode
+// Agent context section (goal + persona in Run tab)
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel agent context section', () => {
+  it('shows agent context section in Run tab', () => {
+    renderPanel()
+    expect(screen.getByTestId('agent-context-section')).toBeInTheDocument()
+  })
+
+  it('displays goal text in the context section', () => {
+    renderPanel()
+    expect(screen.getByTestId('inline-goal-display')).toHaveTextContent('Run all tests')
+  })
+
+  it('displays persona text in the context section', () => {
+    renderPanel()
+    expect(screen.getByTestId('inline-persona-display')).toHaveTextContent('Thorough and systematic')
+  })
+
+  it('shows placeholder text for empty goal', () => {
+    const agentNoGoal: AgentDef = { ...mockAgent, goal: undefined }
+    renderPanel(agentNoGoal)
+    expect(screen.getByTestId('inline-goal-display')).toBeInTheDocument()
+  })
+
+  it('context section is not visible in Edit mode', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('tab-edit'))
+    expect(screen.queryByTestId('agent-context-section')).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Inline goal editing (in Run tab)
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel inline goal editing', () => {
+  it('shows edit button for goal', () => {
+    renderPanel()
+    expect(screen.getByTestId('inline-goal-edit-btn')).toBeInTheDocument()
+  })
+
+  it('clicking edit goal button shows the inline input', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('inline-goal-edit-btn'))
+    expect(screen.getByTestId('inline-goal-input')).toBeInTheDocument()
+    expect(screen.queryByTestId('inline-goal-display')).toBeNull()
+  })
+
+  it('inline goal input is seeded with current goal value', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('inline-goal-edit-btn'))
+    expect(screen.getByTestId<HTMLTextAreaElement>('inline-goal-input').value).toBe('Run all tests')
+  })
+
+  it('confirm goal save calls onEditSave with updated goal', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-goal-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-goal-input'), {
+      target: { value: 'New goal text' },
+    })
+    fireEvent.click(screen.getByTestId('inline-goal-confirm'))
+    expect(onEditSave).toHaveBeenCalledWith<[EditSavePayload]>({
+      agentId: 'agent-test',
+      name: 'TestBot',
+      goal: 'New goal text',
+      persona: 'Thorough and systematic',
+    })
+  })
+
+  it('cancelling goal edit restores the display without calling onEditSave', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-goal-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-goal-input'), {
+      target: { value: 'Discarded goal' },
+    })
+    fireEvent.click(screen.getByTestId('inline-goal-cancel'))
+    expect(onEditSave).not.toHaveBeenCalled()
+    expect(screen.getByTestId('inline-goal-display')).toHaveTextContent('Run all tests')
+  })
+
+  it('Escape key cancels inline goal edit', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-goal-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-goal-input'), {
+      target: { value: 'Discarded' },
+    })
+    fireEvent.keyDown(screen.getByTestId('inline-goal-input'), { key: 'Escape' })
+    expect(onEditSave).not.toHaveBeenCalled()
+    expect(screen.getByTestId('inline-goal-display')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Inline persona editing (in Run tab)
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel inline persona editing', () => {
+  it('shows edit button for persona', () => {
+    renderPanel()
+    expect(screen.getByTestId('inline-persona-edit-btn')).toBeInTheDocument()
+  })
+
+  it('clicking edit persona button shows the inline input', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('inline-persona-edit-btn'))
+    expect(screen.getByTestId('inline-persona-input')).toBeInTheDocument()
+    expect(screen.queryByTestId('inline-persona-display')).toBeNull()
+  })
+
+  it('inline persona input is seeded with current persona value', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('inline-persona-edit-btn'))
+    expect(screen.getByTestId<HTMLTextAreaElement>('inline-persona-input').value).toBe(
+      'Thorough and systematic',
+    )
+  })
+
+  it('confirm persona save calls onEditSave with updated persona', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-persona-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-persona-input'), {
+      target: { value: 'New persona description' },
+    })
+    fireEvent.click(screen.getByTestId('inline-persona-confirm'))
+    expect(onEditSave).toHaveBeenCalledWith<[EditSavePayload]>({
+      agentId: 'agent-test',
+      name: 'TestBot',
+      goal: 'Run all tests',
+      persona: 'New persona description',
+    })
+  })
+
+  it('cancelling persona edit restores the display without calling onEditSave', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-persona-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-persona-input'), {
+      target: { value: 'Discarded persona' },
+    })
+    fireEvent.click(screen.getByTestId('inline-persona-cancel'))
+    expect(onEditSave).not.toHaveBeenCalled()
+    expect(screen.getByTestId('inline-persona-display')).toHaveTextContent('Thorough and systematic')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Inline name editing (in header)
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel inline name editing', () => {
+  it('shows the edit name button', () => {
+    renderPanel()
+    expect(screen.getByTestId('inline-name-edit-btn')).toBeInTheDocument()
+  })
+
+  it('clicking edit name button shows the inline input', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('inline-name-edit-btn'))
+    expect(screen.getByTestId('inline-name-input')).toBeInTheDocument()
+    expect(screen.getByTestId('inline-name-edit')).toBeInTheDocument()
+  })
+
+  it('inline name input is seeded with current name', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('inline-name-edit-btn'))
+    expect(screen.getByTestId<HTMLInputElement>('inline-name-input').value).toBe('TestBot')
+  })
+
+  it('confirming name edit calls onEditSave with updated name', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-name-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-name-input'), {
+      target: { value: 'RenamedBot' },
+    })
+    fireEvent.click(screen.getByTestId('inline-name-confirm'))
+    expect(onEditSave).toHaveBeenCalledWith<[EditSavePayload]>({
+      agentId: 'agent-test',
+      name: 'RenamedBot',
+      goal: 'Run all tests',
+      persona: 'Thorough and systematic',
+    })
+  })
+
+  it('Enter key confirms the inline name edit', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-name-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-name-input'), {
+      target: { value: 'EnterBot' },
+    })
+    fireEvent.keyDown(screen.getByTestId('inline-name-input'), { key: 'Enter' })
+    expect(onEditSave).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'EnterBot' }),
+    )
+  })
+
+  it('Escape key cancels the inline name edit', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-name-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-name-input'), {
+      target: { value: 'ShouldNotSave' },
+    })
+    fireEvent.keyDown(screen.getByTestId('inline-name-input'), { key: 'Escape' })
+    expect(onEditSave).not.toHaveBeenCalled()
+    // The original name should still appear
+    expect(screen.getByText('TestBot')).toBeInTheDocument()
+  })
+
+  it('cancelling name edit via cancel button restores original name', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-name-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-name-input'), {
+      target: { value: 'Discarded Name' },
+    })
+    fireEvent.click(screen.getByTestId('inline-name-cancel'))
+    expect(onEditSave).not.toHaveBeenCalled()
+    expect(screen.getByText('TestBot')).toBeInTheDocument()
+  })
+
+  it('empty name reverts to previous value without calling onEditSave', () => {
+    const { onEditSave } = renderPanel()
+    fireEvent.click(screen.getByTestId('inline-name-edit-btn'))
+    fireEvent.change(screen.getByTestId('inline-name-input'), {
+      target: { value: '' },
+    })
+    fireEvent.click(screen.getByTestId('inline-name-confirm'))
+    expect(onEditSave).not.toHaveBeenCalled()
+    expect(screen.getByText('TestBot')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Edit mode (full Edit tab)
 // ---------------------------------------------------------------------------
 
 describe('AgentPanel Edit mode', () => {
@@ -250,6 +482,7 @@ describe('AgentPanel Edit mode', () => {
       color: 0x4ecdc4,
       startCol: 0,
       startRow: 0,
+      configVersion: 1,
     }
     renderPanel(agentWithoutOptionals)
     fireEvent.click(screen.getByTestId('tab-edit'))
@@ -306,6 +539,32 @@ describe('AgentPanel state reset', () => {
     )
 
     expect(screen.getByTestId<HTMLTextAreaElement>('run-task-input').value).toBe('')
+  })
+
+  it('resets inline goal edit state when a new agent is shown', () => {
+    const { rerender } = renderPanel()
+    // Start editing the goal
+    fireEvent.click(screen.getByTestId('inline-goal-edit-btn'))
+    expect(screen.getByTestId('inline-goal-input')).toBeInTheDocument()
+
+    const anotherAgent: AgentDef = {
+      ...mockAgent,
+      id: 'agent-other',
+      name: 'OtherBot',
+      goal: 'Different goal',
+    }
+    rerender(
+      <AgentPanel
+        agentDef={anotherAgent}
+        onClose={vi.fn()}
+        onRunTask={vi.fn()}
+        onEditSave={vi.fn()}
+      />,
+    )
+
+    // Should no longer be in inline edit mode
+    expect(screen.queryByTestId('inline-goal-input')).toBeNull()
+    expect(screen.getByTestId('inline-goal-display')).toHaveTextContent('Different goal')
   })
 })
 
