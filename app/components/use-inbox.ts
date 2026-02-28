@@ -16,7 +16,7 @@ import { useState, useCallback } from 'react'
 // Types
 // ---------------------------------------------------------------------------
 
-export type InboxMessageType = 'done' | 'question' | 'error'
+export type InboxMessageType = 'done' | 'question' | 'error' | 'delegating'
 
 export interface InboxMessage {
   /** Run ID — unique identifier, used to update in-progress messages. */
@@ -37,6 +37,25 @@ export interface InboxMessage {
    * Only meaningful when type === 'question'.
    */
   awaitingAnswer?: boolean
+  /**
+   * Sub-messages for child runs spawned by this parent run during delegation.
+   * Each entry corresponds to a single child agent's sub-run result.
+   */
+  childMessages?: ChildRunMessage[]
+}
+
+/** A condensed result entry for a single child sub-run inside a parent inbox message. */
+export interface ChildRunMessage {
+  /** Child run ID. */
+  id: string
+  /** Type reflects the child run's terminal state. */
+  type: 'done' | 'question' | 'error'
+  /** Display name of the child agent. */
+  agentName: string
+  /** Child agent brand colour. */
+  agentColor: number
+  /** Result or error text. */
+  text: string
 }
 
 // ---------------------------------------------------------------------------
@@ -48,6 +67,7 @@ export interface UseInboxReturn {
   unreadCount: number
   addMessage: (msg: InboxMessage) => void
   updateMessage: (id: string, updates: Partial<Omit<InboxMessage, 'id'>>) => void
+  addChildMessage: (parentId: string, child: ChildRunMessage) => void
   dismissMessage: (id: string) => void
   clearAll: () => void
   markRead: () => void
@@ -81,6 +101,22 @@ export function useInbox(): UseInboxReturn {
     [],
   )
 
+  const addChildMessage = useCallback((parentId: string, child: ChildRunMessage) => {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== parentId) return m
+        const existing = m.childMessages ?? []
+        // Replace if already present (update), otherwise append
+        const idx = existing.findIndex((c) => c.id === child.id)
+        const updated =
+          idx >= 0
+            ? existing.map((c, i) => (i === idx ? child : c))
+            : [...existing, child]
+        return { ...m, childMessages: updated }
+      }),
+    )
+  }, [])
+
   const dismissMessage = useCallback((id: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== id))
   }, [])
@@ -93,5 +129,5 @@ export function useInbox(): UseInboxReturn {
     setUnreadCount(0)
   }, [])
 
-  return { messages, unreadCount, addMessage, updateMessage, dismissMessage, clearAll, markRead }
+  return { messages, unreadCount, addMessage, updateMessage, addChildMessage, dismissMessage, clearAll, markRead }
 }

@@ -9,13 +9,35 @@ import type {
   RunEngineOptions,
   MockLLMResponse,
 } from './types'
-import { generateResult, generateQuestion } from './results'
+import { generateResult, generateQuestion, composeDelegatedResults } from './results'
+import type { ChildRunOutcome } from './results'
 
 /** Agent metadata the engine needs to generate results. */
 export interface AgentMeta {
   name: string
   role: string
 }
+
+/**
+ * Minimal agent descriptor passed to startRunWithChildren to define child agents.
+ * Only the fields required for run creation and result generation are needed.
+ */
+export interface ChildAgentDef {
+  /** Unique agent identifier. */
+  agentId: string
+  /** Display name used for result generation. */
+  agentName: string
+  /** Role label used for result generation. */
+  agentRole: string
+}
+
+/**
+ * Optional factory that receives the completed child runs and returns an executor
+ * for the parent run. This allows the parent's LLM call to incorporate child results.
+ *
+ * When omitted, the engine composes child results automatically using composeDelegatedResults.
+ */
+export type ParentExecutorFactory = (childRuns: Run[]) => RunExecutor
 
 /**
  * Optional async executor that produces the run outcome.
@@ -113,6 +135,7 @@ export class RunEngine {
    * @param agentName       Display name used for result generation
    * @param agentRole       Role label used for result generation
    * @param taskDescription Plain-language description of the task
+   * @param parentRunId     Optional: ID of the parent run (for child/sub-runs)
    * @returns               The newly created Run
    */
   createRun(
@@ -120,6 +143,7 @@ export class RunEngine {
     agentName: string,
     agentRole: string,
     taskDescription: string,
+    parentRunId?: string,
   ): Run {
     const run: Run = {
       id: generateId(),
@@ -127,6 +151,7 @@ export class RunEngine {
       taskDescription,
       status: 'pending',
       createdAt: Date.now(),
+      ...(parentRunId !== undefined && { parentRunId }),
     }
     // Store agent meta alongside the run for result generation later
     this._agentMeta.set(run.id, { name: agentName, role: agentRole })
@@ -300,6 +325,177 @@ export class RunEngine {
     }
   }
 
+  /**
+   * Start a run and orchestrate child sub-runs in parallel before completing.
+   *
+   * Flow:
+   *   1. Parent transitions pending → running → delegating.
+   *   2. For each child in childDefs, a child run is created (with parentRunId set).
+   *   3. All child runs are started concurrently.
+   *   4. When all children reach a terminal state (completed/awaiting/failed), the
+   *      parent transitions delegating → running.
+   *   5. If parentExecutorFactory is provided it is called with the completed child
+   *      runs and the returned executor drives the parent to its terminal state.
+   *      Otherwise the engine automatically composes child results and marks the
+   *      parent as 'completed'.
+   *
+   * Child runs that end in 'awaiting' are treated as a terminal state for the
+   * purposes of delegation flow (the parent does not block indefinitely on them).
+   *
+   * @param runId                  The pending parent run to orchestrate.
+   * @param childDefs              Agent descriptors for each child run to spawn.
+   * @param parentExecutorFactory  Optional factory that receives completed child runs
+   *                               and returns an executor for the parent run.
+   * @param childExecutorFactory   Optional per-child executor factory (agentId → executor).
+   *                               When omitted, child runs use built-in mock mode.
+   * @throws Error if the run does not exist or is not in 'pending' state.
+   */
+  startRunWithChildren(
+    runId: string,
+    childDefs: ChildAgentDef[],
+    parentExecutorFactory?: ParentExecutorFactory,
+    childExecutorFactory?: (agentId: string) => RunExecutor,
+  ): void {
+    const run = this._getOrThrow(runId)
+
+    if (run.status !== 'pending') {
+      throw new Error(
+        `Cannot start run "${runId}": expected status 'pending' but got '${run.status}'.`,
+      )
+    }
+
+    // Transition parent: pending → running
+    const started: Run = { ...run, status: 'running', startedAt: Date.now() }
+    this._runs.set(runId, started)
+    this._emit('run:started', started)
+
+    // If no children, fall back to regular single-executor behaviour
+    if (childDefs.length === 0) {
+      if (parentExecutorFactory) {
+        const executor = parentExecutorFactory([])
+        executor()
+          .then((outcome) => {
+            if (typeof outcome === 'string') {
+              this._resolveRun(runId, outcome)
+            } else if (outcome.kind === 'result') {
+              this._resolveRun(runId, outcome.text)
+            } else {
+              this._awaitRun(runId, outcome.text)
+            }
+          })
+          .catch((err) => {
+            const message =
+              err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
+            this._failRun(runId, message)
+          })
+      } else {
+        const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
+        const handle = setTimeout(() => {
+          this._completeRunWithMock(runId)
+          this._pendingTimeouts.delete(runId)
+        }, delayMs)
+        this._pendingTimeouts.set(runId, handle)
+      }
+      return
+    }
+
+    // Transition parent: running → delegating
+    const delegating: Run = { ...started, status: 'delegating' }
+    this._runs.set(runId, delegating)
+    this._emit('run:delegating', delegating)
+
+    // Create child runs, all linked to the parent
+    const childRuns: Run[] = childDefs.map((def) =>
+      this.createRun(def.agentId, def.agentName, def.agentRole, delegating.taskDescription, runId),
+    )
+
+    // Update parent with childRunIds
+    const withChildren: Run = { ...delegating, childRunIds: childRuns.map((r) => r.id) }
+    this._runs.set(runId, withChildren)
+
+    // Orchestrate asynchronously — fire-and-forget
+    ;(async () => {
+      // Wait for all children to reach a terminal state (completed / awaiting / failed)
+      await Promise.all(
+        childRuns.map((childRun) => {
+          return new Promise<void>((resolve) => {
+            const settle = () => resolve()
+
+            const unsubCompleted = this.on('run:completed', (r) => {
+              if (r.id !== childRun.id) return
+              unsubCompleted()
+              unsubFailed()
+              unsubAwaiting()
+              settle()
+            })
+            const unsubFailed = this.on('run:failed', (r) => {
+              if (r.id !== childRun.id) return
+              unsubCompleted()
+              unsubFailed()
+              unsubAwaiting()
+              settle()
+            })
+            const unsubAwaiting = this.on('run:awaiting', (r) => {
+              if (r.id !== childRun.id) return
+              unsubCompleted()
+              unsubFailed()
+              unsubAwaiting()
+              settle()
+            })
+
+            // Start the child run
+            const childExecutor = childExecutorFactory
+              ? childExecutorFactory(childRun.agentId)
+              : undefined
+            this.startRun(childRun.id, childExecutor)
+          })
+        }),
+      )
+
+      // Collect child run snapshots after settlement
+      const settledChildren = childRuns.map((cr) => this.getRun(cr.id)!)
+
+      // Transition parent: delegating → running (in preparation for its own execution)
+      const currentParent = this._runs.get(runId)
+      if (!currentParent || currentParent.status !== 'delegating') return
+      const runningAgain: Run = { ...currentParent, status: 'running' }
+      this._runs.set(runId, runningAgain)
+
+      if (parentExecutorFactory) {
+        // Real executor: factory receives child results so it can incorporate them
+        const executor = parentExecutorFactory(settledChildren)
+        try {
+          const outcome = await executor()
+          if (typeof outcome === 'string') {
+            this._resolveRun(runId, outcome)
+          } else if (outcome.kind === 'result') {
+            this._resolveRun(runId, outcome.text)
+          } else {
+            this._awaitRun(runId, outcome.text)
+          }
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
+          this._failRun(runId, message)
+        }
+      } else {
+        // Mock mode: compose child results into a delegation report
+        const parentMeta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
+        const childOutcomes: ChildRunOutcome[] = settledChildren.map((cr) => {
+          const meta = this._agentMeta.get(cr.id) ?? { name: 'Agent', role: 'Agent' }
+          return {
+            agentName: meta.name,
+            agentRole: meta.role,
+            result: cr.result,
+            error: cr.error,
+          }
+        })
+        const composed = composeDelegatedResults(parentMeta.name, childOutcomes)
+        this._resolveRun(runId, composed)
+      }
+    })()
+  }
+
   // -------------------------------------------------------------------------
   // Public API — querying
   // -------------------------------------------------------------------------
@@ -317,6 +513,24 @@ export class RunEngine {
   /** Return all runs for a given agent. */
   getRunsByAgent(agentId: string): Run[] {
     return this.getAllRuns().filter((r) => r.agentId === agentId)
+  }
+
+  /**
+   * Return all direct child runs of the given parent run.
+   * Returns an empty array if the run has no children or does not exist.
+   */
+  getChildRuns(parentRunId: string): Run[] {
+    return this.getAllRuns().filter((r) => r.parentRunId === parentRunId)
+  }
+
+  /**
+   * Return the parent run of a child run, or undefined if the run has no parent
+   * or the run does not exist.
+   */
+  getParentRun(childRunId: string): Run | undefined {
+    const run = this._runs.get(childRunId)
+    if (!run?.parentRunId) return undefined
+    return this._runs.get(run.parentRunId)
   }
 
   // -------------------------------------------------------------------------

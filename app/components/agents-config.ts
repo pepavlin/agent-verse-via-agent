@@ -16,6 +16,12 @@ export interface AgentDef {
   goal?: string
   /** How this agent behaves / personality description */
   persona?: string
+  /**
+   * IDs of child agents this agent can delegate sub-tasks to.
+   * When set, running this agent will spawn parallel sub-runs for each child
+   * and compose their results before completing the parent run.
+   */
+  childAgentIds?: string[]
 }
 
 export const AGENTS: AgentDef[] = [
@@ -28,6 +34,8 @@ export const AGENTS: AgentDef[] = [
     startRow: 5,
     goal: 'Map all unexplored areas of the grid',
     persona: 'Curious and bold. Always the first to venture into unknown territory.',
+    // Alice delegates field work to Bob (Builder) and Carol (Scout)
+    childAgentIds: ['agent-bob', 'agent-carol'],
   },
   {
     id: 'agent-bob',

@@ -5,13 +5,14 @@
 /**
  * Life-cycle states a Run passes through.
  *
- * - 'pending'   — created, not yet started
- * - 'running'   — currently executing
- * - 'completed' — finished with a result
- * - 'awaiting'  — paused, agent asked a clarifying question; can be resumed via resumeRun()
- * - 'failed'    — terminated with an error
+ * - 'pending'    — created, not yet started
+ * - 'running'    — currently executing
+ * - 'delegating' — parent run is waiting for all child sub-runs to complete
+ * - 'completed'  — finished with a result
+ * - 'awaiting'   — paused, agent asked a clarifying question; can be resumed via resumeRun()
+ * - 'failed'     — terminated with an error
  */
-export type RunStatus = 'pending' | 'running' | 'completed' | 'awaiting' | 'failed'
+export type RunStatus = 'pending' | 'running' | 'delegating' | 'completed' | 'awaiting' | 'failed'
 
 /** A single task execution record. */
 export interface Run {
@@ -43,12 +44,23 @@ export interface Run {
   answer?: string
   /** Error description. Set only when status === 'failed'. */
   error?: string
+  /**
+   * ID of the parent run that spawned this run as a child/sub-run.
+   * Undefined for top-level runs.
+   */
+  parentRunId?: string
+  /**
+   * IDs of child sub-runs spawned by this run during delegation.
+   * Set when the parent enters 'delegating' state.
+   */
+  childRunIds?: string[]
 }
 
 /** Events emitted by the RunEngine. */
 export type RunEventType =
   | 'run:created'
   | 'run:started'
+  | 'run:delegating'
   | 'run:completed'
   | 'run:awaiting'
   | 'run:resumed'

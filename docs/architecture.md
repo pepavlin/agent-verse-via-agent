@@ -36,6 +36,7 @@ tests/
   run-engine-dispatch.test.ts – Unit tests for RunEngine.dispatch() convenience method
   run-engine-executor.test.ts – Unit tests for RunEngine executor (real LLM) path
   run-engine-resume.test.ts – Unit tests for RunEngine.resumeRun() (needs_user feature)
+  run-engine-children.test.ts – Unit tests for child agent delegation (startRunWithChildren, composeDelegatedResults)
   mock-llm.test.ts          – Unit tests for MockLLM (result/question paths, delay, RunEngine integration)
   agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
   agent-run-state.test.ts   – Unit tests for run animation state machine (transitions + ticks)
@@ -353,12 +354,16 @@ startRun()   ──►  running  ──► executor / mock ──┬──►  c
 resumeRun()              ◄──  awaiting  (user answered)   │
    └──► running  ──► executor / mock ──┬──►  completed  ──┘
                                        └──►  failed
+
+startRunWithChildren()  ──►  running  ──►  delegating  ──► (children run) ──►  running  ──►  completed
+                                                                                             (or failed)
 ```
 
 | State | Description |
 |---|---|
 | `pending` | Run created, not yet started |
 | `running` | Run is executing; executor or mock timer is pending |
+| `delegating` | Parent run is waiting for all child sub-runs to complete in parallel |
 | `completed` | Run finished; `result` text is available |
 | `awaiting` | Agent raised a clarifying question; `question` text is available. Resumable via `resumeRun()`. |
 | `failed` | Run terminated with an error; `error` text is available |
@@ -378,10 +383,24 @@ const run = engine.dispatch(agentId, agentName, agentRole, taskDescription, exec
 // ── Two-step alternative (equivalent to dispatch) ───────────────────────────
 // Create a run (status: 'pending')
 const run = engine.createRun(agentId, agentName, agentRole, taskDescription)
+// Optionally with a parent run ID (for child/sub-runs):
+const childRun = engine.createRun(agentId, agentName, agentRole, taskDescription, parentRun.id)
 
 // Transition to 'running', execute with real LLM or mock
 engine.startRun(run.id)            // mock mode (no executor)
 engine.startRun(run.id, executor)  // real LLM mode
+
+// ── Delegation (child agents) ────────────────────────────────────────────────
+// Start a parent run that spawns parallel child sub-runs for each childDef.
+// Children run concurrently; parent completes after all children settle.
+// In mock mode: parent result is a composed delegation report.
+// With executors: child results are passed to the parent executor factory.
+engine.startRunWithChildren(
+  parentRun.id,
+  childDefs,                 // ChildAgentDef[]  — { agentId, agentName, agentRole }
+  parentExecutorFactory,     // (childRuns: Run[]) => RunExecutor — optional
+  childExecutorFactory,      // (agentId: string) => RunExecutor — optional
+)
 
 // ── Resume ──────────────────────────────────────────────────────────────────
 // Resume an awaiting run after user answers the question
@@ -389,9 +408,11 @@ engine.resumeRun(run.id, 'user answer')            // mock mode
 engine.resumeRun(run.id, 'user answer', executor)  // real LLM mode
 
 // ── Query ───────────────────────────────────────────────────────────────────
-engine.getRun(run.id)           // → Run | undefined
-engine.getAllRuns()              // → Run[]
-engine.getRunsByAgent(agentId)  // → Run[]
+engine.getRun(run.id)             // → Run | undefined
+engine.getAllRuns()                // → Run[]
+engine.getRunsByAgent(agentId)    // → Run[]
+engine.getChildRuns(parentRunId)  // → Run[]  (all direct child sub-runs)
+engine.getParentRun(childRunId)   // → Run | undefined  (parent of a sub-run)
 
 // ── Events ──────────────────────────────────────────────────────────────────
 const unsub = engine.on('run:completed', (run) => console.log(run.result))
@@ -425,7 +446,8 @@ that need to set up event listeners between the two calls.
 | Event | When fired |
 |---|---|
 | `run:created` | After `createRun()` — status is `pending` |
-| `run:started` | After `startRun()` — status is `running` |
+| `run:started` | After `startRun()` or `startRunWithChildren()` — status is `running` |
+| `run:delegating` | After `startRunWithChildren()` with children — status is `delegating`; `childRunIds` is set |
 | `run:completed` | Executor/mock resolves — status is `completed`, `result` is set |
 | `run:awaiting` | Executor/mock raises a question — status is `awaiting`, `question` is set |
 | `run:resumed` | After `resumeRun()` — status is `running`, `answer` is set |
@@ -448,6 +470,7 @@ Both generators are pure functions in `results.ts`:
 
 - `generateResult(agentName, agentRole, taskDescription, pickIndex?)` — selects one of 8 completion templates.
 - `generateQuestion(agentName, agentRole, taskDescription, pickIndex?)` — selects one of 8 clarifying-question templates.
+- `composeDelegatedResults(parentAgentName, childOutcomes[])` — assembles a delegation report from child sub-run outcomes. Used by `startRunWithChildren` in mock mode.
 
 An optional `pickIndex` enables deterministic template selection in tests.
 
@@ -502,11 +525,37 @@ engine.startRun(run.id, mock.asExecutor())
 
 | File | Purpose |
 |---|---|
-| `types.ts` | `Run`, `RunStatus`, `RunEventType`, `RunEventHandler`, `RunEngineOptions`, `MockLLMResponse` |
-| `results.ts` | `generateResult()`, `RESULT_TEMPLATE_COUNT`, `generateQuestion()`, `QUESTION_TEMPLATE_COUNT` |
-| `engine.ts` | `RunEngine` class (`dispatch`, `createRun`, `startRun`, `resumeRun`, events, querying), `AgentMeta`, `RunExecutor` |
+| `types.ts` | `Run`, `RunStatus` (incl. `delegating`), `RunEventType`, `RunEventHandler`, `RunEngineOptions`, `MockLLMResponse` |
+| `results.ts` | `generateResult()`, `RESULT_TEMPLATE_COUNT`, `generateQuestion()`, `QUESTION_TEMPLATE_COUNT`, `composeDelegatedResults()`, `ChildRunOutcome` |
+| `engine.ts` | `RunEngine` class (`dispatch`, `createRun`, `startRun`, `startRunWithChildren`, `resumeRun`, `getChildRuns`, `getParentRun`, events, querying), `AgentMeta`, `RunExecutor`, `ChildAgentDef`, `ParentExecutorFactory` |
 | `mock-llm.ts` | `MockLLM` class, `MockLLMOptions` interface |
 | `index.ts` | Re-exports for external consumers |
+
+### Child Agent Delegation
+
+Agents can declare child agent IDs in their `AgentDef`:
+
+```ts
+interface AgentDef {
+  // ... existing fields ...
+  childAgentIds?: string[]  // IDs of agents to delegate sub-tasks to
+}
+```
+
+When a parent agent runs with `startRunWithChildren()`:
+
+1. **pending → running → delegating**: Parent transitions through these states.
+2. **Child runs created**: One sub-run per child agent, all linked via `parentRunId`.
+3. **Parallel execution**: All child runs start concurrently.
+4. **Settlement**: Parent waits for all children to reach `completed`, `awaiting`, or `failed`.
+5. **Parent execution**: If `parentExecutorFactory` is provided, it receives all child runs and returns an executor for the parent (e.g., to call an LLM with child results as context). Otherwise, `composeDelegatedResults()` assembles the report.
+6. **delegating → running → completed**: Parent resumes and completes.
+
+Child runs are normal `Run` objects with a `parentRunId` field. They appear in `getAllRuns()`, `getRunsByAgent()`, and `getChildRuns()`.
+
+**Inbox integration**: When running with `delivery: 'inbox'`, the parent card shows type `'delegating'` (amber). As children settle, their results appear as sub-cards (`ChildRunCard`) inside the parent card. When all children are done and the parent completes, the card transitions to `'done'`.
+
+**Visual effects**: All child agents show pulse rings during execution (the `run:started` event fires for each child run, updating `agentRunInfoRef`). The parent agent keeps its pulse active during `delegating` state.
 
 ## Delegation Scene (`/delegation`)
 

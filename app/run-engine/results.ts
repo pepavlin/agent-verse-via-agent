@@ -126,3 +126,59 @@ export function generateQuestion(
 
 /** Total number of available question templates (useful for exhaustive testing). */
 export const QUESTION_TEMPLATE_COUNT = QUESTION_TEMPLATES.length
+
+// ---------------------------------------------------------------------------
+// Delegation result composition — aggregates child sub-run results
+// ---------------------------------------------------------------------------
+
+/**
+ * Represents the outcome of a single child sub-run for composition purposes.
+ */
+export interface ChildRunOutcome {
+  /** Display name of the child agent. */
+  agentName: string
+  /** Role label of the child agent. */
+  agentRole: string
+  /** Completed result text, if the child run succeeded. */
+  result?: string
+  /** Error message, if the child run failed. */
+  error?: string
+}
+
+/**
+ * Compose results from multiple child sub-runs into a single delegation report
+ * that can be used as the parent run's result.
+ *
+ * @param parentAgentName  Display name of the orchestrating parent agent
+ * @param childOutcomes    Array of child run results/errors to aggregate
+ * @returns                Formatted delegation report as a prose string
+ */
+export function composeDelegatedResults(
+  parentAgentName: string,
+  childOutcomes: ChildRunOutcome[],
+): string {
+  if (childOutcomes.length === 0) {
+    return `${parentAgentName} completed the delegation but no child agents were involved.`
+  }
+
+  const lines: string[] = [
+    `${parentAgentName} delegation report (${childOutcomes.length} sub-agent${childOutcomes.length !== 1 ? 's' : ''}):`,
+    '',
+  ]
+
+  for (const child of childOutcomes) {
+    if (child.result) {
+      lines.push(`[${child.agentName} — ${child.agentRole}]`)
+      lines.push(child.result)
+    } else {
+      lines.push(`[${child.agentName} — ${child.agentRole}] (failed)`)
+      lines.push(child.error ?? 'Task failed with an unknown error.')
+    }
+    lines.push('')
+  }
+
+  // Remove trailing empty line
+  if (lines[lines.length - 1] === '') lines.pop()
+
+  return lines.join('\n')
+}
