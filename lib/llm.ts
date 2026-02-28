@@ -7,6 +7,16 @@ export interface AgentRunParams {
   agentPersona?: string
   taskDescription: string
   apiKey: string
+  /**
+   * If the agent previously asked a clarifying question and the run was resumed,
+   * this contains the question text so it can be included as conversation context.
+   */
+  previousQuestion?: string
+  /**
+   * The user's answer to the agent's previous clarifying question.
+   * Set alongside `previousQuestion` when resuming an awaiting run.
+   */
+  userAnswer?: string
 }
 
 export interface AgentRunResult {
@@ -31,16 +41,13 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResp
   const systemPrompt = buildSystemPrompt(params)
 
   try {
+    const conversationMessages: Anthropic.MessageParam[] = buildConversation(params)
+
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 1024,
       system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: params.taskDescription,
-        },
-      ],
+      messages: conversationMessages,
     })
 
     const textContent = message.content.find((c) => c.type === 'text')
@@ -122,4 +129,27 @@ function buildSystemPrompt(params: AgentRunParams): string {
   )
 
   return lines.join('\n')
+}
+
+/**
+ * Build the conversation message array for the LLM.
+ *
+ * For a fresh run: single user message with the task description.
+ * For a resumed run (after awaiting): multi-turn conversation that includes
+ * the original task, the agent's clarifying question, and the user's answer.
+ */
+function buildConversation(params: AgentRunParams): Anthropic.MessageParam[] {
+  const messages: Anthropic.MessageParam[] = [
+    { role: 'user', content: params.taskDescription },
+  ]
+
+  if (params.previousQuestion && params.userAnswer) {
+    // Append the agent's question and the user's answer as follow-up turns
+    messages.push(
+      { role: 'assistant', content: params.previousQuestion },
+      { role: 'user', content: params.userAnswer },
+    )
+  }
+
+  return messages
 }

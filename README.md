@@ -9,6 +9,7 @@ Interactive 2D world with AI agents, built with Next.js and pixi.js. Users bring
 - **Pan** — middle-mouse drag
 - **Agent tasks** — click any agent, type a task, choose delivery mode (Wait / Inbox)
 - **Real LLM execution** — uses Anthropic Claude with the user's own API key
+- **Needs-user (human-in-the-loop)** — agent can pause and ask a clarifying question; user answers inline and the run resumes automatically
 - **Inbox** — async task results delivered to a message feed
 - **User authentication** — email + password login and registration
 - **BYOK (Bring Your Own Key)** — users paste their Anthropic API key; it's stored AES-256-GCM encrypted server-side and never returned to the browser

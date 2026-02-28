@@ -14,7 +14,9 @@ import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from '
 import { RUNE_CHARS, RUNE_COUNT, calcRuneOrbit, calcRuneFlash } from './agent-runes'
 import { useInbox } from './use-inbox'
 import { InboxToggleButton, InboxPanel } from './Inbox'
+import QuestionModal, { type PendingQuestion } from './QuestionModal'
 import AccountSettings from './AccountSettings'
+import type { AgentRunParams } from '../../lib/llm'
 
 // Re-export so external code can import from either location
 export { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
@@ -87,6 +89,13 @@ export default function Grid2D() {
   // Inbox state — manages message feed for inbox-delivery task results
   const { messages, unreadCount, addMessage, updateMessage, dismissMessage, clearAll, markRead } = useInbox()
   const [inboxOpen, setInboxOpen] = useState(false)
+
+  // Question modal — shown for wait-delivery runs when agent needs user clarification
+  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null)
+
+  // Per-run LLM params ref — needed to build the resume executor with conversation context
+  // Maps runId → the params used for the initial API call
+  const runParamsRef = useRef<Map<string, Omit<AgentRunParams, 'apiKey'>>>(new Map())
 
   // Account settings modal
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -590,8 +599,17 @@ export default function Grid2D() {
     })
 
     // Awaiting: agent raised a clarifying question — show the same completion glow
-    const unsubAwaiting = engine.on('run:awaiting', (run) => {
-      agentRunInfoRef.current.set(run.agentId, runCompleted())
+    // The actual question UI is handled by delivery-specific logic in handleRunTask.
+    const unsubAwaiting = engine.on('run:awaiting', (_run) => {
+      // Pulse stops; glow shows. The delivery handler wires up the question UI.
+      // We intentionally do not call runCompleted() here for wait delivery
+      // because the question modal must remain open — the pixi state is set
+      // by the delivery-specific handler below.
+    })
+
+    // Resumed: user answered the question — run is running again
+    const unsubResumed = engine.on('run:resumed', (run) => {
+      agentRunInfoRef.current.set(run.agentId, runStarted())
     })
 
     const unsubFailed = engine.on('run:failed', (run) => {
@@ -605,6 +623,7 @@ export default function Grid2D() {
       unsubStarted()
       unsubCompleted()
       unsubAwaiting()
+      unsubResumed()
       unsubFailed()
       appRef.current?.destroy(true, { children: true })
       appRef.current = null
@@ -655,6 +674,45 @@ export default function Grid2D() {
     setSelectedAgents([])
   }
 
+  /**
+   * Build an executor that calls the /api/run endpoint.
+   * Optionally includes previous question + user answer for resumed runs.
+   */
+  const buildRunExecutor = (
+    def: AgentDef,
+    taskDescription: string,
+    previousQuestion?: string,
+    userAnswer?: string,
+  ) => async (): Promise<string> => {
+    const body: Record<string, string> = {
+      agentId: def.id,
+      agentName: def.name,
+      agentRole: def.role,
+      taskDescription,
+    }
+    if (def.goal) body.agentGoal = def.goal
+    if (def.persona) body.agentPersona = def.persona
+    if (previousQuestion) body.previousQuestion = previousQuestion
+    if (userAnswer) body.userAnswer = userAnswer
+
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      if (res.status === 402) {
+        setSettingsOpen(true)
+      }
+      throw new Error(data.userMessage ?? 'Nastala chyba. Zkus to znovu.')
+    }
+
+    return data.result as string
+  }
+
   const handleRunTask = (payload: RunTaskPayload) => {
     const def = agentDefs.find((d) => d.id === payload.agentId)
     if (!def) return
@@ -662,8 +720,17 @@ export default function Grid2D() {
     const engine = runEngineRef.current
     const run = engine.createRun(payload.agentId, def.name, def.role, payload.task)
 
+    // Store params for potential resume (we need taskDescription + agent context)
+    runParamsRef.current.set(run.id, {
+      agentName: def.name,
+      agentRole: def.role,
+      agentGoal: def.goal,
+      agentPersona: def.persona,
+      taskDescription: payload.task,
+    })
+
     if (payload.delivery === 'inbox') {
-      // Add a 'question' card immediately — will be updated on completion
+      // Add a 'question' card immediately — will be updated on completion/awaiting
       addMessage({
         id: run.id,
         type: 'question',
@@ -676,59 +743,115 @@ export default function Grid2D() {
       // Subscribe to this specific run's terminal events
       const unsubRunCompleted = engine.on('run:completed', (completedRun) => {
         if (completedRun.id !== run.id) return
-        updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.' })
+        updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.', awaitingAnswer: false })
         unsubRunCompleted()
       })
 
       const unsubRunAwaiting = engine.on('run:awaiting', (awaitingRun) => {
         if (awaitingRun.id !== run.id) return
-        // Show the question as a 'question' card so the user can see it needs answering
+        // Show pulse-stopped completion glow
+        agentRunInfoRef.current.set(awaitingRun.agentId, runCompleted())
+        // Update inbox card: show question + enable reply form
         updateMessage(run.id, {
           type: 'question',
           text: awaitingRun.question ?? 'Agent potřebuje upřesnění.',
+          awaitingAnswer: true,
         })
         unsubRunAwaiting()
+
+        // Subscribe to resumed (re-running)
+        const unsubRunResumed = engine.on('run:resumed', (resumedRun) => {
+          if (resumedRun.id !== run.id) return
+          updateMessage(run.id, {
+            type: 'question',
+            text: 'Zpracovávám odpověď…',
+            awaitingAnswer: false,
+          })
+          unsubRunResumed()
+        })
       })
 
       const unsubRunFailed = engine.on('run:failed', (failedRun) => {
         if (failedRun.id !== run.id) return
-        updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.' })
+        updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.', awaitingAnswer: false })
         unsubRunFailed()
       })
 
       // Open inbox so the user sees the new task card
       setInboxOpen(true)
+    } else {
+      // Wait delivery: subscribe to awaiting to show QuestionModal
+      const unsubWaitAwaiting = engine.on('run:awaiting', (awaitingRun) => {
+        if (awaitingRun.id !== run.id) return
+        // Show completion glow while waiting for answer
+        agentRunInfoRef.current.set(awaitingRun.agentId, runCompleted())
+        // Open question modal
+        setPendingQuestion({
+          runId: awaitingRun.id,
+          agentName: def.name,
+          agentColor: def.color,
+          question: awaitingRun.question ?? 'Agent potřebuje upřesnění.',
+        })
+        unsubWaitAwaiting()
+      })
+
+      const unsubWaitCompleted = engine.on('run:completed', (completedRun) => {
+        if (completedRun.id !== run.id) return
+        agentRunInfoRef.current.set(completedRun.agentId, runCompleted())
+        unsubWaitCompleted()
+      })
+
+      const unsubWaitFailed = engine.on('run:failed', (failedRun) => {
+        if (failedRun.id !== run.id) return
+        agentRunInfoRef.current.set(failedRun.agentId, runFailed())
+        unsubWaitFailed()
+      })
     }
 
     // Real LLM executor — calls the server API with the user's session
-    engine.startRun(run.id, async () => {
-      const res = await fetch('/api/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentId: def.id,
-          agentName: def.name,
-          agentRole: def.role,
-          agentGoal: def.goal,
-          agentPersona: def.persona,
-          taskDescription: payload.task,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        // No API key — open settings modal
-        if (res.status === 402) {
-          setSettingsOpen(true)
-        }
-        throw new Error(data.userMessage ?? 'Nastala chyba. Zkus to znovu.')
-      }
-
-      return data.result as string
-    })
+    engine.startRun(run.id, buildRunExecutor(def, payload.task))
 
     handlePanelClose()
+  }
+
+  /**
+   * Handle user submitting an answer to a question.
+   * Works for both wait-delivery (QuestionModal) and inbox-delivery (inline form).
+   */
+  const handleReplyToQuestion = (runId: string, answer: string) => {
+    const engine = runEngineRef.current
+    const run = engine.getRun(runId)
+    if (!run || run.status !== 'awaiting') return
+
+    const params = runParamsRef.current.get(runId)
+    if (!params) {
+      // Mock mode — no params stored; resume without executor
+      engine.resumeRun(runId, answer)
+      setPendingQuestion(null)
+      return
+    }
+
+    // Find the agent def to get current name/goal/persona (may have been edited)
+    const def = agentDefs.find((d) => d.name === params.agentName)
+
+    // Close the wait-delivery modal if open
+    setPendingQuestion(null)
+
+    engine.resumeRun(
+      runId,
+      answer,
+      buildRunExecutor(
+        def ?? { id: '', name: params.agentName, role: params.agentRole, color: 0, startCol: 0, startRow: 0, goal: params.agentGoal, persona: params.agentPersona },
+        params.taskDescription,
+        run.question,
+        answer,
+      ),
+    )
+  }
+
+  const handleDismissQuestion = (runId: string) => {
+    // User dismissed without answering — just close the modal; run stays 'awaiting'
+    setPendingQuestion(null)
   }
 
   const handleInboxOpen = () => {
@@ -836,6 +959,14 @@ export default function Grid2D() {
         onClose={handleInboxClose}
         onDismiss={dismissMessage}
         onClearAll={clearAll}
+        onReply={handleReplyToQuestion}
+      />
+
+      {/* ── Question modal (wait-delivery runs awaiting user answer) ── */}
+      <QuestionModal
+        pending={pendingQuestion}
+        onAnswer={handleReplyToQuestion}
+        onDismiss={handleDismissQuestion}
       />
 
       {/* ── Agent Panel (single-agent click) ── */}

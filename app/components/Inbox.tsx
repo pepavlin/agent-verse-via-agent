@@ -5,12 +5,13 @@
 //
 // Shows messages grouped by type:
 //   ✓  Hotovo   (done)     — task completed, green accent
-//   ?  Otázka   (question) — task in progress, indigo/blue accent
+//   ?  Otázka   (question) — agent asked a question; user can reply inline
 //   ✕  Chyba    (error)    — task failed, red accent
 //
 // No tables, no IDs, no raw timestamps — just human-readable cards.
 // ---------------------------------------------------------------------------
 
+import { useState } from 'react'
 import type { InboxMessage, InboxMessageType } from './use-inbox'
 
 // ---------------------------------------------------------------------------
@@ -54,12 +55,23 @@ const TYPE_CONFIG: Record<
 interface MessageCardProps {
   message: InboxMessage
   onDismiss: (id: string) => void
+  onReply?: (id: string, answer: string) => void
 }
 
-function MessageCard({ message, onDismiss }: MessageCardProps) {
+function MessageCard({ message, onDismiss, onReply }: MessageCardProps) {
   const cfg = TYPE_CONFIG[message.type]
   const colorHex = `#${message.agentColor.toString(16).padStart(6, '0')}`
-  const isInProgress = message.type === 'question'
+  const isQuestion = message.type === 'question'
+  const canReply = isQuestion && message.awaitingAnswer && onReply
+
+  const [answer, setAnswer] = useState('')
+
+  function handleReply() {
+    const trimmed = answer.trim()
+    if (!trimmed || !onReply) return
+    onReply(message.id, trimmed)
+    setAnswer('')
+  }
 
   return (
     <div
@@ -78,7 +90,7 @@ function MessageCard({ message, onDismiss }: MessageCardProps) {
           className={`
             w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0
             text-[11px] font-bold ${cfg.iconBg} ${cfg.iconColor}
-            ${isInProgress ? 'animate-pulse' : ''}
+            ${isQuestion && !message.awaitingAnswer ? 'animate-pulse' : ''}
           `}
           aria-label={cfg.label}
         >
@@ -130,6 +142,44 @@ function MessageCard({ message, onDismiss }: MessageCardProps) {
         <p className="text-xs text-slate-200 leading-relaxed">
           {message.text}
         </p>
+      )}
+
+      {/* Inline reply form — shown only when agent is awaiting user's answer */}
+      {canReply && (
+        <div className="flex flex-col gap-1.5 mt-1" data-testid={`inbox-reply-form-${message.id}`}>
+          <textarea
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleReply()
+              }
+            }}
+            placeholder="Napište odpověď…"
+            rows={2}
+            className="
+              w-full bg-slate-900 border border-indigo-500/50 rounded-md px-2.5 py-1.5
+              text-xs text-slate-100 placeholder:text-slate-500
+              resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400
+              transition-colors
+            "
+            data-testid={`inbox-reply-input-${message.id}`}
+          />
+          <button
+            onClick={handleReply}
+            disabled={!answer.trim()}
+            className="
+              self-end px-3 py-1 rounded-md text-xs font-semibold
+              bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
+              text-white disabled:opacity-40 disabled:cursor-not-allowed
+              transition-colors
+            "
+            data-testid={`inbox-reply-submit-${message.id}`}
+          >
+            Odeslat
+          </button>
+        </div>
       )}
     </div>
   )
@@ -194,9 +244,11 @@ interface InboxPanelProps {
   onClose: () => void
   onDismiss: (id: string) => void
   onClearAll: () => void
+  /** Called when the user submits a reply to an agent's question in the inbox. */
+  onReply?: (id: string, answer: string) => void
 }
 
-export function InboxPanel({ messages, isOpen, onClose, onDismiss, onClearAll }: InboxPanelProps) {
+export function InboxPanel({ messages, isOpen, onClose, onDismiss, onClearAll, onReply }: InboxPanelProps) {
   if (!isOpen) return null
 
   return (
@@ -270,7 +322,7 @@ export function InboxPanel({ messages, isOpen, onClose, onDismiss, onClearAll }:
             </div>
           ) : (
             messages.map((msg) => (
-              <MessageCard key={msg.id} message={msg} onDismiss={onDismiss} />
+              <MessageCard key={msg.id} message={msg} onDismiss={onDismiss} onReply={onReply} />
             ))
           )}
         </div>

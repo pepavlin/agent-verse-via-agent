@@ -33,10 +33,13 @@ tests/
   controls.test.ts          – Unit tests for click-threshold and coord-conversion helpers
   agent-panel.test.tsx      – Unit tests for AgentPanel component (Run mode, Edit mode, tabs)
   run-engine.test.ts        – Unit tests for RunEngine lifecycle, events, delays, querying
+  run-engine-executor.test.ts – Unit tests for RunEngine executor (real LLM) path
+  run-engine-resume.test.ts – Unit tests for RunEngine.resumeRun() (needs_user feature)
   mock-llm.test.ts          – Unit tests for MockLLM (result/question paths, delay, RunEngine integration)
   agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
   agent-run-state.test.ts   – Unit tests for run animation state machine (transitions + ticks)
   agent-runes.test.ts       – Unit tests for rune orbit and flash animation math
+  inbox.test.tsx             – Unit tests for useInbox hook, InboxPanel, and reply form
   setup.ts                  – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
@@ -232,7 +235,8 @@ User submits task (AgentPanel)
        └─ RunEngine.createRun() + startRun()
             ├─ run:started   → agentRunInfoRef[agentId] = runStarted()
             ├─ run:completed → agentRunInfoRef[agentId] = runCompleted()
-            ├─ run:awaiting  → agentRunInfoRef[agentId] = runCompleted()  (same glow)
+            ├─ run:awaiting  → agentRunInfoRef[agentId] = runCompleted() + show question UI
+            ├─ run:resumed   → agentRunInfoRef[agentId] = runStarted()   (pulse restarts)
             └─ run:failed    → agentRunInfoRef[agentId] = runFailed()
 
 pixi ticker (every frame)
@@ -341,17 +345,21 @@ The Run engine manages the lifecycle of task executions ("runs"). It lives entir
 ```
 createRun()  ──►  pending
                      │
-startRun()   ──►  running  ──► [2–6 s delay] ──┬──►  completed  (result set)
-                                                ├──►  awaiting   (question set, mock only)
-                                                └──►  failed     (error set)
+startRun()   ──►  running  ──► executor / mock ──┬──►  completed  (result set)
+                                                 ├──►  awaiting   (question set)
+                                                 └──►  failed     (error set)
+                                                          │
+resumeRun()              ◄──  awaiting  (user answered)   │
+   └──► running  ──► executor / mock ──┬──►  completed  ──┘
+                                       └──►  failed
 ```
 
 | State | Description |
 |---|---|
 | `pending` | Run created, not yet started |
-| `running` | Run is executing; a completion timer is scheduled |
+| `running` | Run is executing; executor or mock timer is pending |
 | `completed` | Run finished; `result` text is available |
-| `awaiting` | Agent raised a clarifying question; `question` text is available (mock mode only) |
+| `awaiting` | Agent raised a clarifying question; `question` text is available. Resumable via `resumeRun()`. |
 | `failed` | Run terminated with an error; `error` text is available |
 
 ### Public API
@@ -362,8 +370,13 @@ const engine = new RunEngine(options?)
 // Create a run (status: 'pending')
 const run = engine.createRun(agentId, agentName, agentRole, taskDescription)
 
-// Transition to 'running', schedule completion in 2–6 s
-engine.startRun(run.id)
+// Transition to 'running', execute with real LLM or mock
+engine.startRun(run.id)            // mock mode (no executor)
+engine.startRun(run.id, executor)  // real LLM mode
+
+// Resume an awaiting run after user answers the question
+engine.resumeRun(run.id, 'user answer')            // mock mode
+engine.resumeRun(run.id, 'user answer', executor)  // real LLM mode
 
 // Query
 engine.getRun(run.id)           // → Run | undefined
@@ -382,8 +395,9 @@ engine.off('run:created', handler)
 |---|---|
 | `run:created` | After `createRun()` — status is `pending` |
 | `run:started` | After `startRun()` — status is `running` |
-| `run:completed` | After the delay expires — status is `completed`, `result` is set |
-| `run:awaiting` | After the delay expires (mock only) — status is `awaiting`, `question` is set |
+| `run:completed` | Executor/mock resolves — status is `completed`, `result` is set |
+| `run:awaiting` | Executor/mock raises a question — status is `awaiting`, `question` is set |
+| `run:resumed` | After `resumeRun()` — status is `running`, `answer` is set |
 | `run:failed` | On executor error — status is `failed`, `error` is set |
 
 ### Configuration
