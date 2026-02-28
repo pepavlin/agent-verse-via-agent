@@ -2,7 +2,7 @@
 // Public API for the Run engine
 // ---------------------------------------------------------------------------
 
-export type { Run, RunStatus, RunEventType, RunEventHandler, RunEngineOptions, MockLLMResponse } from './types'
+export type { Run, RunStatus, RunEventType, RunEventHandler, RunEngineOptions, MockLLMResponse, AgentConfigSnapshot } from './types'
 export type { AgentMeta, RunExecutor, ChildAgentDef, ParentExecutorFactory } from './engine'
 export { RunEngine } from './engine'
 export {

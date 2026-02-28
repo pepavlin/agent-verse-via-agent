@@ -43,6 +43,20 @@ describe('AGENTS', () => {
       expect(a.startRow).toBeLessThan(MAP_CONFIG.ROWS)
     }
   })
+
+  it('every agent has configVersion set to a positive integer', () => {
+    for (const a of AGENTS) {
+      expect(typeof a.configVersion).toBe('number')
+      expect(Number.isInteger(a.configVersion)).toBe(true)
+      expect(a.configVersion).toBeGreaterThanOrEqual(1)
+    }
+  })
+
+  it('all agents start with configVersion 1 (initial state, no edits)', () => {
+    for (const a of AGENTS) {
+      expect(a.configVersion).toBe(1)
+    }
+  })
 })
 
 // ---------------------------------------------------------------------------
