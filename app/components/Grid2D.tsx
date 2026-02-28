@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import * as PIXI from 'pixi.js'
+import { useSession } from 'next-auth/react'
 import { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
 import { AGENTS, type AgentDef } from './agents-config'
 import { AgentState, createAgentState, updateAgent, hitTestAgent, agentInRect, WorldRect } from './agent-logic'
@@ -11,6 +12,7 @@ import { RunEngine } from '../run-engine'
 import { GLOW_DURATION_MS } from './agent-run-effects'
 import { useInbox } from './use-inbox'
 import { InboxToggleButton, InboxPanel } from './Inbox'
+import AccountSettings from './AccountSettings'
 
 // Re-export so external code can import from either location
 export { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
@@ -56,6 +58,7 @@ interface AgentRunInfo {
 // ---------------------------------------------------------------------------
 
 export default function Grid2D() {
+  const { data: session } = useSession()
   const mountRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<PIXI.Application | null>(null)
   const worldRef = useRef<PIXI.Container | null>(null)
@@ -93,6 +96,9 @@ export default function Grid2D() {
   // Inbox state — manages message feed for inbox-delivery task results
   const { messages, unreadCount, addMessage, updateMessage, dismissMessage, clearAll, markRead } = useInbox()
   const [inboxOpen, setInboxOpen] = useState(false)
+
+  // Account settings modal
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // -------------------------------------------------------------------------
   // Draw static world (grid + objects)
@@ -560,11 +566,21 @@ export default function Grid2D() {
       })
     })
 
+    const unsubFailed = engine.on('run:failed', (run) => {
+      // Clear running state without showing a completion glow
+      agentRunInfoRef.current.set(run.agentId, {
+        runState: null,
+        completionStart: null,
+        runTime: 0,
+      })
+    })
+
     init()
 
     return () => {
       unsubStarted()
       unsubCompleted()
+      unsubFailed()
       appRef.current?.destroy(true, { children: true })
       appRef.current = null
     }
@@ -616,40 +632,67 @@ export default function Grid2D() {
 
   const handleRunTask = (payload: RunTaskPayload) => {
     const def = agentDefs.find((d) => d.id === payload.agentId)
-    if (def) {
-      const engine = runEngineRef.current
-      const run = engine.createRun(payload.agentId, def.name, def.role, payload.task)
+    if (!def) return
 
-      if (payload.delivery === 'inbox') {
-        // Add a 'question' card immediately — will be updated on completion
-        addMessage({
-          id: run.id,
-          type: 'question',
+    const engine = runEngineRef.current
+    const run = engine.createRun(payload.agentId, def.name, def.role, payload.task)
+
+    if (payload.delivery === 'inbox') {
+      // Add a 'question' card immediately — will be updated on completion
+      addMessage({
+        id: run.id,
+        type: 'question',
+        agentName: def.name,
+        agentColor: def.color,
+        task: payload.task,
+        text: 'Zpracovávám úkol…',
+      })
+
+      // Subscribe to this specific run's completion
+      const unsubRunCompleted = engine.on('run:completed', (completedRun) => {
+        if (completedRun.id !== run.id) return
+        updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.' })
+        unsubRunCompleted()
+      })
+
+      const unsubRunFailed = engine.on('run:failed', (failedRun) => {
+        if (failedRun.id !== run.id) return
+        updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.' })
+        unsubRunFailed()
+      })
+
+      // Open inbox so the user sees the new task card
+      setInboxOpen(true)
+    }
+
+    // Real LLM executor — calls the server API with the user's session
+    engine.startRun(run.id, async () => {
+      const res = await fetch('/api/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: def.id,
           agentName: def.name,
-          agentColor: def.color,
-          task: payload.task,
-          text: 'Zpracovávám úkol…',
-        })
+          agentRole: def.role,
+          agentGoal: def.goal,
+          agentPersona: def.persona,
+          taskDescription: payload.task,
+        }),
+      })
 
-        // Subscribe to this specific run's completion
-        const unsubCompleted = engine.on('run:completed', (completedRun) => {
-          if (completedRun.id !== run.id) return
-          updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.' })
-          unsubCompleted()
-        })
+      const data = await res.json()
 
-        const unsubFailed = engine.on('run:failed', (failedRun) => {
-          if (failedRun.id !== run.id) return
-          updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.' })
-          unsubFailed()
-        })
-
-        // Open inbox so the user sees the new task card
-        setInboxOpen(true)
+      if (!res.ok) {
+        // No API key — open settings modal
+        if (res.status === 402) {
+          setSettingsOpen(true)
+        }
+        throw new Error(data.userMessage ?? 'Nastala chyba. Zkus to znovu.')
       }
 
-      engine.startRun(run.id)
-    }
+      return data.result as string
+    })
+
     handlePanelClose()
   }
 
@@ -682,6 +725,9 @@ export default function Grid2D() {
   const multiSelected = selectedAgents.length > 1 ? selectedAgents : null
   const panelAgentDef = panelAgentId ? agentDefs.find((d) => d.id === panelAgentId) ?? null : null
 
+  // User display name
+  const userName = session?.user?.name ?? session?.user?.email?.split('@')[0] ?? ''
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -694,12 +740,29 @@ export default function Grid2D() {
       {/* Title */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none select-none text-center">
         <p className="text-lg font-bold text-white/75 tracking-widest uppercase">
-          2D Grid Explorer
+          Agent Verse
         </p>
         <p className="text-xs text-slate-500 mt-0.5">
-          {MAP_CONFIG.COLS} × {MAP_CONFIG.ROWS} cells &nbsp;·&nbsp; middle-drag to pan &nbsp;·&nbsp;
-          scroll to zoom &nbsp;·&nbsp; click to select &nbsp;·&nbsp; drag to rect-select
+          {MAP_CONFIG.COLS} × {MAP_CONFIG.ROWS} &nbsp;·&nbsp; scroll to zoom &nbsp;·&nbsp; click to select
         </p>
+      </div>
+
+      {/* User + Settings button (top-left) */}
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:border-slate-600 transition-colors group"
+          title="Nastavení účtu"
+        >
+          <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white">
+            {userName.charAt(0).toUpperCase()}
+          </div>
+          <span className="hidden sm:block max-w-[100px] truncate">{userName}</span>
+          <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
       </div>
 
       {/* Zoom level */}
@@ -736,6 +799,12 @@ export default function Grid2D() {
         onClose={handlePanelClose}
         onRunTask={handleRunTask}
         onEditSave={handleEditSave}
+      />
+
+      {/* ── Account Settings Modal ── */}
+      <AccountSettings
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
       />
 
       {/* ── Multi-agent selection panel ── */}
