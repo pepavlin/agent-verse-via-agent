@@ -9,6 +9,9 @@ RUN npm ci
 FROM node:22-alpine AS builder
 WORKDIR /app
 
+# OpenSSL is needed so prisma generate picks the correct engine binary (openssl-3.0.x)
+RUN apk add --no-cache openssl
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -38,7 +41,9 @@ COPY --from=builder /app/public ./public
 # Copy Prisma schema (needed for migrate deploy) and generated engines
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+
+# Copy all @prisma/* packages (client + engines + debug + get-platform + etc.)
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Prisma CLI is needed to run migrate deploy at startup
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
