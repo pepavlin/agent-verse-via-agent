@@ -652,3 +652,226 @@ describe('MockLLM — multiple concurrent runs', () => {
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// MockLLM.generateSync() — synchronous generation
+// ---------------------------------------------------------------------------
+
+describe('MockLLM.generateSync() — result path (questionProbability = 0)', () => {
+  it('returns a MockLLMResponse with kind: "result"', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 0 })
+    const response = mock.generateSync()
+    expect(response.kind).toBe('result')
+  })
+
+  it('result text is non-empty', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 0 })
+    const response = mock.generateSync()
+    expect(response.text.length).toBeGreaterThan(0)
+  })
+
+  it('result text contains the agent name', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 0 })
+    const response = mock.generateSync()
+    expect(response.text).toContain(AGENT_NAME)
+  })
+
+  it('never produces kind: "question" when questionProbability is 0', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 0 })
+    for (let i = 0; i < 10; i++) {
+      expect(mock.generateSync().kind).toBe('result')
+    }
+  })
+
+  it('result text contains goal when realistic mode is active', () => {
+    const goal = 'Map all unexplored areas of the grid'
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 0, goal })
+    const response = mock.generateSync()
+    expect(response.kind).toBe('result')
+    expect(response.text).toContain(goal)
+  })
+})
+
+describe('MockLLM.generateSync() — question path (questionProbability = 1)', () => {
+  it('returns a MockLLMResponse with kind: "question"', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 1 })
+    const response = mock.generateSync()
+    expect(response.kind).toBe('question')
+  })
+
+  it('question text is non-empty', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 1 })
+    const response = mock.generateSync()
+    expect(response.text.length).toBeGreaterThan(0)
+  })
+
+  it('question text contains the agent name', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 1 })
+    const response = mock.generateSync()
+    expect(response.text).toContain(AGENT_NAME)
+  })
+
+  it('never produces kind: "result" when questionProbability is 1', () => {
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: 1 })
+    for (let i = 0; i < 10; i++) {
+      expect(mock.generateSync().kind).toBe('question')
+    }
+  })
+})
+
+describe('MockLLM.generateSync() — type contract', () => {
+  it('always returns an object with kind and text fields', () => {
+    for (const prob of [0, 1]) {
+      const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: prob })
+      const response = mock.generateSync()
+      expect(response).toHaveProperty('kind')
+      expect(response).toHaveProperty('text')
+      expect(typeof response.kind).toBe('string')
+      expect(typeof response.text).toBe('string')
+    }
+  })
+
+  it('kind is always "result" or "question"', () => {
+    const validKinds: MockLLMResponse['kind'][] = ['result', 'question']
+    for (const prob of [0, 1]) {
+      const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, { questionProbability: prob })
+      const response = mock.generateSync()
+      expect(validKinds).toContain(response.kind)
+    }
+  })
+
+  it('generateSync() and run() produce the same kind of output', async () => {
+    // Both should return MockLLMResponse — verify shape consistency
+    const resultMockInst = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      questionProbability: 0,
+      delayFn: () => 0,
+    })
+    const syncResponse = resultMockInst.generateSync()
+    vi.useFakeTimers()
+    const asyncPromise = resultMockInst.run()
+    vi.runAllTimers()
+    const asyncResponse = await asyncPromise
+    vi.useRealTimers()
+
+    // Both should be result with similar shape
+    expect(syncResponse.kind).toBe('result')
+    expect(asyncResponse.kind).toBe('result')
+    expect(typeof syncResponse.text).toBe('string')
+    expect(typeof asyncResponse.text).toBe('string')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RunEngine + MockLLM — runAsync always returns result or question
+// ---------------------------------------------------------------------------
+
+describe('RunEngine.runAsync() + MockLLM — every run returns result or question', () => {
+  it('runAsync with result MockLLM resolves with status "completed"', async () => {
+    const engine = new RunEngine()
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      questionProbability: 0,
+      delayFn: () => 0,
+    })
+
+    const run = await engine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK, mock.asExecutor())
+    expect(run.status).toBe('completed')
+    expect(run.result).toBeDefined()
+    expect(run.result!.length).toBeGreaterThan(0)
+  })
+
+  it('runAsync with question MockLLM resolves with status "awaiting"', async () => {
+    const engine = new RunEngine()
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      questionProbability: 1,
+      delayFn: () => 0,
+    })
+
+    const run = await engine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK, mock.asExecutor())
+    expect(run.status).toBe('awaiting')
+    expect(run.question).toBeDefined()
+    expect(run.question!.length).toBeGreaterThan(0)
+  })
+
+  it('runAsync with result MockLLM: result field is set, question is not', async () => {
+    const engine = new RunEngine()
+    const run = await engine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK, resultMock().asExecutor())
+    expect(run.result).toBeDefined()
+    expect(run.question).toBeUndefined()
+  })
+
+  it('runAsync with question MockLLM: question field is set, result is not', async () => {
+    const engine = new RunEngine()
+    const run = await engine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK, questionMock().asExecutor())
+    expect(run.question).toBeDefined()
+    expect(run.result).toBeUndefined()
+  })
+
+  it('every run settles in a terminal state (completed or awaiting)', async () => {
+    const engine = new RunEngine()
+    const terminalStatuses = ['completed', 'awaiting']
+
+    // Run with result probability 0 (always question)
+    const questionRun = await engine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, 'Task Q', questionMock().asExecutor())
+    expect(terminalStatuses).toContain(questionRun.status)
+
+    // Run with result probability 1 (always result)
+    const resultRun = await engine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, 'Task R', resultMock().asExecutor())
+    expect(terminalStatuses).toContain(resultRun.status)
+  })
+
+  it('runAsync with realistic MockLLM (goal + persona) returns goal-aware result', async () => {
+    const goal = 'Map all unexplored areas of the grid'
+    const engine = new RunEngine()
+    const mock = new MockLLM(AGENT_NAME, AGENT_ROLE, TASK, {
+      goal,
+      persona: 'Curious and bold.',
+      questionProbability: 0,
+      delayFn: () => 0,
+    })
+
+    const run = await engine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK, mock.asExecutor())
+    expect(run.status).toBe('completed')
+    expect(run.result).toContain(AGENT_NAME)
+    expect(run.result).toContain(goal)
+  })
+
+  it('engine built-in mock (no executor) also always returns result or question', async () => {
+    const terminalStatuses = ['completed', 'awaiting']
+
+    // Always-result engine
+    const resultEngine = new RunEngine({ delayFn: () => 0, mockQuestionProbability: 0 })
+    const resultRun = await resultEngine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    expect(terminalStatuses).toContain(resultRun.status)
+    expect(resultRun.status).toBe('completed')
+
+    // Always-question engine
+    const questionEngine = new RunEngine({ delayFn: () => 0, mockQuestionProbability: 1 })
+    const questionRun = await questionEngine.runAsync(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    expect(terminalStatuses).toContain(questionRun.status)
+    expect(questionRun.status).toBe('awaiting')
+  })
+
+  it('engine built-in mock uses configSnapshot goal/persona for realistic generation', async () => {
+    const goal = 'Coordinate all scouting operations'
+    const engine = new RunEngine({ delayFn: () => 0, mockQuestionProbability: 0 })
+    const snapshot = {
+      id: AGENT_ID,
+      name: AGENT_NAME,
+      role: AGENT_ROLE,
+      goal,
+      persona: 'Strategic and methodical.',
+      configVersion: 1,
+    }
+
+    const run = await engine.runAsync(
+      AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK,
+      undefined,  // no executor — built-in mock
+      snapshot,
+    )
+
+    expect(run.status).toBe('completed')
+    expect(run.result).toBeDefined()
+    // Realistic generation is activated by goal in configSnapshot
+    expect(run.result).toContain(AGENT_NAME)
+  })
+})

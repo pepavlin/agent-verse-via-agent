@@ -10,8 +10,10 @@ import type {
   MockLLMResponse,
   AgentConfigSnapshot,
 } from './types'
-import { generateResult, generateQuestion, composeDelegatedResults } from './results'
+import { composeDelegatedResults } from './results'
 import type { ChildRunOutcome } from './results'
+import { MockLLM } from './mock-llm'
+
 
 /** Agent metadata the engine needs to generate results. */
 export interface AgentMeta {
@@ -407,21 +409,22 @@ export class RunEngine {
           this._failRun(runId, message)
         })
     } else {
-      // Mock mode: always produce a result (never another question) after resume
+      // Mock mode: always produce a result (never another question) after resume.
+      // Uses MockLLM.generateSync() with questionProbability: 0 to guarantee a result,
+      // preserving the invariant that resumed runs never ask a second question.
       const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
       const handle = setTimeout(() => {
         const currentRun = this._runs.get(runId)
         if (!currentRun || currentRun.status !== 'running') return
         const meta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
-        const result = generateResult(meta.name, meta.role, currentRun.taskDescription)
-        const completed: Run = {
-          ...currentRun,
-          status: 'completed',
-          completedAt: Date.now(),
-          result,
-        }
-        this._runs.set(runId, completed)
-        this._emit('run:completed', completed)
+        const snapshot = currentRun.configSnapshot
+        const mock = new MockLLM(meta.name, meta.role, currentRun.taskDescription, {
+          questionProbability: 0, // Resume always produces a result, never another question
+          goal: snapshot?.goal,
+          persona: snapshot?.persona,
+        })
+        const outcome = mock.generateSync()
+        this._resolveRun(runId, outcome.text)
         this._pendingTimeouts.delete(runId)
       }, delayMs)
       this._pendingTimeouts.set(runId, handle)
@@ -721,6 +724,12 @@ export class RunEngine {
    *   • a question string → status 'awaiting' + 'run:awaiting' event
    *
    * The probability of the question path is controlled by _mockQuestionProbability.
+   *
+   * Delegates to `MockLLM.generateSync()` — the single source of truth for
+   * mock response generation. When the run's `configSnapshot` includes a
+   * `goal` or `persona`, MockLLM automatically switches to realistic generation
+   * mode, producing contextual, goal-grounded, and persona-styled responses
+   * even from the engine's built-in no-executor mock path.
    */
   private _completeRunWithMock(runId: string): void {
     const run = this._runs.get(runId)
@@ -728,28 +737,20 @@ export class RunEngine {
 
     const meta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
 
-    if (Math.random() < this._mockQuestionProbability) {
-      // Question path — agent needs clarification before continuing
-      const question = generateQuestion(meta.name, meta.role, run.taskDescription)
-      const awaiting: Run = {
-        ...run,
-        status: 'awaiting',
-        completedAt: Date.now(),
-        question,
-      }
-      this._runs.set(runId, awaiting)
-      this._emit('run:awaiting', awaiting)
+    // Use configSnapshot's goal and persona when available so that the built-in
+    // mock path benefits from the same realistic generation as the MockLLM executor path.
+    const snapshot = run.configSnapshot
+    const mock = new MockLLM(meta.name, meta.role, run.taskDescription, {
+      questionProbability: this._mockQuestionProbability,
+      goal: snapshot?.goal,
+      persona: snapshot?.persona,
+    })
+
+    const outcome = mock.generateSync()
+    if (outcome.kind === 'question') {
+      this._awaitRun(runId, outcome.text)
     } else {
-      // Result path — agent completed the task
-      const result = generateResult(meta.name, meta.role, run.taskDescription)
-      const completed: Run = {
-        ...run,
-        status: 'completed',
-        completedAt: Date.now(),
-        result,
-      }
-      this._runs.set(runId, completed)
-      this._emit('run:completed', completed)
+      this._resolveRun(runId, outcome.text)
     }
   }
 

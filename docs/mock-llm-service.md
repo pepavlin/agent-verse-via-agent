@@ -172,6 +172,32 @@ service.isRealistic   // → true if realistic generation is active
 
 ---
 
+## MockLLM API
+
+### Key methods
+
+```typescript
+// Async: resolves after simulated delay — for use with RunEngine.startRun()
+mock.run(): Promise<MockLLMResponse>
+
+// Sync: returns immediately — used internally by RunEngine's built-in mock path
+mock.generateSync(): MockLLMResponse
+
+// Wraps run() as a RunExecutor-compatible function
+mock.asExecutor(): () => Promise<MockLLMResponse>
+```
+
+### `generateSync()` — synchronous generation
+
+`generateSync()` is the **core generation method**: it applies the result/question probability, selects templates (generic or realistic), and returns a `MockLLMResponse` without any timing delay.
+
+- `run()` calls `generateSync()` after the configured delay — both paths produce identical content.
+- `RunEngine._completeRunWithMock()` calls `generateSync()` inside its `setTimeout` callback — the engine's built-in mock (no-executor path) uses the same generation logic as `MockLLM.asExecutor()`.
+
+This makes `MockLLM` the **single source of truth** for mock response generation across both code paths.
+
+---
+
 ## MockLLM vs MockLLMService
 
 | | MockLLM | MockLLMService |
@@ -180,11 +206,32 @@ service.isRealistic   // → true if realistic generation is active
 | **Timing control** | Yes (`minDelayMs`, `maxDelayMs`, `delayFn`) | No |
 | **Probability control** | Yes (`questionProbability`) | No |
 | **RunEngine integration** | Yes (`asExecutor()`) | No |
+| **Synchronous generation** | Yes (`generateSync()`) | Yes (direct method calls) |
 | **Style-bucketed selection** | Yes (via updated `generateRealistic*` functions) | Yes |
-| **Caches persona style** | No (recalculates on each `run()` call) | Yes (cached at construction) |
-| **Standalone testability** | Needs fake timers in tests | Direct synchronous calls |
+| **Caches persona style** | No (recalculates on each call) | Yes (cached at construction) |
+| **Standalone testability** | `generateSync()` is testable without fake timers | Direct synchronous calls |
 
 Both classes use the same underlying `generateRealisticResult()` / `generateRealisticQuestion()` functions, so improvements to the generation pipeline benefit both.
+
+---
+
+## RunEngine built-in mock and configSnapshot
+
+When `RunEngine.startRun()` is called **without an executor** (built-in mock path), it creates a `MockLLM` internally and calls `generateSync()` after the configured delay. Crucially, if the run has a `configSnapshot` with `goal` or `persona` fields, these are forwarded to `MockLLM`, enabling realistic generation even in no-executor mode:
+
+```typescript
+// configSnapshot passed at run creation time
+const snapshot = { id: 'agent-alice', name: 'Alice', role: 'Explorer',
+                   goal: 'Map all unexplored areas', persona: 'Curious and bold.',
+                   configVersion: 1 }
+
+const run = engine.createRun('agent-alice', 'Alice', 'Explorer', 'Map the north sector',
+                             undefined, snapshot)
+engine.startRun(run.id)  // no executor — built-in mock uses snapshot.goal + snapshot.persona
+// run.result will contain the goal text (realistic generation active)
+```
+
+This ensures that the engine's built-in mock produces contextual, persona-styled responses identical to those produced via `MockLLM.asExecutor()`, with no extra configuration needed at the call site.
 
 ---
 
