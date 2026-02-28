@@ -10,6 +10,7 @@ import { AgentState, createAgentState, updateAgent, hitTestAgent, agentInRect, W
 import { drawStickFigure } from './agent-drawing'
 import AgentPanel, { type RunTaskPayload, type EditSavePayload } from './AgentPanel'
 import { RunEngine } from '../run-engine'
+import type { ChildAgentDef } from '../run-engine'
 import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from './agent-run-state'
 import { RUNE_CHARS, RUNE_COUNT, calcRuneOrbit, calcRuneFlash } from './agent-runes'
 import { useInbox } from './use-inbox'
@@ -87,7 +88,7 @@ export default function Grid2D() {
   const [agentDefs, setAgentDefs] = useState<AgentDef[]>(AGENTS)
 
   // Inbox state — manages message feed for inbox-delivery task results
-  const { messages, unreadCount, addMessage, updateMessage, dismissMessage, clearAll, markRead } = useInbox()
+  const { messages, unreadCount, addMessage, updateMessage, addChildMessage, dismissMessage, clearAll, markRead } = useInbox()
   const [inboxOpen, setInboxOpen] = useState(false)
 
   // Question modal — shown for wait-delivery runs when agent needs user clarification
@@ -594,6 +595,11 @@ export default function Grid2D() {
       agentRunInfoRef.current.set(run.agentId, runStarted())
     })
 
+    const unsubDelegating = engine.on('run:delegating', (run) => {
+      // Parent is now orchestrating children — keep pulse active on the parent agent
+      agentRunInfoRef.current.set(run.agentId, runStarted())
+    })
+
     const unsubCompleted = engine.on('run:completed', (run) => {
       agentRunInfoRef.current.set(run.agentId, runCompleted())
     })
@@ -621,6 +627,7 @@ export default function Grid2D() {
 
     return () => {
       unsubStarted()
+      unsubDelegating()
       unsubCompleted()
       unsubAwaiting()
       unsubResumed()
@@ -677,18 +684,22 @@ export default function Grid2D() {
   /**
    * Build an executor that calls the /api/run endpoint.
    * Optionally includes previous question + user answer for resumed runs.
+   * Optionally includes child results context for delegation runs.
    */
   const buildRunExecutor = (
     def: AgentDef,
     taskDescription: string,
     previousQuestion?: string,
     userAnswer?: string,
+    childContext?: string,
   ) => async (): Promise<string> => {
     const body: Record<string, string> = {
       agentId: def.id,
       agentName: def.name,
       agentRole: def.role,
-      taskDescription,
+      taskDescription: childContext
+        ? `${taskDescription}\n\nSub-agent results:\n${childContext}`
+        : taskDescription,
     }
     if (def.goal) body.agentGoal = def.goal
     if (def.persona) body.agentPersona = def.persona
@@ -718,6 +729,14 @@ export default function Grid2D() {
     if (!def) return
 
     const engine = runEngineRef.current
+
+    // Resolve child agents if this agent has delegation configured
+    const childDefs = (def.childAgentIds ?? [])
+      .map((id) => agentDefs.find((d) => d.id === id))
+      .filter((d): d is AgentDef => d !== undefined)
+
+    const isDelegation = childDefs.length > 0
+
     const run = engine.createRun(payload.agentId, def.name, def.role, payload.task)
 
     // Store params for potential resume (we need taskDescription + agent context)
@@ -730,52 +749,120 @@ export default function Grid2D() {
     })
 
     if (payload.delivery === 'inbox') {
-      // Add a 'question' card immediately — will be updated on completion/awaiting
+      // Add a card immediately — delegation shows amber badge, regular shows question
       addMessage({
         id: run.id,
-        type: 'question',
+        type: isDelegation ? 'delegating' : 'question',
         agentName: def.name,
         agentColor: def.color,
         task: payload.task,
-        text: 'Zpracovávám úkol…',
+        text: isDelegation
+          ? `Deleguji na ${childDefs.map((c) => c.name).join(', ')}…`
+          : 'Zpracovávám úkol…',
       })
 
-      // Subscribe to this specific run's terminal events
-      const unsubRunCompleted = engine.on('run:completed', (completedRun) => {
-        if (completedRun.id !== run.id) return
-        updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.', awaitingAnswer: false })
-        unsubRunCompleted()
-      })
-
-      const unsubRunAwaiting = engine.on('run:awaiting', (awaitingRun) => {
-        if (awaitingRun.id !== run.id) return
-        // Show pulse-stopped completion glow
-        agentRunInfoRef.current.set(awaitingRun.agentId, runCompleted())
-        // Update inbox card: show question + enable reply form
-        updateMessage(run.id, {
-          type: 'question',
-          text: awaitingRun.question ?? 'Agent potřebuje upřesnění.',
-          awaitingAnswer: true,
+      if (isDelegation) {
+        // Subscribe to child run events to update child message cards
+        const unsubChildStarted = engine.on('run:started', (startedRun) => {
+          const parentRun = engine.getParentRun(startedRun.id)
+          if (!parentRun || parentRun.id !== run.id) return
+          const childDef = agentDefs.find((d) => d.id === startedRun.agentId)
+          if (!childDef) return
+          addChildMessage(run.id, {
+            id: startedRun.id,
+            type: 'question',
+            agentName: childDef.name,
+            agentColor: childDef.color,
+            text: 'Zpracovávám…',
+          })
         })
-        unsubRunAwaiting()
 
-        // Subscribe to resumed (re-running)
-        const unsubRunResumed = engine.on('run:resumed', (resumedRun) => {
-          if (resumedRun.id !== run.id) return
+        const unsubChildCompleted = engine.on('run:completed', (completedRun) => {
+          const parentRun = engine.getParentRun(completedRun.id)
+          if (!parentRun || parentRun.id !== run.id) return
+          const childDef = agentDefs.find((d) => d.id === completedRun.agentId)
+          if (!childDef) return
+          addChildMessage(run.id, {
+            id: completedRun.id,
+            type: 'done',
+            agentName: childDef.name,
+            agentColor: childDef.color,
+            text: completedRun.result ?? 'Hotovo.',
+          })
+        })
+
+        const unsubChildFailed = engine.on('run:failed', (failedRun) => {
+          const parentRun = engine.getParentRun(failedRun.id)
+          if (!parentRun || parentRun.id !== run.id) return
+          const childDef = agentDefs.find((d) => d.id === failedRun.agentId)
+          if (!childDef) return
+          addChildMessage(run.id, {
+            id: failedRun.id,
+            type: 'error',
+            agentName: childDef.name,
+            agentColor: childDef.color,
+            text: failedRun.error ?? 'Nastala chyba.',
+          })
+        })
+
+        // When parent delegation completes
+        const unsubRunCompleted = engine.on('run:completed', (completedRun) => {
+          if (completedRun.id !== run.id) return
+          updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.', awaitingAnswer: false })
+          unsubChildStarted()
+          unsubChildCompleted()
+          unsubChildFailed()
+          unsubRunCompleted()
+          unsubRunFailed()
+        })
+
+        const unsubRunFailed = engine.on('run:failed', (failedRun) => {
+          if (failedRun.id !== run.id) return
+          updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.', awaitingAnswer: false })
+          unsubChildStarted()
+          unsubChildCompleted()
+          unsubChildFailed()
+          unsubRunCompleted()
+          unsubRunFailed()
+        })
+      } else {
+        // Subscribe to this specific run's terminal events (non-delegation)
+        const unsubRunCompleted = engine.on('run:completed', (completedRun) => {
+          if (completedRun.id !== run.id) return
+          updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.', awaitingAnswer: false })
+          unsubRunCompleted()
+        })
+
+        const unsubRunAwaiting = engine.on('run:awaiting', (awaitingRun) => {
+          if (awaitingRun.id !== run.id) return
+          // Show pulse-stopped completion glow
+          agentRunInfoRef.current.set(awaitingRun.agentId, runCompleted())
+          // Update inbox card: show question + enable reply form
           updateMessage(run.id, {
             type: 'question',
-            text: 'Zpracovávám odpověď…',
-            awaitingAnswer: false,
+            text: awaitingRun.question ?? 'Agent potřebuje upřesnění.',
+            awaitingAnswer: true,
           })
-          unsubRunResumed()
-        })
-      })
+          unsubRunAwaiting()
 
-      const unsubRunFailed = engine.on('run:failed', (failedRun) => {
-        if (failedRun.id !== run.id) return
-        updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.', awaitingAnswer: false })
-        unsubRunFailed()
-      })
+          // Subscribe to resumed (re-running)
+          const unsubRunResumed = engine.on('run:resumed', (resumedRun) => {
+            if (resumedRun.id !== run.id) return
+            updateMessage(run.id, {
+              type: 'question',
+              text: 'Zpracovávám odpověď…',
+              awaitingAnswer: false,
+            })
+            unsubRunResumed()
+          })
+        })
+
+        const unsubRunFailed = engine.on('run:failed', (failedRun) => {
+          if (failedRun.id !== run.id) return
+          updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.', awaitingAnswer: false })
+          unsubRunFailed()
+        })
+      }
 
       // Open inbox so the user sees the new task card
       setInboxOpen(true)
@@ -808,8 +895,40 @@ export default function Grid2D() {
       })
     }
 
-    // Real LLM executor — calls the server API with the user's session
-    engine.startRun(run.id, buildRunExecutor(def, payload.task))
+    // Start the run — with or without children
+    if (isDelegation) {
+      const childAgentDefs: ChildAgentDef[] = childDefs.map((cd) => ({
+        agentId: cd.id,
+        agentName: cd.name,
+        agentRole: cd.role,
+      }))
+
+      // Factory: each child gets its own executor calling /api/run
+      const childExecutorFactory = (childAgentId: string) => {
+        const childDef = agentDefs.find((d) => d.id === childAgentId)
+        if (!childDef) return async () => `Child agent ${childAgentId} not found.`
+        return buildRunExecutor(childDef, payload.task)
+      }
+
+      // Parent executor factory: receives completed child runs for synthesis
+      const parentExecutorFactory = (completedChildRuns: import('../run-engine').Run[]) => {
+        const childContext = completedChildRuns
+          .map((cr) => {
+            const childDef = agentDefs.find((d) => d.id === cr.agentId)
+            const label = `[${childDef?.name ?? cr.agentId} — ${childDef?.role ?? ''}]`
+            return cr.result
+              ? `${label}\n${cr.result}`
+              : `${label} (failed)\n${cr.error ?? 'Unknown error'}`
+          })
+          .join('\n\n')
+        return buildRunExecutor(def, payload.task, undefined, undefined, childContext)
+      }
+
+      engine.startRunWithChildren(run.id, childAgentDefs, parentExecutorFactory, childExecutorFactory)
+    } else {
+      // Regular single-agent run
+      engine.startRun(run.id, buildRunExecutor(def, payload.task))
+    }
 
     handlePanelClose()
   }
@@ -882,6 +1001,9 @@ export default function Grid2D() {
   // Derived helpers
   const multiSelected = selectedAgents.length > 1 ? selectedAgents : null
   const panelAgentDef = panelAgentId ? agentDefs.find((d) => d.id === panelAgentId) ?? null : null
+  const panelChildAgentDefs = panelAgentDef?.childAgentIds
+    ?.map((id) => agentDefs.find((d) => d.id === id))
+    .filter((d): d is AgentDef => d !== undefined)
 
   // User display name
   const userName = session?.user?.name ?? session?.user?.email?.split('@')[0] ?? ''
@@ -975,6 +1097,7 @@ export default function Grid2D() {
         onClose={handlePanelClose}
         onRunTask={handleRunTask}
         onEditSave={handleEditSave}
+        childAgentDefs={panelChildAgentDefs}
       />
 
       {/* ── Account Settings Modal ── */}

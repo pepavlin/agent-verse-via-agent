@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { useState } from 'react'
-import type { InboxMessage, InboxMessageType } from './use-inbox'
+import type { InboxMessage, InboxMessageType, ChildRunMessage } from './use-inbox'
 
 // ---------------------------------------------------------------------------
 // Visual config per message type
@@ -65,6 +65,15 @@ const TYPE_CONFIG: Record<
     iconBg: 'bg-red-500/20',
     iconColor: 'text-red-400',
     labelColor: 'text-red-300',
+  },
+  delegating: {
+    icon: '⇢',
+    label: 'Delegace',
+    borderColor: 'border-l-amber-500',
+    cardBg: 'bg-amber-950/30',
+    iconBg: 'bg-amber-500/20',
+    iconColor: 'text-amber-400',
+    labelColor: 'text-amber-300',
   },
 }
 
@@ -167,6 +176,21 @@ function MessageCard({ message, onDismiss, onReply }: MessageCardProps) {
         </p>
       )}
 
+      {/* ── Child sub-run results (shown for delegation messages) ── */}
+      {message.childMessages && message.childMessages.length > 0 && (
+        <div
+          className="flex flex-col gap-1.5 pt-1 border-t border-amber-500/20"
+          data-testid={`inbox-children-${message.id}`}
+        >
+          <p className="text-[10px] font-semibold text-amber-400/70 uppercase tracking-wider mb-0.5">
+            Sub-agenti
+          </p>
+          {message.childMessages.map((child) => (
+            <ChildRunCard key={child.id} child={child} />
+          ))}
+        </div>
+      )}
+
       {/* ── Inline reply form (shown only when agent awaits user answer) ── */}
       {canReply && (
         <div
@@ -206,6 +230,56 @@ function MessageCard({ message, onDismiss, onReply }: MessageCardProps) {
             Odeslat
           </button>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ChildRunCard — compact result card for a child sub-run
+// ---------------------------------------------------------------------------
+
+const CHILD_TYPE_CONFIG: Record<
+  ChildRunMessage['type'],
+  { icon: string; iconColor: string; borderColor: string }
+> = {
+  done: { icon: '✓', iconColor: 'text-emerald-400', borderColor: 'border-emerald-700/40' },
+  question: { icon: '?', iconColor: 'text-indigo-400', borderColor: 'border-indigo-700/40' },
+  error: { icon: '✕', iconColor: 'text-red-400', borderColor: 'border-red-700/40' },
+}
+
+interface ChildRunCardProps {
+  child: ChildRunMessage
+}
+
+function ChildRunCard({ child }: ChildRunCardProps) {
+  const cfg = CHILD_TYPE_CONFIG[child.type]
+  const colorHex = `#${child.agentColor.toString(16).padStart(6, '0')}`
+
+  return (
+    <div
+      data-testid={`inbox-child-${child.id}`}
+      className={`
+        flex flex-col gap-1 rounded-lg p-2.5
+        bg-slate-800/60 border ${cfg.borderColor}
+        border-l-2
+      `}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className={`text-xs font-bold ${cfg.iconColor} w-3 text-center flex-shrink-0`}>
+          {cfg.icon}
+        </span>
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ background: colorHex }}
+          aria-hidden="true"
+        />
+        <span className="text-[11px] text-slate-300 font-medium truncate">{child.agentName}</span>
+      </div>
+      {child.text && (
+        <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-3 pl-4">
+          {child.text}
+        </p>
       )}
     </div>
   )

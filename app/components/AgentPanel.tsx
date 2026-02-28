@@ -40,13 +40,18 @@ export interface AgentPanelProps {
   onRunTask: (payload: RunTaskPayload) => void
   /** Called when the user saves edits in Edit mode. */
   onEditSave: (payload: EditSavePayload) => void
+  /**
+   * Optional list of child agent definitions resolved from agentDef.childAgentIds.
+   * Displayed in the Run panel so the user knows which sub-agents will be dispatched.
+   */
+  childAgentDefs?: AgentDef[]
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function AgentPanel({ agentDef, onClose, onRunTask, onEditSave }: AgentPanelProps) {
+export default function AgentPanel({ agentDef, onClose, onRunTask, onEditSave, childAgentDefs }: AgentPanelProps) {
   const [mode, setMode] = useState<PanelMode>('run')
 
   // Run mode state
@@ -167,6 +172,7 @@ export default function AgentPanel({ agentDef, onClose, onRunTask, onEditSave }:
               onTaskChange={setTask}
               onDeliveryChange={setDelivery}
               onSubmit={handleRun}
+              childAgentDefs={childAgentDefs}
             />
           ) : (
             <EditForm
@@ -220,9 +226,13 @@ interface RunFormProps {
   onTaskChange: (v: string) => void
   onDeliveryChange: (v: DeliveryMode) => void
   onSubmit: () => void
+  /** Child agents to be dispatched when this run starts (delegation mode). */
+  childAgentDefs?: AgentDef[]
 }
 
-function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit }: RunFormProps) {
+function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit, childAgentDefs }: RunFormProps) {
+  const hasDelegation = childAgentDefs && childAgentDefs.length > 0
+
   return (
     <>
       {/* Task textarea */}
@@ -237,6 +247,34 @@ function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit }: R
                    transition-colors"
         data-testid="run-task-input"
       />
+
+      {/* Delegation badge — shows which child agents will be dispatched */}
+      {hasDelegation && (
+        <div
+          className="flex flex-col gap-1.5 rounded-lg bg-amber-950/30 border border-amber-700/40 px-3 py-2.5"
+          data-testid="delegation-badge"
+        >
+          <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">
+            Delegace · sub-agenti
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {childAgentDefs.map((child) => (
+              <span
+                key={child.id}
+                className="flex items-center gap-1 bg-slate-800/80 rounded-full px-2 py-0.5"
+                data-testid={`delegation-child-${child.id}`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: `#${child.color.toString(16).padStart(6, '0')}` }}
+                />
+                <span className="text-[11px] text-slate-200 font-medium">{child.name}</span>
+                <span className="text-[10px] text-slate-500 font-mono">{child.role}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Delivery choice */}
       <fieldset>
@@ -272,7 +310,7 @@ function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit }: R
                    text-white disabled:opacity-40 disabled:cursor-not-allowed"
         data-testid="run-submit-btn"
       >
-        Spustit
+        {hasDelegation ? 'Spustit s delegací' : 'Spustit'}
       </button>
     </>
   )
