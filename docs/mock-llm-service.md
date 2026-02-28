@@ -2,7 +2,7 @@
 
 ## Overview
 
-The MockLLM subsystem generates realistic fake LLM responses for agent tasks without requiring an Anthropic API key. It is composed of three layers:
+The MockLLM subsystem generates realistic fake LLM responses for agent tasks without requiring an Anthropic API key. It is composed of four layers:
 
 | Layer | File | Responsibility |
 |-------|------|----------------|
@@ -10,6 +10,7 @@ The MockLLM subsystem generates realistic fake LLM responses for agent tasks wit
 | Generic fallback functions | `app/run-engine/results.ts` | Simple agent-name / role / task templates (no topic awareness) |
 | **MockLLMService** (service) | `app/run-engine/mock-llm-service.ts` | Stateful service: encapsulates agent config, caches style, exposes clean API |
 | MockLLM (executor adapter) | `app/run-engine/mock-llm.ts` | Wraps generation with timing delays and probability control for RunEngine |
+| **Demo mode executor factory** | `app/run-engine/demo-executor.ts` | UI integration: creates MockLLM executors with agent goal/persona for Grid2D demo mode |
 
 ---
 
@@ -211,3 +212,64 @@ Both classes use the same underlying `generateRealisticResult()` / `generateReal
 2. Add keywords to `PERSONA_STYLE_KEYWORDS`.
 3. Add the style key to every entry in `RESULT_STYLE_BUCKETS` and `QUESTION_STYLE_BUCKETS`.
 4. Add to `ALL_PERSONA_STYLES`.
+
+---
+
+## Demo Mode (Grid2D Integration)
+
+Demo mode is the UI-level integration of the MockLLM subsystem. It activates when the user has not yet configured a real Anthropic API key, allowing the app to remain fully functional with simulated responses.
+
+### Activation
+
+Demo mode is controlled by the `demoMode` React state in `Grid2D.tsx`:
+
+- **Automatic**: When a run attempt returns HTTP 402 (no API key), demo mode is enabled automatically.
+- **Manual (banner)**: The API key setup banner offers a "Zkusit demo →" button.
+- **Manual (badge)**: Clicking the amber "Demo" badge in the top-left toolbar disables demo mode.
+
+### Visual Indicator
+
+An amber "Demo" badge appears in the top-left toolbar whenever demo mode is active. A dismissable banner also appears to explain the mode and link to the settings.
+
+### How It Works
+
+When `demoMode` is `true`, `Grid2D.tsx` uses executor factories from `demo-executor.ts` instead of the real `/api/run` API calls:
+
+```typescript
+// Single-agent run in demo mode
+engine.startRun(run.id, createDemoExecutor(toDemoContext(def), payload.task))
+
+// Delegation in demo mode
+const childFactory = createDemoChildExecutorFactory(childContextMap, payload.task)
+const parentFactory = createDemoParentExecutorFactory(toDemoContext(def), payload.task)
+engine.startRunWithChildren(run.id, childDefs, parentFactory, childFactory)
+```
+
+### `demo-executor.ts` API
+
+```typescript
+// Create an executor for a single demo run
+createDemoExecutor(agent: DemoAgentContext, task: string, overrides?): RunExecutor
+
+// Create a child executor factory for delegation
+createDemoChildExecutorFactory(
+  agentContextMap: ReadonlyMap<string, DemoAgentContext>,
+  task: string,
+): (childAgentId: string) => RunExecutor
+
+// Create a parent executor factory for delegation synthesis
+createDemoParentExecutorFactory(
+  parentContext: DemoAgentContext,
+  task: string,
+): (completedChildRuns) => RunExecutor
+```
+
+### Demo Mode Defaults
+
+| Setting | Value | Notes |
+|---------|-------|-------|
+| `questionProbability` | 0.25 | 25% chance of clarifying question |
+| `minDelayMs` | 1 500 ms | Snappier than default (2 000 ms) |
+| `maxDelayMs` | 4 000 ms | Snappier than default (6 000 ms) |
+
+Parent synthesis executors always use `questionProbability: 0` (always produce a result, never a question).

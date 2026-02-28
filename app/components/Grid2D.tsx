@@ -12,6 +12,8 @@ import AgentPanel, { type RunTaskPayload, type EditSavePayload, type WaitRunPhas
 import { RunEngine } from '../run-engine'
 import type { ChildAgentDef } from '../run-engine'
 import type { AgentConfigSnapshot } from '../run-engine/types'
+import { createDemoExecutor, createDemoChildExecutorFactory, createDemoParentExecutorFactory } from '../run-engine/demo-executor'
+import type { DemoAgentContext } from '../run-engine/demo-executor'
 import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from './agent-run-state'
 import { RUNE_CHARS, RUNE_COUNT, HEAD_Y as RUNE_HEAD_Y, calcRuneOrbit, calcRuneFlash, calcRuneDisplayScale } from './agent-runes'
 import { useInbox } from './use-inbox'
@@ -41,6 +43,20 @@ function snapshotAgentConfig(def: AgentDef): AgentConfigSnapshot {
     ...(def.goal !== undefined && { goal: def.goal }),
     ...(def.persona !== undefined && { persona: def.persona }),
     configVersion: def.configVersion,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Demo mode helpers
+// ---------------------------------------------------------------------------
+
+/** Convert an `AgentDef` (or snapshot fields) into a `DemoAgentContext`. */
+function toDemoContext(def: Pick<AgentDef, 'name' | 'role' | 'goal' | 'persona'>): DemoAgentContext {
+  return {
+    name: def.name,
+    role: def.role,
+    goal: def.goal,
+    persona: def.persona,
   }
 }
 
@@ -77,21 +93,6 @@ function toColorHex(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`
 }
 
-/** Build AgentPanelAgent from a definition + any user overrides */
-function buildPanelAgent(
-  def: AgentDef,
-  overrides: Record<string, EditSavePayload>,
-): AgentPanelAgent {
-  const o = overrides[def.id]
-  return {
-    id: def.id,
-    name: o?.name ?? def.name,
-    role: def.role,
-    colorHex: toColorHex(def.color),
-    goal: o?.goal ?? def.goal ?? '',
-    persona: o?.persona ?? def.persona ?? '',
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -165,6 +166,12 @@ export default function Grid2D() {
   // API key status — fetched once after login to show the setup banner
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null)
   const [keyBannerDismissed, setKeyBannerDismissed] = useState(false)
+
+  // Demo mode — uses MockLLM instead of the real Anthropic API.
+  // Activated automatically when a run attempt returns 402 (no API key),
+  // or can be toggled manually via the demo mode button.
+  const [demoMode, setDemoMode] = useState(false)
+  const [demoBannerDismissed, setDemoBannerDismissed] = useState(false)
 
   // Fetch API key status once the session is available, so we can show a
   // non-blocking setup banner for users who haven't configured their key yet.
@@ -833,6 +840,9 @@ export default function Grid2D() {
     if (!res.ok) {
       if (res.status === 402) {
         setSettingsOpen(true)
+        // Automatically activate demo mode so the next run attempt uses MockLLM
+        setDemoMode(true)
+        setDemoBannerDismissed(false)
       }
       throw new Error(data.userMessage ?? 'Nastala chyba. Zkus to znovu.')
     }
@@ -1057,51 +1067,58 @@ export default function Grid2D() {
         configSnapshot: childSnapshotMap.get(cd.id),
       }))
 
-      // Factory: each child gets its own executor using the SNAPSHOTTED config.
-      // We use the snapshot map (captured above) rather than looking up agentDefs
-      // at executor call time, which could return a post-edit config.
-      const childExecutorFactory = (childAgentId: string) => {
-        const snapshot = childSnapshotMap.get(childAgentId)
-        if (!snapshot) return async () => `Child agent ${childAgentId} not found.`
-        // Convert snapshot to minimal AgentDef shape for buildRunExecutor
-        const snapshotDef: AgentDef = {
-          id: snapshot.id,
-          name: snapshot.name,
-          role: snapshot.role,
-          color: 0,
-          startCol: 0,
-          startRow: 0,
-          goal: snapshot.goal,
-          persona: snapshot.persona,
-          configVersion: snapshot.configVersion,
+      if (demoMode) {
+        // Demo mode: use MockLLM executors for all children and parent synthesis.
+        const childContextMap = new Map<string, DemoAgentContext>(
+          childDefs.map((cd) => [cd.id, toDemoContext(cd)]),
+        )
+        const demoChildFactory = createDemoChildExecutorFactory(childContextMap, payload.task)
+        const demoParentFactory = createDemoParentExecutorFactory(toDemoContext(def), payload.task)
+        engine.startRunWithChildren(run.id, childAgentDefs, demoParentFactory, demoChildFactory)
+      } else {
+        // Real API mode: each child calls the /api/run endpoint with its snapshotted config.
+        const childExecutorFactory = (childAgentId: string) => {
+          const snapshot = childSnapshotMap.get(childAgentId)
+          if (!snapshot) return async () => `Child agent ${childAgentId} not found.`
+          const snapshotDef: AgentDef = {
+            id: snapshot.id,
+            name: snapshot.name,
+            role: snapshot.role,
+            color: 0,
+            startCol: 0,
+            startRow: 0,
+            goal: snapshot.goal,
+            persona: snapshot.persona,
+            configVersion: snapshot.configVersion,
+          }
+          return buildRunExecutor(snapshotDef, payload.task)
         }
-        return buildRunExecutor(snapshotDef, payload.task)
-      }
 
-      // Parent executor factory: receives completed child runs for synthesis.
-      // Uses the parent's config snapshot (captured above) and child run snapshots
-      // for labelling — never the current (potentially edited) agentDefs.
-      const parentExecutorFactory = (completedChildRuns: import('../run-engine').Run[]) => {
-        const childContext = completedChildRuns
-          .map((cr) => {
-            // Prefer the config snapshot stored on the child run; fall back to ID.
-            const snap = cr.configSnapshot
-            const label = snap
-              ? `[${snap.name} — ${snap.role}]`
-              : `[${cr.agentId}]`
-            return cr.result
-              ? `${label}\n${cr.result}`
-              : `${label} (failed)\n${cr.error ?? 'Unknown error'}`
-          })
-          .join('\n\n')
-        // Use the parent's snapshotted config (def is captured at handleRunTask call time)
-        return buildRunExecutor(def, payload.task, undefined, undefined, childContext)
-      }
+        const parentExecutorFactory = (completedChildRuns: import('../run-engine').Run[]) => {
+          const childContext = completedChildRuns
+            .map((cr) => {
+              const snap = cr.configSnapshot
+              const label = snap
+                ? `[${snap.name} — ${snap.role}]`
+                : `[${cr.agentId}]`
+              return cr.result
+                ? `${label}\n${cr.result}`
+                : `${label} (failed)\n${cr.error ?? 'Unknown error'}`
+            })
+            .join('\n\n')
+          return buildRunExecutor(def, payload.task, undefined, undefined, childContext)
+        }
 
-      engine.startRunWithChildren(run.id, childAgentDefs, parentExecutorFactory, childExecutorFactory)
+        engine.startRunWithChildren(run.id, childAgentDefs, parentExecutorFactory, childExecutorFactory)
+      }
     } else {
       // Regular single-agent run
-      engine.startRun(run.id, buildRunExecutor(def, payload.task))
+      engine.startRun(
+        run.id,
+        demoMode
+          ? createDemoExecutor(toDemoContext(def), payload.task)
+          : buildRunExecutor(def, payload.task),
+      )
     }
 
     // Inbox delivery: close the panel so the user can see the inbox feed.
@@ -1134,22 +1151,35 @@ export default function Grid2D() {
     // This is the primary mechanism ensuring config isolation for resumed runs.
     if (run.configSnapshot) {
       const snap = run.configSnapshot
-      const snapshotDef: AgentDef = {
-        id: snap.id,
-        name: snap.name,
-        role: snap.role,
-        color: 0,
-        startCol: 0,
-        startRow: 0,
-        goal: snap.goal,
-        persona: snap.persona,
-        configVersion: snap.configVersion,
+      if (demoMode) {
+        // Demo mode: resume with a fresh MockLLM executor (always produces a result)
+        engine.resumeRun(
+          runId,
+          answer,
+          createDemoExecutor(
+            { name: snap.name, role: snap.role, goal: snap.goal, persona: snap.persona },
+            run.taskDescription,
+            { questionProbability: 0 },
+          ),
+        )
+      } else {
+        const snapshotDef: AgentDef = {
+          id: snap.id,
+          name: snap.name,
+          role: snap.role,
+          color: 0,
+          startCol: 0,
+          startRow: 0,
+          goal: snap.goal,
+          persona: snap.persona,
+          configVersion: snap.configVersion,
+        }
+        engine.resumeRun(
+          runId,
+          answer,
+          buildRunExecutor(snapshotDef, run.taskDescription, run.question, answer),
+        )
       }
-      engine.resumeRun(
-        runId,
-        answer,
-        buildRunExecutor(snapshotDef, run.taskDescription, run.question, answer),
-      )
       return
     }
 
@@ -1157,13 +1187,26 @@ export default function Grid2D() {
     // (no configSnapshot present). Use params from runParamsRef if available.
     const params = runParamsRef.current.get(runId)
     if (!params) {
-      // Mock mode — no params stored; resume without executor
+      // Demo mode or legacy mock mode — resume without additional executor
       engine.resumeRun(runId, answer)
       return
     }
 
     // Build a minimal AgentDef from stored params. We use run.agentId (stable)
     // rather than searching by name (which may have changed).
+    if (demoMode) {
+      engine.resumeRun(
+        runId,
+        answer,
+        createDemoExecutor(
+          { name: params.agentName, role: params.agentRole, goal: params.agentGoal, persona: params.agentPersona },
+          params.taskDescription,
+          { questionProbability: 0 },
+        ),
+      )
+      return
+    }
+
     const fallbackDef: AgentDef = {
       id: run.agentId,
       name: params.agentName,
@@ -1232,14 +1275,6 @@ export default function Grid2D() {
   // User display name
   const userName = session?.user?.name ?? session?.user?.email?.split('@')[0] ?? ''
 
-  // Build the full agent info for the panel
-  const panelAgent: AgentPanelAgent | null = singleSelected
-    ? buildPanelAgent(
-        AGENTS.find((a) => a.id === singleSelected.id)!,
-        agentOverrides,
-      )
-    : null
-
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -1279,6 +1314,17 @@ export default function Grid2D() {
 
       {/* User + Settings button + Delegation link (top-left) */}
       <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+        {/* Demo mode indicator (shown only when demo mode is active) */}
+        {demoMode && (
+          <button
+            onClick={() => setDemoMode(false)}
+            title="Demo mode active — using MockLLM. Click to disable."
+            className="flex items-center gap-1.5 bg-amber-500/20 backdrop-blur-sm border border-amber-500/50 rounded-xl px-3 py-1.5 text-xs text-amber-300 hover:text-amber-200 hover:border-amber-400 transition-colors"
+          >
+            <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
+            Demo
+          </button>
+        )}
         <Link
           href="/delegation"
           className="flex items-center gap-1.5 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:border-emerald-600 transition-colors"
@@ -1360,6 +1406,40 @@ export default function Grid2D() {
         onClose={() => setSettingsOpen(false)}
       />
 
+      {/* ── Demo mode banner ── */}
+      {demoMode && !demoBannerDismissed && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 w-full max-w-sm px-4 pointer-events-auto">
+          <div className="bg-slate-800/95 backdrop-blur-sm border border-amber-500/40 rounded-2xl shadow-2xl p-4 flex items-start gap-3">
+            <div className="w-8 h-8 bg-amber-500/20 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white">Demo režim aktivní</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Agenti generují simulované odpovědi pomocí šablon. Pro skutečné AI odpovědi nastav Anthropic API klíč.
+              </p>
+              <button
+                onClick={() => { setSettingsOpen(true); setDemoBannerDismissed(true) }}
+                className="mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+              >
+                Nastavit klíč →
+              </button>
+            </div>
+            <button
+              onClick={() => setDemoBannerDismissed(true)}
+              className="text-slate-600 hover:text-slate-400 transition-colors flex-shrink-0"
+              aria-label="Zavřít"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── API Key setup banner ── */}
       {showKeyBanner && (
         <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 w-full max-w-sm px-4 pointer-events-auto">
@@ -1372,12 +1452,20 @@ export default function Grid2D() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white">Připoj svůj AI klíč</p>
               <p className="text-xs text-slate-400 mt-0.5">Pro spuštění agentů potřebuješ Anthropic API klíč.</p>
-              <button
-                onClick={() => { setSettingsOpen(true); setKeyBannerDismissed(true) }}
-                className="mt-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                Nastavit klíč →
-              </button>
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={() => { setSettingsOpen(true); setKeyBannerDismissed(true) }}
+                  className="text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  Nastavit klíč →
+                </button>
+                <button
+                  onClick={() => { setDemoMode(true); setKeyBannerDismissed(true) }}
+                  className="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  Zkusit demo →
+                </button>
+              </div>
             </div>
             <button
               onClick={() => setKeyBannerDismissed(true)}
