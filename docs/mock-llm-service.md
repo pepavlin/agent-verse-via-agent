@@ -1,0 +1,213 @@
+# MockLLM Service
+
+## Overview
+
+The MockLLM subsystem generates realistic fake LLM responses for agent tasks without requiring an Anthropic API key. It is composed of three layers:
+
+| Layer | File | Responsibility |
+|-------|------|----------------|
+| Pure generation functions | `app/run-engine/realistic-results.ts` | Topic detection, persona style detection, style-bucketed template selection |
+| Generic fallback functions | `app/run-engine/results.ts` | Simple agent-name / role / task templates (no topic awareness) |
+| **MockLLMService** (service) | `app/run-engine/mock-llm-service.ts` | Stateful service: encapsulates agent config, caches style, exposes clean API |
+| MockLLM (executor adapter) | `app/run-engine/mock-llm.ts` | Wraps generation with timing delays and probability control for RunEngine |
+
+---
+
+## Response Generation Pipeline
+
+```
+task description
+      │
+      ▼
+ detectTopic()          ← keyword heuristics (9 categories)
+      │
+      ├─ topic: exploration | construction | intelligence | defense
+      │          coding | research | communication | planning | general
+      │
+      ▼
+agent.persona
+      │
+      ▼
+ detectPersonaStyle()   ← keyword heuristics (5 styles)
+      │
+      ├─ style: bold | methodical | swift | steadfast | neutral
+      │
+      ▼
+ RESULT_STYLE_BUCKETS[topic][style]
+      │
+      ├─ subset of template indices appropriate for this persona style
+      │
+      ▼
+ Pick template from bucket (random or deterministic via pickIndex)
+      │
+      ▼
+ Interpolate: agentName, agentRole, taskDescription, agentGoal
+      │
+      ▼
+ Inject goal if not already present in template output
+      │
+      ▼
+ Final response string
+```
+
+---
+
+## Topic Detection
+
+Topic is inferred from the **task description** using keyword matching. The category with the most keyword hits wins. Returns `'general'` as a fallback when no keywords match.
+
+| Category | Example keywords |
+|----------|-----------------|
+| `exploration` | map, explore, survey, scan, chart, navigate, territory |
+| `construction` | build, construct, install, repair, deploy, structure |
+| `intelligence` | scout, intel, recon, observe, gather, track, detect |
+| `defense` | defend, protect, secure, guard, patrol, monitor, fortify |
+| `coding` | code, debug, implement, refactor, api, algorithm, test |
+| `research` | analyze, research, study, investigate, review, benchmark |
+| `communication` | send, message, notify, broadcast, alert, transmit |
+| `planning` | plan, organize, coordinate, schedule, strategy, roadmap |
+| `general` | *(fallback — no keywords matched)* |
+
+---
+
+## Persona Style Detection
+
+Style is inferred from the **agent's persona description** using keyword matching. The style with the most hits wins. Returns `'neutral'` when persona is absent or unrecognised.
+
+| Style | Example keywords | Tone of generated responses |
+|-------|-----------------|------------------------------|
+| `bold` | bold, curious, adventurous, daring, fearless, venture | Short, action-first, confident |
+| `methodical` | methodical, reliable, careful, systematic, precise | Detailed, structured, step-by-step |
+| `swift` | fast, quick, agile, rapid, move, speed | Brief, punchy, efficient |
+| `steadfast` | steadfast, vigilant, responsible, duty, protect | Formal, thorough, duty-conscious |
+| `neutral` | *(fallback)* | Balanced — full template variety |
+
+### Real Agent Style Mapping
+
+| Agent | Persona keywords | Detected style |
+|-------|-----------------|---------------|
+| Alice (Explorer) | curious, bold, venture | `bold` |
+| Bob (Builder) | methodical, reliable, solid | `methodical` |
+| Carol (Scout) | fast, observant, lingers | `swift` |
+| Dave (Defender) | steadfast, vigilant, abandon, post | `steadfast` |
+
+---
+
+## Style-Bucketed Template Selection
+
+Each topic has 5 result templates and 3 question templates. Instead of picking randomly from all templates regardless of persona, the service uses **style buckets** — a mapping from `PersonaStyle` to the template indices that match that style's tone.
+
+### Example: Exploration Result Templates
+
+| Index | Excerpt | Style bucket |
+|-------|---------|-------------|
+| 0 | "Mapping operation complete. Alice has fully charted…" | `bold` |
+| 1 | "Alice (Explorer) filed the following field report…" | `methodical` |
+| 2 | "Exploration of … concluded. Alice documented 14 waypoints…" | `steadfast` |
+| 3 | "Alice the Explorer completed the survey… Terrain: mixed forest…" | `methodical` |
+| 4 | "… — fully executed. Alice returned with high-resolution sector data…" | `swift` |
+
+When a `bold` Alice explores, only template 0 is eligible. When `methodical` Bob explores, templates 1 and 3 are eligible. The `neutral` style uses all templates.
+
+This ensures the **agent's personality consistently reflects in every response**, not just in detected metadata.
+
+---
+
+## MockLLMService API
+
+### Construction
+
+```typescript
+import { MockLLMService, createMockLLMService } from '@/app/run-engine'
+
+// Via constructor
+const service = new MockLLMService({
+  agentName: 'Alice',
+  agentRole: 'Explorer',
+  goal: 'Map all unexplored areas of the grid',
+  persona: 'Curious and bold. Always the first to venture.',
+})
+
+// Via factory (equivalent)
+const service = createMockLLMService({ agentName: 'Alice', ... })
+```
+
+### Config Options
+
+```typescript
+interface MockLLMServiceConfig {
+  agentName: string              // Agent display name
+  agentRole: string              // Role label
+  goal?: string                  // Mission statement (enables realistic generation)
+  persona?: string               // Personality description (drives style detection)
+  useRealisticGeneration?: boolean  // Override automatic realistic/generic choice
+}
+```
+
+### Methods
+
+```typescript
+// Generate a task completion result
+const result = service.generateResult('Map the north sector')
+const result = service.generateResult('Map the north sector', 2)  // deterministic index
+
+// Generate a clarifying question
+const question = service.generateQuestion('Map the north sector')
+
+// Introspect topic detection
+const topic = service.detectTopicFor('Map the north sector')  // → 'exploration'
+```
+
+### Getters
+
+```typescript
+service.agentName     // → 'Alice'
+service.agentRole     // → 'Explorer'
+service.goal          // → 'Map all unexplored areas…' | undefined
+service.persona       // → 'Curious and bold…' | undefined
+service.personaStyle  // → 'bold' | 'methodical' | 'swift' | 'steadfast' | 'neutral'
+service.isRealistic   // → true if realistic generation is active
+```
+
+---
+
+## MockLLM vs MockLLMService
+
+| | MockLLM | MockLLMService |
+|---|---------|---------------|
+| **Primary use** | RunEngine executor (timing + probability) | Content generation (standalone) |
+| **Timing control** | Yes (`minDelayMs`, `maxDelayMs`, `delayFn`) | No |
+| **Probability control** | Yes (`questionProbability`) | No |
+| **RunEngine integration** | Yes (`asExecutor()`) | No |
+| **Style-bucketed selection** | Yes (via updated `generateRealistic*` functions) | Yes |
+| **Caches persona style** | No (recalculates on each `run()` call) | Yes (cached at construction) |
+| **Standalone testability** | Needs fake timers in tests | Direct synchronous calls |
+
+Both classes use the same underlying `generateRealisticResult()` / `generateRealisticQuestion()` functions, so improvements to the generation pipeline benefit both.
+
+---
+
+## Adding New Templates
+
+### Add a result template
+
+1. Append to the appropriate `*_RESULT_TEMPLATES` array in `realistic-results.ts`.
+2. Add the new index to the relevant style bucket(s) in `RESULT_STYLE_BUCKETS`.
+3. Update `tests/mock-llm-service.test.ts` if the bucket counts changed.
+
+### Add a new topic
+
+1. Add the new value to the `TopicCategory` union type.
+2. Add keywords to `TOPIC_KEYWORDS`.
+3. Add template arrays: `NEW_TOPIC_RESULT_TEMPLATES` and `NEW_TOPIC_QUESTION_TEMPLATES`.
+4. Add to `REALISTIC_RESULT_TEMPLATES` and `REALISTIC_QUESTION_TEMPLATES` maps.
+5. Add style bucket entries to `RESULT_STYLE_BUCKETS` and `QUESTION_STYLE_BUCKETS`.
+6. Add to `ALL_TOPIC_CATEGORIES`.
+7. Add a task fixture to `TOPIC_TASKS` in `tests/mock-llm-service.test.ts`.
+
+### Add a new persona style
+
+1. Add the value to the `PersonaStyle` union type.
+2. Add keywords to `PERSONA_STYLE_KEYWORDS`.
+3. Add the style key to every entry in `RESULT_STYLE_BUCKETS` and `QUESTION_STYLE_BUCKETS`.
+4. Add to `ALL_PERSONA_STYLES`.

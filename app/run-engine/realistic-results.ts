@@ -470,6 +470,280 @@ const REALISTIC_QUESTION_TEMPLATES: Record<TopicCategory, RealisticTemplate[]> =
 }
 
 // ---------------------------------------------------------------------------
+// Persona style → template index buckets
+// ---------------------------------------------------------------------------
+//
+// Each topic has multiple templates, each written with a subtly different
+// tone. Style buckets map a PersonaStyle to the subset of template indices
+// that best match that style. When a persona is detected, only the matching
+// bucket of templates is considered for selection, so the generated response
+// actually reflects the agent's personality.
+//
+// Bucket conventions (per topic, results have 5 templates, questions have 3):
+//   bold      → short, action-first, confident prose
+//   methodical → detailed, structured, step-by-step
+//   swift      → brief, punchy, efficient
+//   steadfast  → formal, thorough, duty-conscious
+//   neutral    → all indices (no style preference)
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps each PersonaStyle to the template indices that best express that style
+ * for a given topic.
+ *
+ * `neutral` always includes all indices so that agents without a detected
+ * persona still get the full variety of templates.
+ */
+export type StyleTemplateBuckets = Record<PersonaStyle, number[]>
+
+/** Style buckets for result templates, keyed by topic. */
+export const RESULT_STYLE_BUCKETS: Record<TopicCategory, StyleTemplateBuckets> = {
+  // Template 0: "Mapping operation complete" — action-first (bold)
+  // Template 1: "filed the following field report" — formal report (methodical)
+  // Template 2: "documented 14 waypoints" — comprehensive (steadfast)
+  // Template 3: "completed the survey… Terrain: mixed forest" — balanced (methodical/neutral)
+  // Template 4: "fully executed… high-resolution sector data" — brief (swift)
+  exploration: {
+    bold:       [0],
+    methodical: [1, 3],
+    swift:      [4],
+    steadfast:  [2],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+
+  // Template 0: "using 48 timber units… Maintenance schedule logged" — detailed (methodical)
+  // Template 1: "delivery report… stress-tested. Load capacity" — formal spec (methodical)
+  // Template 2: "all 5 phases on schedule… within budget" — comprehensive (steadfast)
+  // Template 3: "Foundation: reinforced. Sightlines… bolted and sealed" — thorough (steadfast)
+  // Template 4: "assembled and tested… Power connections active" — direct (bold/swift)
+  construction: {
+    bold:       [4],
+    methodical: [0, 1],
+    swift:      [4],
+    steadfast:  [2, 3],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+
+  // Template 0: "Intel gathered… movement logged… Choke point identified" — swift/specific
+  // Template 1: "intelligence summary… No hostile structures… Blind spots mapped" — methodical
+  // Template 2: "identified 4 persons of interest… extracted signal intercepts" — bold
+  // Template 3: "Observation window: 3 hours… guard rotation every 2 hours" — steadfast
+  // Template 4: "Assets located, photographed, catalogued. No detection." — swift
+  intelligence: {
+    bold:       [2],
+    methodical: [1],
+    swift:      [0, 4],
+    steadfast:  [3],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+
+  // Template 0: "defensive cordon established, all 4 approach vectors covered" — steadfast
+  // Template 1: "security report: area clear… Patrol route optimised" — methodical
+  // Template 2: "reinforced 3 weak points… rapid-response protocol" — bold
+  // Template 3: "Threat level: low. Fortifications: intact. Incident log: 0" — steadfast
+  // Template 4: "layered defense: outer perimeter / inner cordon / central stronghold" — methodical
+  defense: {
+    bold:       [2],
+    methodical: [1, 4],
+    swift:      [2],
+    steadfast:  [0, 3],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+
+  // Template 0: "unit tests (94%)… CI: green. Merge-ready" — methodical
+  // Template 1: "3 bugs fixed, 2 bottlenecks resolved (40% throughput)" — methodical
+  // Template 2: "refactored 420 lines… error handling… Build time: −15%" — bold/swift
+  // Template 3: "Endpoint live, auth middleware… Loadtest: 1200 req/s" — methodical
+  // Template 4: "debugged root cause (off-by-one)… confirmed with QA" — swift
+  coding: {
+    bold:       [2],
+    methodical: [0, 1, 3],
+    swift:      [4],
+    steadfast:  [0, 3],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+
+  // Template 0: "reviewed 23 sources, synthesised 5 key insights" — methodical
+  // Template 1: "primary hypothesis supported (confidence: 78%)" — methodical
+  // Template 2: "benchmarked 6 approaches, documented trade-offs, phased plan" — methodical
+  // Template 3: "Risk matrix updated: 2 high-impact items escalated" — steadfast
+  // Template 4: "evaluated 4 frameworks, ran 12 experiments, 3-page summary" — bold/swift
+  research: {
+    bold:       [4],
+    methodical: [0, 1, 2],
+    swift:      [4],
+    steadfast:  [3],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+
+  // Template 0: "all recipients acknowledged. Delivery confirmation logged" — swift
+  // Template 1: "broadcast: distributed to 14 nodes, read receipts: 12/14" — methodical
+  // Template 2: "Priority: HIGH. Channel: encrypted relay. Status: confirmed" — bold
+  // Template 3: "Notification sent to 3 channels (primary, backup, emergency)" — methodical
+  // Template 4: "signal strength: 97%, latency: 42 ms" — swift
+  communication: {
+    bold:       [2],
+    methodical: [1, 3],
+    swift:      [0, 4],
+    steadfast:  [3],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+
+  // Template 0: "5-phase roadmap drafted, dependencies mapped, resource requirements" — methodical
+  // Template 1: "3 scenarios modelled (optimistic / baseline / contingency)" — methodical
+  // Template 2: "aligned 5 stakeholders, resolved 2 conflicting priorities" — bold
+  // Template 3: "Scope confirmed, milestones agreed, owner assignments distributed" — steadfast
+  // Template 4: "prioritised backlog (18 items), 3 quick wins, weekly cadence" — swift
+  planning: {
+    bold:       [2],
+    methodical: [0, 1],
+    swift:      [4],
+    steadfast:  [3],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+
+  // Template 0: "All objectives addressed and findings documented" — neutral
+  // Template 1: "Outcome: satisfactory. Ready for next assignment" — neutral/steadfast
+  // Template 2: "Summary filed, dependencies cleared, status set to done" — methodical
+  // Template 3: "has finished and is standing by for new instructions" — swift
+  // Template 4: "reports no blockers and considers all deliverables fully addressed" — bold
+  general: {
+    bold:       [4],
+    methodical: [0, 2],
+    swift:      [3],
+    steadfast:  [1],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+}
+
+/** Style buckets for question templates, keyed by topic. */
+export const QUESTION_STYLE_BUCKETS: Record<TopicCategory, StyleTemplateBuckets> = {
+  // Q0: "Should the sector scan include underground passages?" — direct (bold)
+  // Q1: "Are there any restricted zones… that should be excluded?" — methodical/steadfast
+  // Q2: "What is the priority order if multiple sectors are discovered?" — methodical
+  exploration: {
+    bold:       [0],
+    methodical: [1, 2],
+    swift:      [0],
+    steadfast:  [1],
+    neutral:    [0, 1, 2],
+  },
+
+  // Q0: "What material specification applies — standard or reinforced?" — methodical
+  // Q1: "The designated coordinates are occupied. Reposition or remove?" — bold
+  // Q2: "Is there a load-bearing requirement that should determine foundation depth?" — methodical
+  construction: {
+    bold:       [1],
+    methodical: [0, 2],
+    swift:      [1],
+    steadfast:  [0, 2],
+    neutral:    [0, 1, 2],
+  },
+
+  // Q0: "Is passive observation only, or is active probing permitted?" — swift
+  // Q1: "What is the acceptable risk level — covert only or limited exposure?" — steadfast
+  // Q2: "How should conflicting intelligence from multiple sources be prioritised?" — methodical
+  intelligence: {
+    bold:       [0],
+    methodical: [2],
+    swift:      [0],
+    steadfast:  [1],
+    neutral:    [0, 1, 2],
+  },
+
+  // Q0: "Are neutralise-on-sight rules active, or contain-and-report only?" — bold/steadfast
+  // Q1: "What is the escalation threshold — when to notify command?" — steadfast
+  // Q2: "Should the defensive perimeter be maintained continuously or rotational?" — methodical
+  defense: {
+    bold:       [0],
+    methodical: [2],
+    swift:      [0],
+    steadfast:  [0, 1],
+    neutral:    [0, 1, 2],
+  },
+
+  // Q0: "Should the implementation be backward-compatible with v1?" — methodical
+  // Q1: "What is the target test coverage threshold — 80%, 90%, or 100%?" — methodical
+  // Q2: "Is this feature behind a feature flag, or deployed to all users immediately?" — swift
+  coding: {
+    bold:       [2],
+    methodical: [0, 1],
+    swift:      [2],
+    steadfast:  [0, 1],
+    neutral:    [0, 1, 2],
+  },
+
+  // Q0: "Should the analysis include historical data or only current-cycle data?" — methodical
+  // Q1: "Are outlier data points to be excluded, or reported separately?" — methodical
+  // Q2: "Who is the primary audience — technical team or executive summary?" — swift
+  research: {
+    bold:       [2],
+    methodical: [0, 1],
+    swift:      [2],
+    steadfast:  [0, 1],
+    neutral:    [0, 1, 2],
+  },
+
+  // Q0: "Should this go via the primary channel only, or broadcast to all?" — bold
+  // Q1: "Is end-to-end encryption required, or is standard relay acceptable?" — steadfast
+  // Q2: "Should recipients confirm receipt, or is a one-way broadcast sufficient?" — swift
+  communication: {
+    bold:       [0],
+    methodical: [1, 2],
+    swift:      [2],
+    steadfast:  [1],
+    neutral:    [0, 1, 2],
+  },
+
+  // Q0: "Should timelines be optimistic (best-case) or padded for risk?" — methodical
+  // Q1: "Are there budget constraints that should cap the resource allocation?" — methodical
+  // Q2: "Which stakeholder group has final sign-off authority?" — steadfast
+  planning: {
+    bold:       [0],
+    methodical: [0, 1],
+    swift:      [0],
+    steadfast:  [2],
+    neutral:    [0, 1, 2],
+  },
+
+  // Q0: "What is the expected output format for the final deliverable?" — neutral
+  // Q1: "Should the results be summarised or provided in full detail?" — methodical
+  // Q2: "Are there any constraints or limitations that should be taken into account?" — neutral
+  // Q3: "What are the success criteria for this task?" — steadfast
+  // Q4: "Who are the intended recipients of the final output?" — swift
+  general: {
+    bold:       [2],
+    methodical: [1, 3],
+    swift:      [4],
+    steadfast:  [3],
+    neutral:    [0, 1, 2, 3, 4],
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Internal helper: style-aware index selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Pick a template index from the style-appropriate bucket for a given topic.
+ *
+ * When `pickIndex` is supplied the index is resolved deterministically within
+ * the bucket (modulo bucket length). When omitted, a random index from the
+ * bucket is chosen.
+ */
+function pickStyleIndex(
+  buckets: StyleTemplateBuckets,
+  style: PersonaStyle,
+  pickIndex?: number,
+): number {
+  const bucket = buckets[style]
+  if (pickIndex !== undefined) {
+    return bucket[((pickIndex % bucket.length) + bucket.length) % bucket.length]
+  }
+  return bucket[Math.floor(Math.random() * bucket.length)]
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -478,8 +752,10 @@ const REALISTIC_QUESTION_TEMPLATES: Record<TopicCategory, RealisticTemplate[]> =
  *
  * Topic is auto-detected from `taskDescription` via keyword heuristics.
  * The agent's `goal` is woven into the output to ground it in the agent's
- * broader mission. `persona` influences template selection (when multiple
- * templates of the same quality are available).
+ * broader mission. `persona` drives style detection which selects from a
+ * persona-appropriate subset of templates, so the response tone actually
+ * reflects the agent's personality (bold, methodical, swift, steadfast, or
+ * neutral when persona is absent).
  *
  * @param agentName       Display name of the agent (e.g. "Alice")
  * @param agentRole       Role label (e.g. "Explorer")
@@ -500,10 +776,7 @@ export function generateRealisticResult(
   const style = detectPersonaStyle(agentPersona)
   const templates = REALISTIC_RESULT_TEMPLATES[topic]
 
-  const idx =
-    pickIndex !== undefined
-      ? ((pickIndex % templates.length) + templates.length) % templates.length
-      : Math.floor(Math.random() * templates.length)
+  const idx = pickStyleIndex(RESULT_STYLE_BUCKETS[topic], style, pickIndex)
 
   const ctx: RealisticResultContext = {
     agentName,
@@ -532,7 +805,8 @@ export function generateRealisticResult(
  * Generate a realistic clarifying question for an awaiting run.
  *
  * Topic is auto-detected from `taskDescription`. Questions are domain-specific
- * so they feel natural for the type of work the agent is doing.
+ * and persona-styled so they feel natural for both the type of work being done
+ * and the agent's personality.
  *
  * @param agentName       Display name of the agent (e.g. "Alice")
  * @param agentRole       Role label (e.g. "Explorer")
@@ -553,10 +827,7 @@ export function generateRealisticQuestion(
   const style = detectPersonaStyle(agentPersona)
   const templates = REALISTIC_QUESTION_TEMPLATES[topic]
 
-  const idx =
-    pickIndex !== undefined
-      ? ((pickIndex % templates.length) + templates.length) % templates.length
-      : Math.floor(Math.random() * templates.length)
+  const idx = pickStyleIndex(QUESTION_STYLE_BUCKETS[topic], style, pickIndex)
 
   const ctx: RealisticResultContext = {
     agentName,
@@ -591,4 +862,9 @@ export const REALISTIC_QUESTION_TEMPLATE_COUNTS: Record<TopicCategory, number> =
 export const ALL_TOPIC_CATEGORIES: TopicCategory[] = [
   'exploration', 'construction', 'intelligence', 'defense',
   'coding', 'research', 'communication', 'planning', 'general',
+]
+
+/** Ordered list of all persona styles (for iteration in tests). */
+export const ALL_PERSONA_STYLES: PersonaStyle[] = [
+  'bold', 'methodical', 'swift', 'steadfast', 'neutral',
 ]

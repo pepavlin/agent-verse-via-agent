@@ -15,3 +15,5 @@ export {
 export type { ChildRunOutcome } from './results'
 export type { MockLLMOptions } from './mock-llm'
 export { MockLLM } from './mock-llm'
+export type { MockLLMServiceConfig } from './mock-llm-service'
+export { MockLLMService, createMockLLMService } from './mock-llm-service'
