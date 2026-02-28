@@ -3,6 +3,9 @@ import {
   PHASES,
   PHASE_MS,
   PHASE_TEXT,
+  PHASE_TEXT_CS,
+  MGR_BUBBLE_CS,
+  WKR_BUBBLE_CS,
   type Phase,
   type SceneAgent,
   moveToward,
@@ -216,5 +219,71 @@ describe('arcPoint', () => {
     const pt = arcPoint(0, 0, 100, 0, 0.5, 80)
     expect(pt.x).toBeCloseTo(50)
     expect(pt.y).toBeCloseTo(-80) // upward (negative y)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Czech localisation (PHASE_TEXT_CS, MGR_BUBBLE_CS, WKR_BUBBLE_CS)
+// ---------------------------------------------------------------------------
+
+describe('PHASE_TEXT_CS', () => {
+  it('has a non-empty Czech label for every phase', () => {
+    for (const phase of PHASES) {
+      expect(PHASE_TEXT_CS[phase].trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('is distinct from the English version for every phase', () => {
+    for (const phase of PHASES) {
+      expect(PHASE_TEXT_CS[phase]).not.toBe(PHASE_TEXT[phase])
+    }
+  })
+
+  it('contains Czech characters', () => {
+    const allText = Object.values(PHASE_TEXT_CS).join(' ')
+    // Basic check for diacritics common in Czech
+    expect(allText).toMatch(/[áéíóúůěščřžýďťňÁÉÍÓÚŮĚŠČŘŽÝĎŤŇ]/)
+  })
+})
+
+describe('MGR_BUBBLE_CS', () => {
+  it('has an entry for idle (question mark or similar)', () => {
+    expect(MGR_BUBBLE_CS.idle).toBeDefined()
+    expect((MGR_BUBBLE_CS.idle ?? '').length).toBeGreaterThan(0)
+  })
+
+  it('has an entry for calling phase', () => {
+    expect(MGR_BUBBLE_CS.calling).toBeDefined()
+  })
+
+  it('has an entry for briefing phase', () => {
+    expect(MGR_BUBBLE_CS.briefing).toBeDefined()
+    // Should mention the task location
+    expect(MGR_BUBBLE_CS.briefing).toMatch(/Sektor/i)
+  })
+
+  it('has an entry for celebrating phase', () => {
+    expect(MGR_BUBBLE_CS.celebrating).toBeDefined()
+  })
+})
+
+describe('WKR_BUBBLE_CS', () => {
+  it('has an entry for acknowledging phase', () => {
+    expect(WKR_BUBBLE_CS.acknowledging).toBeDefined()
+    expect((WKR_BUBBLE_CS.acknowledging ?? '').length).toBeGreaterThan(0)
+  })
+
+  it('has an entry for working phase', () => {
+    expect(WKR_BUBBLE_CS.working).toBeDefined()
+  })
+
+  it('has an entry for completing phase', () => {
+    expect(WKR_BUBBLE_CS.completing).toBeDefined()
+    // Should contain a checkmark
+    expect(WKR_BUBBLE_CS.completing).toMatch(/\u2713|✓/)
+  })
+
+  it('has an entry for celebrating phase', () => {
+    expect(WKR_BUBBLE_CS.celebrating).toBeDefined()
   })
 })

@@ -8,6 +8,9 @@ import {
   PHASES,
   PHASE_MS,
   PHASE_TEXT,
+  PHASE_TEXT_CS,
+  MGR_BUBBLE_CS,
+  WKR_BUBBLE_CS,
   type Phase,
   type SceneAgent,
   moveToward,
@@ -63,6 +66,7 @@ interface SceneData {
   delegArrow: PIXI.Graphics
   taskCard: TaskCard
   phaseLabel: PIXI.Text
+  phaseSubLabel: PIXI.Text
   phaseBar: PIXI.Graphics
   progressGfx: PIXI.Graphics
   taskComplete: boolean
@@ -292,7 +296,7 @@ function makeTaskCard(stage: PIXI.Container): TaskCard {
   gfx.stroke({ color: 0xd68910, width: 1.5 })
 
   const label = new PIXI.Text({
-    text: 'TASK',
+    text: 'ÚKOL',
     style: { fontSize: 11, fill: '#ffffff', fontFamily: 'Arial', fontWeight: 'bold' },
   })
   label.anchor.set(0.5, 0.5)
@@ -314,7 +318,7 @@ function buildScene(app: PIXI.Application): SceneData {
   const mgrContainer = new PIXI.Container()
   const mgrGfx = new PIXI.Graphics()
   const mgrNameLabel = new PIXI.Text({
-    text: 'Manager',
+    text: 'Manažer',
     style: { fontSize: 12, fill: '#c0392b', fontFamily: 'Arial', fontWeight: 'bold' },
   })
   mgrNameLabel.anchor.set(0.5, 1)
@@ -334,7 +338,7 @@ function buildScene(app: PIXI.Application): SceneData {
   const wkrContainer = new PIXI.Container()
   const wkrGfx = new PIXI.Graphics()
   const wkrNameLabel = new PIXI.Text({
-    text: 'Worker',
+    text: 'Pracovník',
     style: { fontSize: 12, fill: '#2471a3', fontFamily: 'Arial', fontWeight: 'bold' },
   })
   wkrNameLabel.anchor.set(0.5, 1)
@@ -356,7 +360,7 @@ function buildScene(app: PIXI.Application): SceneData {
   app.stage.addChild(taskGfx)
 
   const taskLabel = new PIXI.Text({
-    text: 'Sector 7',
+    text: 'Sektor 7',
     style: { fontSize: 11, fill: '#555555', fontFamily: 'Arial' },
   })
   taskLabel.anchor.set(0.5, 0)
@@ -379,36 +383,65 @@ function buildScene(app: PIXI.Application): SceneData {
   const phaseBar = new PIXI.Graphics()
   app.stage.addChild(phaseBar)
 
+  // English phase label (upper line in bar)
   const phaseLabel = new PIXI.Text({
     text: '',
     style: {
-      fontSize: 14,
-      fill: '#ecf0f1',
+      fontSize: 13,
+      fill: '#94a3b8',
       fontFamily: 'Arial',
       align: 'center',
     },
   })
   phaseLabel.anchor.set(0.5, 0.5)
-  phaseLabel.position.set(W / 2, H - 22)
+  phaseLabel.position.set(W / 2, H - 42)
   app.stage.addChild(phaseLabel)
+
+  // Czech phase sub-label (lower, prominent line in bar)
+  const phaseSubLabel = new PIXI.Text({
+    text: '',
+    style: {
+      fontSize: 15,
+      fill: '#ecf0f1',
+      fontFamily: 'Arial',
+      fontWeight: 'bold',
+      align: 'center',
+    },
+  })
+  phaseSubLabel.anchor.set(0.5, 0.5)
+  phaseSubLabel.position.set(W / 2, H - 22)
+  app.stage.addChild(phaseSubLabel)
 
   // Progress bar (thin line under phase text)
   const progressGfx = new PIXI.Graphics()
   app.stage.addChild(progressGfx)
 
-  // Title
+  // Title (Czech)
   const title = new PIXI.Text({
-    text: 'Delegation in a 2D World',
+    text: 'Delegace v 2D světě',
     style: {
-      fontSize: 19,
+      fontSize: 20,
       fill: '#2c3e50',
       fontFamily: 'Arial',
       fontWeight: 'bold',
     },
   })
   title.anchor.set(0.5, 0)
-  title.position.set(W / 2, 11)
+  title.position.set(W / 2, 9)
   app.stage.addChild(title)
+
+  // Subtitle (English)
+  const titleSub = new PIXI.Text({
+    text: 'Delegation in a 2D World',
+    style: {
+      fontSize: 12,
+      fill: '#607d8b',
+      fontFamily: 'Arial',
+    },
+  })
+  titleSub.anchor.set(0.5, 0)
+  titleSub.position.set(W / 2, 34)
+  app.stage.addChild(titleSub)
 
   return {
     mgr, wkr,
@@ -416,7 +449,7 @@ function buildScene(app: PIXI.Application): SceneData {
     mgrGfx, wkrGfx,
     mgrBubble, wkrBubble,
     taskGfx, delegArrow, taskCard,
-    phaseLabel, phaseBar, progressGfx,
+    phaseLabel, phaseSubLabel, phaseBar, progressGfx,
     taskComplete: false,
   }
 }
@@ -476,14 +509,14 @@ function updateScene(
       // "?" bubble fades in after 1.5s
       if (t > 1.5) {
         const a = Math.min(1, (t - 1.5) * 3)
-        showBubble(scene.mgrBubble, '?', mgr.x, mgr.y + HEAD_TOP - 4, a)
+        showBubble(scene.mgrBubble, MGR_BUBBLE_CS.idle ?? '?', mgr.x, mgr.y + HEAD_TOP - 4, a)
       }
       break
     }
 
     case 'calling': {
       mgr = { ...mgr, facingLeft: false }
-      showBubble(scene.mgrBubble, 'Hey! I need\nyour help!', mgr.x, mgr.y + HEAD_TOP - 4)
+      showBubble(scene.mgrBubble, MGR_BUBBLE_CS.calling ?? 'Hey!', mgr.x, mgr.y + HEAD_TOP - 4)
       // Worker turns toward manager and starts walking
       wkr = { ...wkr, facingLeft: true }
       wkr = moveToward(wkr, MGR_HOME_X + 95, FIGURE_CENTER_Y, dt)
@@ -503,7 +536,7 @@ function updateScene(
       wkr = { ...wkr, facingLeft: true }
       showBubble(
         scene.mgrBubble,
-        'Build the bridge\nat Sector 7!',
+        MGR_BUBBLE_CS.briefing ?? 'Build the bridge\nat Sector 7!',
         mgr.x,
         mgr.y + HEAD_TOP - 4,
       )
@@ -514,7 +547,7 @@ function updateScene(
       wkr = { ...wkr, facingLeft: true }
       showBubble(
         scene.wkrBubble,
-        "Understood!\nI'm on it!",
+        WKR_BUBBLE_CS.acknowledging ?? "Understood!\nI'm on it!",
         wkr.x,
         wkr.y + HEAD_TOP - 4,
       )
@@ -544,7 +577,8 @@ function updateScene(
     case 'working': {
       // Worker at task position
       const dots = '.'.repeat(1 + (Math.floor(t * 2) % 3))
-      showBubble(scene.wkrBubble, `Working${dots}`, wkr.x, wkr.y + HEAD_TOP - 4)
+      const workingBase = WKR_BUBBLE_CS.working ?? 'Pracuji'
+      showBubble(scene.wkrBubble, `${workingBase}${dots}`, wkr.x, wkr.y + HEAD_TOP - 4)
       // Slight bob while working
       wkr = { ...wkr, walkTime: wkr.walkTime + dt / 600 }
       break
@@ -553,7 +587,7 @@ function updateScene(
     case 'completing': {
       scene.taskComplete = true
       const a = t < 0.4 ? t / 0.4 : 1
-      showBubble(scene.wkrBubble, 'Done! ✓', wkr.x, wkr.y + HEAD_TOP - 4, a)
+      showBubble(scene.wkrBubble, WKR_BUBBLE_CS.completing ?? 'Hotovo! \u2713', wkr.x, wkr.y + HEAD_TOP - 4, a)
       break
     }
 
@@ -566,11 +600,11 @@ function updateScene(
     case 'celebrating': {
       mgr = { ...mgr, facingLeft: false }
       wkr = { ...wkr, facingLeft: true }
-      showBubble(scene.mgrBubble, 'Excellent work!', mgr.x, mgr.y + HEAD_TOP - 4)
+      showBubble(scene.mgrBubble, MGR_BUBBLE_CS.celebrating ?? 'Excellent work!', mgr.x, mgr.y + HEAD_TOP - 4)
       if (t > 0.6) {
         showBubble(
           scene.wkrBubble,
-          'Ready for the\nnext task!',
+          WKR_BUBBLE_CS.celebrating ?? 'Ready for the\nnext task!',
           wkr.x,
           wkr.y + HEAD_TOP - 4,
         )
@@ -597,12 +631,13 @@ function updateScene(
   drawStickFigure(scene.wkrGfx, wkr as AgentState, false)
 
   // ---- Phase info bar ----
-  const barH = 44
+  const barH = 60
   scene.phaseBar.clear()
   scene.phaseBar.rect(0, H - barH, W, barH)
   scene.phaseBar.fill({ color: 0x1a252f, alpha: 0.88 })
 
   scene.phaseLabel.text = PHASE_TEXT[phase]
+  scene.phaseSubLabel.text = PHASE_TEXT_CS[phase]
 
   // Progress fill
   scene.progressGfx.clear()
