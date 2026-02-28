@@ -9,6 +9,8 @@ import { drawStickFigure } from './agent-drawing'
 import AgentPanel, { type RunTaskPayload, type EditSavePayload } from './AgentPanel'
 import { RunEngine } from '../run-engine'
 import { GLOW_DURATION_MS } from './agent-run-effects'
+import { useInbox } from './use-inbox'
+import { InboxToggleButton, InboxPanel } from './Inbox'
 
 // Re-export so external code can import from either location
 export { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
@@ -87,6 +89,10 @@ export default function Grid2D() {
   const [panelAgentId, setPanelAgentId] = useState<string | null>(null)
   // Mutable copy of agent definitions (allows editing name/goal/persona at runtime)
   const [agentDefs, setAgentDefs] = useState<AgentDef[]>(AGENTS)
+
+  // Inbox state — manages message feed for inbox-delivery task results
+  const { messages, unreadCount, addMessage, updateMessage, dismissMessage, clearAll, markRead } = useInbox()
+  const [inboxOpen, setInboxOpen] = useState(false)
 
   // -------------------------------------------------------------------------
   // Draw static world (grid + objects)
@@ -613,9 +619,47 @@ export default function Grid2D() {
     if (def) {
       const engine = runEngineRef.current
       const run = engine.createRun(payload.agentId, def.name, def.role, payload.task)
+
+      if (payload.delivery === 'inbox') {
+        // Add a 'question' card immediately — will be updated on completion
+        addMessage({
+          id: run.id,
+          type: 'question',
+          agentName: def.name,
+          agentColor: def.color,
+          task: payload.task,
+          text: 'Zpracovávám úkol…',
+        })
+
+        // Subscribe to this specific run's completion
+        const unsubCompleted = engine.on('run:completed', (completedRun) => {
+          if (completedRun.id !== run.id) return
+          updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.' })
+          unsubCompleted()
+        })
+
+        const unsubFailed = engine.on('run:failed', (failedRun) => {
+          if (failedRun.id !== run.id) return
+          updateMessage(run.id, { type: 'error', text: failedRun.error ?? 'Nastala chyba.' })
+          unsubFailed()
+        })
+
+        // Open inbox so the user sees the new task card
+        setInboxOpen(true)
+      }
+
       engine.startRun(run.id)
     }
     handlePanelClose()
+  }
+
+  const handleInboxOpen = () => {
+    setInboxOpen(true)
+    markRead()
+  }
+
+  const handleInboxClose = () => {
+    setInboxOpen(false)
   }
 
   const handleEditSave = (payload: EditSavePayload) => {
@@ -667,6 +711,24 @@ export default function Grid2D() {
       <div className="absolute top-12 right-4 z-10 bg-slate-800/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-slate-700 text-xs text-slate-400 select-none min-w-[90px] text-center">
         {mouseCell ? `${mouseCell.col}, ${mouseCell.row}` : '—'}
       </div>
+
+      {/* ── Inbox toggle button ── */}
+      <div className="absolute top-[84px] right-4 z-10">
+        <InboxToggleButton
+          unreadCount={unreadCount}
+          isOpen={inboxOpen}
+          onClick={inboxOpen ? handleInboxClose : handleInboxOpen}
+        />
+      </div>
+
+      {/* ── Inbox panel ── */}
+      <InboxPanel
+        messages={messages}
+        isOpen={inboxOpen}
+        onClose={handleInboxClose}
+        onDismiss={dismissMessage}
+        onClearAll={clearAll}
+      />
 
       {/* ── Agent Panel (single-agent click) ── */}
       <AgentPanel
