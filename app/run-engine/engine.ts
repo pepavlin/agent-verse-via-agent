@@ -188,6 +188,48 @@ export class RunEngine {
   }
 
   /**
+   * Convenience method: create a run and immediately start it in a single call.
+   *
+   * Equivalent to calling `createRun()` followed by `startRun()`, but expressed
+   * as one atomic operation.  The returned run already has `status === 'running'`.
+   *
+   * After the configured delay (default 2–6 s) the run transitions to `'completed'`
+   * (or `'awaiting'` / `'failed'` depending on the executor or mock settings).
+   *
+   * @param agentId         Identifier of the executing agent
+   * @param agentName       Display name used for result generation
+   * @param agentRole       Role label used for result generation
+   * @param taskDescription Plain-language description of the task
+   * @param executor        Optional async function that produces the result string.
+   *                        When omitted, the built-in mock (random delay 2–6 s + template) is used.
+   * @returns               The newly created Run; its status is already `'running'`.
+   *
+   * @example
+   * // Mock mode — completes on its own after 2–6 seconds:
+   * const run = engine.dispatch('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
+   * // run.status === 'running'
+   *
+   * // Real LLM mode:
+   * const run = engine.dispatch('agent-alice', 'Alice', 'Explorer', 'Map the north sector', async () => {
+   *   const res = await fetch('/api/run', { ... })
+   *   const data = await res.json()
+   *   return data.result
+   * })
+   */
+  dispatch(
+    agentId: string,
+    agentName: string,
+    agentRole: string,
+    taskDescription: string,
+    executor?: RunExecutor,
+  ): Run {
+    const run = this.createRun(agentId, agentName, agentRole, taskDescription)
+    this.startRun(run.id, executor)
+    // Return the freshly updated 'running' snapshot from the internal map.
+    return this.getRun(run.id)!
+  }
+
+  /**
    * Resume a run that is currently in 'awaiting' state (agent had asked a question).
    *
    * Transitions the run back to 'running', stores the user's answer, and emits
