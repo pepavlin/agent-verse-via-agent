@@ -17,8 +17,8 @@ import type { DemoAgentContext } from '../run-engine/demo-executor'
 import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from './agent-run-state'
 import { RUNE_CHARS, RUNE_COUNT, HEAD_Y as RUNE_HEAD_Y, calcRuneOrbit, calcRuneFlash, calcRuneDisplayScale } from './agent-runes'
 import { useInbox } from './use-inbox'
-import { InboxToggleButton, InboxPanel } from './Inbox'
 import { useAgentHistory } from './use-agent-history'
+import { InboxToggleButton, InboxPanel } from './Inbox'
 import QuestionModal, { type PendingQuestion } from './QuestionModal'
 import AccountSettings from './AccountSettings'
 import type { AgentRunParams } from '../../lib/llm'
@@ -155,7 +155,7 @@ export default function Grid2D() {
   const [inboxOpen, setInboxOpen] = useState(false)
 
   // Agent history — per-agent chat-style log of past interactions
-  const { getHistory, addEntry: addHistoryEntry, clearHistory } = useAgentHistory()
+  const { getEntries, addEntry, updateEntry, clearAgentHistory } = useAgentHistory()
 
   // Question modal — shown for wait-delivery runs when agent needs user clarification
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null)
@@ -884,6 +884,9 @@ export default function Grid2D() {
       taskDescription: payload.task,
     })
 
+    // Add pending entry to agent history immediately
+    addEntry(payload.agentId, run.id, payload.task)
+
     if (payload.delivery === 'inbox') {
       // Add a card immediately — delegation shows amber badge, regular shows question
       addMessage({
@@ -946,7 +949,7 @@ export default function Grid2D() {
           if (completedRun.id !== run.id) return
           const resultText = completedRun.result ?? 'Hotovo.'
           updateMessage(run.id, { type: 'done', text: resultText, awaitingAnswer: false })
-          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'done', result: resultText, timestamp: Date.now() })
+          updateEntry(run.id, { result: resultText, status: 'done' })
           unsubChildStarted()
           unsubChildCompleted()
           unsubChildFailed()
@@ -958,7 +961,7 @@ export default function Grid2D() {
           if (failedRun.id !== run.id) return
           const errorText = failedRun.error ?? 'Nastala chyba.'
           updateMessage(run.id, { type: 'error', text: errorText, awaitingAnswer: false })
-          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'error', result: errorText, timestamp: Date.now() })
+          updateEntry(run.id, { result: errorText, status: 'error' })
           unsubChildStarted()
           unsubChildCompleted()
           unsubChildFailed()
@@ -971,7 +974,7 @@ export default function Grid2D() {
           if (completedRun.id !== run.id) return
           const resultText = completedRun.result ?? 'Hotovo.'
           updateMessage(run.id, { type: 'done', text: resultText, awaitingAnswer: false })
-          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'done', result: resultText, timestamp: Date.now() })
+          updateEntry(run.id, { result: resultText, status: 'done' })
           unsubRunCompleted()
         })
 
@@ -986,7 +989,7 @@ export default function Grid2D() {
             text: questionText,
             awaitingAnswer: true,
           })
-          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'question', result: questionText, timestamp: Date.now() })
+          updateEntry(run.id, { result: questionText, status: 'done' })
           unsubRunAwaiting()
 
           // Subscribe to resumed (re-running)
@@ -1005,7 +1008,7 @@ export default function Grid2D() {
           if (failedRun.id !== run.id) return
           const errorText = failedRun.error ?? 'Nastala chyba.'
           updateMessage(run.id, { type: 'error', text: errorText, awaitingAnswer: false })
-          addHistoryEntry({ agentId: def.id, task: payload.task, type: 'error', result: errorText, timestamp: Date.now() })
+          updateEntry(run.id, { result: errorText, status: 'error' })
           unsubRunFailed()
         })
       }
@@ -1034,7 +1037,7 @@ export default function Grid2D() {
           agentColor: def.color,
           question: questionText,
         })
-        addHistoryEntry({ agentId: def.id, task: payload.task, type: 'question', result: questionText, timestamp: Date.now() })
+        updateEntry(run.id, { result: questionText, status: 'done' })
         unsubWaitAwaiting()
       })
 
@@ -1052,7 +1055,7 @@ export default function Grid2D() {
           setWaitPhase('done')
           setWaitResult(resultText)
         }
-        addHistoryEntry({ agentId: def.id, task: payload.task, type: 'done', result: resultText, timestamp: Date.now() })
+        updateEntry(run.id, { result: resultText, status: 'done' })
         unsubWaitCompleted?.()
         unsubWaitFailed?.()
       })
@@ -1066,7 +1069,7 @@ export default function Grid2D() {
           setWaitPhase('error')
           setWaitError(errorText)
         }
-        addHistoryEntry({ agentId: def.id, task: payload.task, type: 'error', result: errorText, timestamp: Date.now() })
+        updateEntry(run.id, { result: errorText, status: 'error' })
         unsubWaitCompleted?.()
         unsubWaitFailed?.()
       })
@@ -1418,8 +1421,8 @@ export default function Grid2D() {
         waitResult={waitResult}
         waitError={waitError}
         onNewTask={handleNewTask}
-        history={panelAgentDef ? getHistory(panelAgentDef.id) : []}
-        onClearHistory={panelAgentDef ? () => clearHistory(panelAgentDef.id) : undefined}
+        history={panelAgentId ? getEntries(panelAgentId) : []}
+        onClearHistory={() => panelAgentId && clearAgentHistory(panelAgentId)}
       />
 
       {/* ── Account Settings Modal ── */}

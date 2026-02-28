@@ -4,23 +4,20 @@
 // AgentPanel — unified panel that opens when a user clicks on an agent.
 //
 // Modes:
-//   Run  — enter a task description, choose delivery (Počkat / Inbox),
-//          click Spustit. Clean, focused on the task at hand.
-//   Edit — change agent name, goal, and persona; click Uložit to save.
-//   Log  — chat-style history of all past interactions with this agent.
-//
-// Design principle: each mode does exactly one thing, nothing more.
+//   Run     — enter a task, choose delivery (Počkat / Inbox), click Spustit
+//   Edit    — change agent name, goal, persona; click Uložit
+//   History — scrollable chat-style view of past interactions for this agent
 // ---------------------------------------------------------------------------
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { AgentDef } from './agents-config'
-import type { HistoryEntry } from './use-agent-history'
+import type { AgentHistoryEntry } from './use-agent-history'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type PanelMode = 'run' | 'edit' | 'log'
+export type PanelMode = 'run' | 'edit' | 'history'
 export type DeliveryMode = 'wait' | 'inbox'
 
 /**
@@ -49,6 +46,8 @@ export interface EditSavePayload {
 export interface AgentPanelProps {
   /** Agent definition to display. Setting to null closes the panel. */
   agentDef: AgentDef | null
+  /** Interaction history entries for this agent (ordered oldest → newest). */
+  history?: AgentHistoryEntry[]
   /** Called when the user closes the panel (× button or backdrop). */
   onClose: () => void
   /** Called when the user submits a task in Run mode. */
@@ -71,12 +70,7 @@ export interface AgentPanelProps {
   waitError?: string
   /** Called when the user clicks "Nový úkol" to reset the panel to the form. */
   onNewTask?: () => void
-  /**
-   * Ordered list of past interactions for this agent (oldest first).
-   * Displayed in the Log tab as a chat-style history.
-   */
-  history?: HistoryEntry[]
-  /** Called when the user clicks "Vymazat historii" in the Log tab. */
+  /** Called when the user clicks "Smazat historii" in the History tab. */
   onClearHistory?: () => void
 }
 
@@ -86,6 +80,7 @@ export interface AgentPanelProps {
 
 export default function AgentPanel({
   agentDef,
+  history = [],
   onClose,
   onRunTask,
   onEditSave,
@@ -94,7 +89,6 @@ export default function AgentPanel({
   waitResult,
   waitError,
   onNewTask,
-  history = [],
   onClearHistory,
 }: AgentPanelProps) {
   const [mode, setMode] = useState<PanelMode>('run')
@@ -201,53 +195,53 @@ export default function AgentPanel({
           </button>
         </div>
 
-        {/* ── Mode toggle (pill) ── */}
-        <div className="px-5 pt-4 pb-0">
-          <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5">
-            <ModeButton
-              label="Run"
-              active={mode === 'run'}
-              onClick={() => setMode('run')}
-              testId="tab-run"
-            />
-            <ModeButton
-              label="Edit"
-              active={mode === 'edit'}
-              onClick={() => setMode('edit')}
-              testId="tab-edit"
-            />
-            <ModeButton
-              label={`Log${history.length > 0 ? ` (${history.length})` : ''}`}
-              active={mode === 'log'}
-              onClick={() => setMode('log')}
-              testId="tab-log"
-            />
-          </div>
+        {/* ── Tab bar ── */}
+        <div className="flex border-b border-slate-700">
+          <TabButton
+            label="Run"
+            active={mode === 'run'}
+            onClick={() => setMode('run')}
+            testId="tab-run"
+          />
+          <TabButton
+            label="Edit"
+            active={mode === 'edit'}
+            onClick={() => setMode('edit')}
+            testId="tab-edit"
+          />
+          <TabButton
+            label={`Historie${history.length > 0 ? ` (${history.length})` : ''}`}
+            active={mode === 'history'}
+            onClick={() => setMode('history')}
+            testId="tab-history"
+          />
         </div>
 
         {/* ── Body ── */}
-        <div className="px-5 py-4 flex flex-col gap-3">
-          {mode === 'run' ? (
-            <>
-              {waitPhase === 'idle' ? (
-                <RunForm
-                  task={task}
-                  delivery={delivery}
-                  onTaskChange={setTask}
-                  onDeliveryChange={setDelivery}
-                  onSubmit={handleRun}
-                  hasDelegation={hasDelegation ?? false}
-                />
-              ) : (
-                <WaitResult
-                  phase={waitPhase}
-                  result={waitResult}
-                  error={waitError}
-                  onNewTask={onNewTask}
-                />
-              )}
-            </>
-          ) : mode === 'edit' ? (
+        {mode === 'run' && (
+          <div className="px-5 py-4 flex flex-col gap-3">
+            {waitPhase === 'idle' ? (
+              <RunForm
+                task={task}
+                delivery={delivery}
+                onTaskChange={setTask}
+                onDeliveryChange={setDelivery}
+                onSubmit={handleRun}
+                hasDelegation={hasDelegation ?? false}
+              />
+            ) : (
+              <WaitResult
+                phase={waitPhase}
+                result={waitResult}
+                error={waitError}
+                onNewTask={onNewTask}
+              />
+            )}
+          </div>
+        )}
+
+        {mode === 'edit' && (
+          <div className="px-5 py-4 flex flex-col gap-3">
             <EditForm
               name={editName}
               goal={editGoal}
@@ -257,14 +251,17 @@ export default function AgentPanel({
               onPersonaChange={setEditPersona}
               onSave={handleSave}
             />
-          ) : (
-            <AgentHistoryView
-              history={history}
-              agentColor={agentDef.color}
-              onClear={onClearHistory}
-            />
-          )}
-        </div>
+          </div>
+        )}
+
+        {mode === 'history' && (
+          <HistoryView
+            history={history}
+            agentName={agentDef.name}
+            agentColor={colorHex}
+            onClear={onClearHistory}
+          />
+        )}
       </div>
     </>
   )
@@ -274,22 +271,22 @@ export default function AgentPanel({
 // Sub-components
 // ---------------------------------------------------------------------------
 
-interface ModeButtonProps {
+interface TabButtonProps {
   label: string
   active: boolean
   onClick: () => void
   testId: string
 }
 
-function ModeButton({ label, active, onClick, testId }: ModeButtonProps) {
+function TabButton({ label, active, onClick, testId }: TabButtonProps) {
   return (
     <button
       onClick={onClick}
       data-testid={testId}
-      className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all
+      className={`flex-1 py-2.5 text-sm font-medium transition-all border-b-2
         ${active
-          ? 'bg-slate-700 text-white shadow-sm'
-          : 'text-slate-500 hover:text-slate-300'
+          ? 'border-indigo-500 text-white'
+          : 'border-transparent text-slate-500 hover:text-slate-300'
         }`}
     >
       {label}
@@ -554,161 +551,180 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
 }
 
 // ---------------------------------------------------------------------------
-// AgentHistoryView — chat-style log of past interactions
+// HistoryView — chat-style log of past interactions
 // ---------------------------------------------------------------------------
 
-const HISTORY_TYPE_CONFIG: Record<
-  HistoryEntry['type'],
-  {
-    icon: string
-    label: string
-    agentBubbleBg: string
-    agentBubbleText: string
-    agentBubbleBorder: string
-    labelColor: string
-  }
-> = {
-  done: {
-    icon: '✓',
-    label: 'Hotovo',
-    agentBubbleBg: 'bg-emerald-950/60',
-    agentBubbleText: 'text-emerald-100',
-    agentBubbleBorder: 'border-emerald-700/40',
-    labelColor: 'text-emerald-400',
-  },
-  question: {
-    icon: '?',
-    label: 'Otázka',
-    agentBubbleBg: 'bg-indigo-950/60',
-    agentBubbleText: 'text-indigo-100',
-    agentBubbleBorder: 'border-indigo-700/40',
-    labelColor: 'text-indigo-400',
-  },
-  error: {
-    icon: '✕',
-    label: 'Chyba',
-    agentBubbleBg: 'bg-red-950/60',
-    agentBubbleText: 'text-red-100',
-    agentBubbleBorder: 'border-red-700/40',
-    labelColor: 'text-red-400',
-  },
-}
-
-/** Format a Unix timestamp as a human-readable relative or absolute string. */
-function formatTimestamp(ts: number): string {
-  const diffMs = Date.now() - ts
-  const diffMin = Math.floor(diffMs / 60_000)
-  const diffHr = Math.floor(diffMs / 3_600_000)
-  if (diffMin < 1) return 'právě teď'
-  if (diffMin < 60) return `před ${diffMin} min`
-  if (diffHr < 24) return `před ${diffHr} hod`
-  return new Date(ts).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })
-}
-
-interface AgentHistoryViewProps {
-  history: HistoryEntry[]
-  agentColor: number
+interface HistoryViewProps {
+  history: AgentHistoryEntry[]
+  agentName: string
+  agentColor: string
   onClear?: () => void
 }
 
-function AgentHistoryView({ history, agentColor, onClear }: AgentHistoryViewProps) {
-  const colorHex = `#${agentColor.toString(16).padStart(6, '0')}`
+function HistoryView({ history, agentName, agentColor, onClear }: HistoryViewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom whenever entries change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [history.length])
 
   if (history.length === 0) {
     return (
       <div
-        className="flex flex-col items-center justify-center py-10 text-center"
-        data-testid="agent-history-empty"
+        className="flex flex-col items-center justify-center py-12 px-4 text-center"
+        data-testid="history-empty"
       >
-        <span className="text-3xl mb-2.5 opacity-20 select-none" aria-hidden="true">💬</span>
-        <p className="text-sm font-medium text-slate-500">Žádná historie</p>
-        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-          Spusťte úkol a výsledek se zobrazí zde
-        </p>
+        <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center mb-3">
+          <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        </div>
+        <p className="text-slate-400 text-sm font-medium">Žádná historie</p>
+        <p className="text-slate-600 text-xs mt-1">Spusťte úkol pro zahájení konverzace</p>
       </div>
     )
   }
 
-  // Reverse so newest entries are shown at the bottom (chat convention)
-  const ordered = [...history]
-
   return (
-    <div className="flex flex-col gap-1" data-testid="agent-history-view">
-      {/* Header with clear button */}
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
+    <div className="flex flex-col min-h-0">
+      {/* Scrollable message list */}
+      <div
+        ref={scrollRef}
+        className="flex flex-col gap-3 px-4 py-3 overflow-y-auto max-h-80"
+        data-testid="history-list"
+      >
+        {history.map((entry) => (
+          <HistoryEntryItem
+            key={entry.id}
+            entry={entry}
+            agentName={agentName}
+            agentColor={agentColor}
+          />
+        ))}
+      </div>
+
+      {/* Footer: entry count + clear button */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-700 bg-slate-800/50">
+        <span className="text-[11px] text-slate-500">
           {history.length} {history.length === 1 ? 'interakce' : history.length < 5 ? 'interakce' : 'interakcí'}
         </span>
         {onClear && (
           <button
             onClick={onClear}
-            className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
-            data-testid="agent-history-clear-btn"
+            className="text-[11px] text-slate-500 hover:text-red-400 transition-colors"
+            data-testid="history-clear-btn"
           >
-            Vymazat
+            Smazat historii
           </button>
         )}
       </div>
-
-      {/* Scrollable chat list */}
-      <div
-        className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-0.5"
-        data-testid="agent-history-list"
-      >
-        {ordered.map((entry) => {
-          const cfg = HISTORY_TYPE_CONFIG[entry.type]
-          return (
-            <div
-              key={entry.id}
-              className="flex flex-col gap-1.5"
-              data-testid={`history-entry-${entry.id}`}
-            >
-              {/* User bubble — task description (right-aligned) */}
-              <div className="flex justify-end">
-                <div
-                  className="
-                    max-w-[85%] px-3 py-2 rounded-xl rounded-tr-sm
-                    bg-slate-700/80 border border-slate-600/40
-                    text-xs text-slate-200 leading-relaxed
-                  "
-                  data-testid={`history-task-${entry.id}`}
-                >
-                  {entry.task}
-                </div>
-              </div>
-
-              {/* Agent bubble — result/question/error (left-aligned) */}
-              <div className="flex items-start gap-1.5">
-                {/* Agent colour dot */}
-                <span
-                  className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-                  style={{ background: colorHex }}
-                  aria-hidden="true"
-                />
-                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                  {/* Type badge */}
-                  <span className={`text-[10px] font-semibold ${cfg.labelColor} flex items-center gap-1`}>
-                    <span aria-hidden="true">{cfg.icon}</span>
-                    {cfg.label}
-                    <span className="text-slate-600 font-normal ml-1">{formatTimestamp(entry.timestamp)}</span>
-                  </span>
-                  {/* Result text */}
-                  <div
-                    className={`
-                      px-3 py-2 rounded-xl rounded-tl-sm
-                      ${cfg.agentBubbleBg} border ${cfg.agentBubbleBorder}
-                      text-xs ${cfg.agentBubbleText} leading-relaxed
-                    `}
-                    data-testid={`history-result-${entry.id}`}
-                  >
-                    {entry.result}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
+}
+
+interface HistoryEntryItemProps {
+  entry: AgentHistoryEntry
+  agentName: string
+  agentColor: string
+}
+
+function HistoryEntryItem({ entry, agentName, agentColor }: HistoryEntryItemProps) {
+  const time = formatTime(entry.timestamp)
+
+  return (
+    <div
+      className="flex flex-col gap-2"
+      data-testid={`history-entry-${entry.id}`}
+    >
+      {/* User task bubble (right-aligned) */}
+      <div className="flex flex-col items-end gap-1">
+        <div
+          className="max-w-[85%] bg-indigo-600/80 border border-indigo-500/50 rounded-2xl rounded-tr-sm
+                     px-3 py-2 text-sm text-white leading-relaxed"
+          data-testid={`history-task-${entry.id}`}
+        >
+          {entry.task}
+        </div>
+        <span className="text-[10px] text-slate-600 pr-1">{time}</span>
+      </div>
+
+      {/* Agent response bubble (left-aligned) */}
+      {entry.status === 'pending' && (
+        <div className="flex items-start gap-2">
+          <AgentAvatar color={agentColor} />
+          <div
+            className="flex items-center gap-2 bg-slate-700/60 border border-slate-600/50
+                       rounded-2xl rounded-tl-sm px-3 py-2"
+            data-testid={`history-pending-${entry.id}`}
+          >
+            <span className="flex gap-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
+            </span>
+            <span className="text-xs text-slate-400 italic">Zpracovávám…</span>
+          </div>
+        </div>
+      )}
+
+      {entry.status === 'done' && entry.result && (
+        <div className="flex items-start gap-2">
+          <AgentAvatar color={agentColor} />
+          <div className="flex flex-col gap-1 min-w-0">
+            <div
+              className="max-w-[85%] bg-slate-700/60 border border-slate-600/50
+                         rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-slate-100 leading-relaxed"
+              data-testid={`history-result-${entry.id}`}
+            >
+              {entry.result}
+            </div>
+            <span className="text-[10px] text-slate-600 pl-1">{agentName}</span>
+          </div>
+        </div>
+      )}
+
+      {entry.status === 'error' && entry.result && (
+        <div className="flex items-start gap-2">
+          <AgentAvatar color={agentColor} />
+          <div className="flex flex-col gap-1 min-w-0">
+            <div
+              className="max-w-[85%] bg-red-900/30 border border-red-700/50
+                         rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-red-300 leading-relaxed"
+              data-testid={`history-error-${entry.id}`}
+            >
+              {entry.result}
+            </div>
+            <span className="text-[10px] text-slate-600 pl-1">{agentName}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgentAvatar({ color }: { color: string }) {
+  return (
+    <div
+      className="w-6 h-6 rounded-full flex-shrink-0 mt-1 ring-1 ring-white/10"
+      style={{ background: color }}
+      aria-hidden="true"
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+function formatTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
 }
