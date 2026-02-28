@@ -40,6 +40,7 @@ tests/
   run-engine-children.test.ts – Unit tests for child agent delegation (startRunWithChildren, composeDelegatedResults)
   run-engine-async.test.ts  – Unit tests for RunEngine.runAsync() (Promise-based lifecycle, timing, awaiting, failure, concurrency)
   mock-llm.test.ts          – Unit tests for MockLLM (result/question paths, delay, RunEngine integration, goal/persona, realistic mode)
+  run-engine-mock-llm-default.test.ts – Tests for RunEngine built-in MockLLM default: every run returns result or question
   realistic-results.test.ts – Unit tests for realistic result/question generation (topic detection, persona style, all templates)
   agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
   agent-run-state.test.ts   – Unit tests for run animation state machine (transitions + ticks)
@@ -696,14 +697,29 @@ import {
 
 ### Mock mode — result vs question
 
-When `startRun()` is called without an executor the engine schedules a timeout.
-After the delay:
+When `startRun()` is called without an executor the engine automatically creates a `MockLLM` instance via the private `_createMockLLM()` factory, then schedules `_scheduleMockStep()`.
+After the configured delay, `MockLLM.generateSync()` produces either a result or a question — synchronously inside the timer callback:
 
-1. `Math.random()` is compared to `mockQuestionProbability`.
-2. If the random value is **below** the probability → question path: status becomes `awaiting`, `run:awaiting` is emitted.
-3. Otherwise → result path: status becomes `completed`, `run:completed` is emitted.
+1. `MockLLM.generateSync()` compares `Math.random()` to `questionProbability`.
+2. If the random value is **below** the probability → `{ kind: 'question', text }` → `_awaitRun()` → status `awaiting`.
+3. Otherwise → `{ kind: 'result', text }` → `_resolveRun()` → status `completed`.
 
-The real LLM executor path is unaffected and always resolves to `completed` or `failed`.
+**Every simulated run always returns exactly one of these two outcomes** — the contract is guaranteed by `MockLLM.generateSync()` which never throws.
+
+The real LLM executor path goes through `_runExecutor()` and always resolves to `completed`, `awaiting`, or `failed` (on error).
+
+#### Built-in MockLLM connection
+
+Both paths — explicit executor and built-in mock — converge on MockLLM:
+
+| `startRun` call | Internal path |
+|---|---|
+| `engine.startRun(id, myExecutor)` | `_runExecutor(id, myExecutor)` — async |
+| `engine.startRun(id)` | `_scheduleMockStep(id)` → `_createMockLLM(id).generateSync()` — sync in timer |
+| `engine.resumeRun(id, ans, myExecutor)` | `_runExecutor(id, myExecutor)` treating question as result |
+| `engine.resumeRun(id, ans)` | `_scheduleMockStep(id, 0)` → MockLLM with `questionProbability=0` |
+
+`_createMockLLM()` is the single point of MockLLM construction — it injects the engine's delay config and the run's `configSnapshot` (goal, persona) so both paths produce consistent, goal-aware responses.
 
 ### MockLLM
 
