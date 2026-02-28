@@ -333,7 +333,7 @@ describe('createDemoChildExecutorFactory', () => {
     expect(response.text.length).toBeGreaterThan(0)
   })
 
-  it('known agent executor resolves with agent-specific result', async () => {
+  it('known agent executor resolves with agent-specific response', async () => {
     const map = new Map([['alice', ALICE], ['bob', BOB]])
     const factory = createDemoChildExecutorFactory(map, BUILD_TASK)
     const execBob = factory('bob')
@@ -341,7 +341,9 @@ describe('createDemoChildExecutorFactory', () => {
     const promise = execBob()
     vi.runAllTimers()
     const response = await promise
-    expect(response.kind).toBe('result')
+    // The response is either a result or a question — both are valid terminal outcomes.
+    // The demo executor uses the default questionProbability (0.25) so both are possible.
+    expect(['result', 'question']).toContain(response.kind)
     expect(response.text).toContain('Bob')
   })
 

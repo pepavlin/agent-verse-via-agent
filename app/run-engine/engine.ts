@@ -50,8 +50,11 @@ export type ParentExecutorFactory = (childRuns: Run[]) => RunExecutor
 
 /**
  * Optional async executor that produces the run outcome.
- * When provided, it replaces the built-in mock timeout behaviour.
- * When omitted, the engine falls back to the built-in mock (random delay + template).
+ * When provided, it replaces the built-in mock behaviour.
+ * When omitted, the engine automatically uses a MockLLM instance to simulate
+ * processing — after a random delay it produces either:
+ *   - A result  → run transitions to 'completed'
+ *   - A question → run transitions to 'awaiting'
  *
  * The executor may return:
  *   - A plain `string` → treated as a result; run transitions to 'completed'.
@@ -84,20 +87,23 @@ function generateId(): string {
  *   createRun()  → Run(status='pending')
  *   startRun()   → Run(status='running')
  *                  – With executor: awaits executor(), then completes / fails / awaits.
- *                  – Without executor: falls back to mock (random delay + template).
- *                    The mock randomly resolves to either:
- *                      • 'completed' with a result string, or
- *                      • 'awaiting' with a clarifying question string
+ *                  – Without executor: a MockLLM instance is created automatically
+ *                    (using the engine's mockQuestionProbability and the run's
+ *                    configSnapshot goal/persona). After the configured delay,
+ *                    MockLLM.generateSync() produces either:
+ *                      • a result  → 'completed' with a result string, or
+ *                      • a question → 'awaiting' with a clarifying question string
  *                    (controlled by RunEngineOptions.mockQuestionProbability)
  *   [resolution] → Run(status='completed' | 'awaiting' | 'failed')
  *
  *   resumeRun()  → Run(status='running')   [only when status === 'awaiting']
  *                  – With executor: awaits executor(), then completes / fails.
- *                  – Without executor: falls back to mock result (no question, answer provided).
+ *                  – Without executor: MockLLM with questionProbability=0 always
+ *                    produces a result — guaranteeing resumed runs never ask again.
  *   [resolution] → Run(status='completed' | 'failed')
  *
  * Usage:
- * // Mock mode (no real LLM):
+ * // Mock mode (no real LLM) — MockLLM is used automatically:
  * const run = engine.createRun('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
  * engine.startRun(run.id)
  *
@@ -123,8 +129,6 @@ export class RunEngine {
   private readonly _maxDelayMs: number
   private readonly _delayFn: (minMs: number, maxMs: number) => number
   private readonly _mockQuestionProbability: number
-  /** Tracks pending timeout handles so they can be cleared if needed. */
-  private readonly _pendingTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(options: RunEngineOptions = {}) {
     this._minDelayMs = options.minDelayMs ?? 2_000
@@ -179,9 +183,18 @@ export class RunEngine {
   /**
    * Transition a pending run to 'running' and schedule its completion.
    *
+   * When an executor is provided, it is awaited and the run transitions based
+   * on the outcome (result → 'completed', question → 'awaiting', error → 'failed').
+   *
+   * When no executor is provided, the engine creates a MockLLM instance
+   * automatically using the engine's configuration (mockQuestionProbability,
+   * delayFn, minDelayMs, maxDelayMs) and the run's configSnapshot (goal, persona).
+   * After the configured delay, MockLLM.generateSync() produces a result or a
+   * question — both outcomes are always returned, never 'failed'.
+   *
    * @param runId    The ID of the run to start.
    * @param executor Optional async function that produces the result string.
-   *                 When omitted, the built-in mock (random delay + template) is used.
+   *                 When omitted, MockLLM is used automatically.
    * @throws Error if the run does not exist or is not in 'pending' state.
    */
   startRun(runId: string, executor?: RunExecutor): void {
@@ -202,29 +215,13 @@ export class RunEngine {
       // Accepts both a plain string (legacy / real-LLM) and a MockLLMResponse:
       //   plain string or { kind: 'result' }  → _resolveRun  (status: 'completed')
       //   { kind: 'question' }                → _awaitRun    (status: 'awaiting')
-      executor()
-        .then((outcome) => {
-          if (typeof outcome === 'string') {
-            this._resolveRun(runId, outcome)
-          } else if (outcome.kind === 'result') {
-            this._resolveRun(runId, outcome.text)
-          } else {
-            this._awaitRun(runId, outcome.text)
-          }
-        })
-        .catch((err) => {
-          const message =
-            err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
-          this._failRun(runId, message)
-        })
+      this._runExecutor(runId, executor)
     } else {
-      // Mock mode: schedule completion after a random delay
-      const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
-      const handle = setTimeout(() => {
-        this._completeRunWithMock(runId)
-        this._pendingTimeouts.delete(runId)
-      }, delayMs)
-      this._pendingTimeouts.set(runId, handle)
+      // Built-in mock mode: create a MockLLM and run it synchronously inside a
+      // setTimeout so that state transitions are immediate after the timer fires.
+      // MockLLM.generateSync() produces either a result or a question, ensuring
+      // every simulated run returns one of the two expected outcomes.
+      this._scheduleMockStep(runId, this._mockQuestionProbability)
     }
   }
 
@@ -242,11 +239,11 @@ export class RunEngine {
    * @param agentRole       Role label used for result generation
    * @param taskDescription Plain-language description of the task
    * @param executor        Optional async function that produces the result string.
-   *                        When omitted, the built-in mock (random delay 2–6 s + template) is used.
+   *                        When omitted, MockLLM is used automatically.
    * @returns               The newly created Run; its status is already `'running'`.
    *
    * @example
-   * // Mock mode — completes on its own after 2–6 seconds:
+   * // Mock mode — completes on its own after 2–6 seconds via MockLLM:
    * const run = engine.dispatch('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
    * // run.status === 'running'
    *
@@ -289,20 +286,20 @@ export class RunEngine {
    *   - 'awaiting'  → resolves with the awaiting Run (question is set)
    *   - 'failed'    → rejects with an Error containing the run's error message
    *
-   * After the configured delay (default 2–6 s, mock mode) or after the executor
-   * resolves (real LLM mode), the returned Promise settles.
+   * After the configured delay (default 2–6 s, mock mode via MockLLM) or after the
+   * executor resolves (real LLM mode), the returned Promise settles.
    *
    * @param agentId         Identifier of the executing agent
    * @param agentName       Display name used for result generation
    * @param agentRole       Role label used for result generation
    * @param taskDescription Plain-language description of the task
    * @param executor        Optional async function that produces the result string.
-   *                        When omitted, the built-in mock (random delay 2–6 s + template) is used.
+   *                        When omitted, MockLLM is used automatically.
    * @param configSnapshot  Optional: immutable snapshot of the agent configuration.
    * @returns               Promise that resolves with the settled Run or rejects on failure.
    *
    * @example
-   * // Mock mode — resolves after 2–6 seconds with a result:
+   * // Mock mode — resolves after 2–6 seconds with a result via MockLLM:
    * const run = await engine.runAsync('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
    * console.log(run.status)  // 'completed'
    * console.log(run.result)  // 'Alice has completed...'
@@ -365,11 +362,14 @@ export class RunEngine {
    * Transitions the run back to 'running', stores the user's answer, and emits
    * 'run:resumed'. The run then completes via the executor or mock path.
    *
+   * When no executor is provided, a MockLLM instance is created with
+   * questionProbability=0, guaranteeing a result and never another question.
+   * This preserves the invariant that resumed runs do not ask a second question.
+   *
    * @param runId    The ID of the awaiting run.
    * @param answer   The user's answer to the agent's question.
    * @param executor Optional async function that produces the result.
-   *                 When omitted, the built-in mock (random delay + template result) is used.
-   *                 The mock never produces another question during resume — it always completes.
+   *                 When omitted, MockLLM with questionProbability=0 is used.
    * @throws Error if the run does not exist or is not in 'awaiting' state.
    */
   resumeRun(runId: string, answer: string, executor?: RunExecutor): void {
@@ -409,25 +409,9 @@ export class RunEngine {
           this._failRun(runId, message)
         })
     } else {
-      // Mock mode: always produce a result (never another question) after resume.
-      // Uses MockLLM.generateSync() with questionProbability: 0 to guarantee a result,
-      // preserving the invariant that resumed runs never ask a second question.
-      const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
-      const handle = setTimeout(() => {
-        const currentRun = this._runs.get(runId)
-        if (!currentRun || currentRun.status !== 'running') return
-        const meta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
-        const snapshot = currentRun.configSnapshot
-        const mock = new MockLLM(meta.name, meta.role, currentRun.taskDescription, {
-          questionProbability: 0, // Resume always produces a result, never another question
-          goal: snapshot?.goal,
-          persona: snapshot?.persona,
-        })
-        const outcome = mock.generateSync()
-        this._resolveRun(runId, outcome.text)
-        this._pendingTimeouts.delete(runId)
-      }, delayMs)
-      this._pendingTimeouts.set(runId, handle)
+      // Built-in mock for resume: always produce a result, never another question.
+      // MockLLM with questionProbability=0 guarantees a result response.
+      this._scheduleMockStep(runId, 0)
     }
   }
 
@@ -453,7 +437,7 @@ export class RunEngine {
    * @param parentExecutorFactory  Optional factory that receives completed child runs
    *                               and returns an executor for the parent run.
    * @param childExecutorFactory   Optional per-child executor factory (agentId → executor).
-   *                               When omitted, child runs use built-in mock mode.
+   *                               When omitted, child runs use MockLLM automatically.
    * @throws Error if the run does not exist or is not in 'pending' state.
    */
   startRunWithChildren(
@@ -479,28 +463,9 @@ export class RunEngine {
     if (childDefs.length === 0) {
       if (parentExecutorFactory) {
         const executor = parentExecutorFactory([])
-        executor()
-          .then((outcome) => {
-            if (typeof outcome === 'string') {
-              this._resolveRun(runId, outcome)
-            } else if (outcome.kind === 'result') {
-              this._resolveRun(runId, outcome.text)
-            } else {
-              this._awaitRun(runId, outcome.text)
-            }
-          })
-          .catch((err) => {
-            const message =
-              err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
-            this._failRun(runId, message)
-          })
+        this._runExecutor(runId, executor)
       } else {
-        const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
-        const handle = setTimeout(() => {
-          this._completeRunWithMock(runId)
-          this._pendingTimeouts.delete(runId)
-        }, delayMs)
-        this._pendingTimeouts.set(runId, handle)
+        this._scheduleMockStep(runId, this._mockQuestionProbability)
       }
       return
     }
@@ -572,20 +537,7 @@ export class RunEngine {
       if (parentExecutorFactory) {
         // Real executor: factory receives child results so it can incorporate them
         const executor = parentExecutorFactory(settledChildren)
-        try {
-          const outcome = await executor()
-          if (typeof outcome === 'string') {
-            this._resolveRun(runId, outcome)
-          } else if (outcome.kind === 'result') {
-            this._resolveRun(runId, outcome.text)
-          } else {
-            this._awaitRun(runId, outcome.text)
-          }
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
-          this._failRun(runId, message)
-        }
+        this._runExecutor(runId, executor)
       } else {
         // Mock mode: compose child results into a delegation report
         const parentMeta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
@@ -670,6 +622,98 @@ export class RunEngine {
   /** Secondary map that keeps agent meta (name/role) keyed by run ID. */
   private readonly _agentMeta = new Map<string, AgentMeta>()
 
+  /**
+   * Create a MockLLM instance configured for a specific run.
+   *
+   * This is the single point where RunEngine constructs a MockLLM, ensuring
+   * that the engine's configuration (delays, question probability) and the
+   * run's configSnapshot (goal, persona) are consistently injected into every
+   * MockLLM instance — whether created for the built-in mock path or for
+   * explicit executor creation.
+   *
+   * @param runId              The ID of the run. Must already be in _runs.
+   * @param questionProbability Override question probability. Default: engine's
+   *                            mockQuestionProbability. Pass 0 for resume paths.
+   */
+  private _createMockLLM(runId: string, questionProbability?: number): MockLLM {
+    const run = this._runs.get(runId)!
+    const meta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
+    const snapshot = run.configSnapshot
+    return new MockLLM(meta.name, meta.role, run.taskDescription, {
+      questionProbability: questionProbability ?? this._mockQuestionProbability,
+      minDelayMs: this._minDelayMs,
+      maxDelayMs: this._maxDelayMs,
+      delayFn: this._delayFn,
+      goal: snapshot?.goal,
+      persona: snapshot?.persona,
+    })
+  }
+
+  /**
+   * Schedule a MockLLM-backed mock step for a run.
+   *
+   * After the configured delay, creates a MockLLM via `_createMockLLM()` and
+   * calls `generateSync()` to obtain either a result or a question. The outcome
+   * is then routed synchronously to `_resolveRun` or `_awaitRun`.
+   *
+   * This keeps state transitions synchronous after the timer fires, ensuring
+   * tests using `vi.runAllTimers()` can check state immediately afterwards.
+   *
+   * Called by `startRun()` and `resumeRun()` when no executor is provided.
+   *
+   * @param runId              The ID of the run to mock-complete.
+   * @param questionProbability Forwarded to `_createMockLLM`. Pass 0 to guarantee
+   *                            a result (no question), e.g. on resume paths.
+   */
+  private _scheduleMockStep(runId: string, questionProbability: number): void {
+    const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
+    setTimeout(() => {
+      const currentRun = this._runs.get(runId)
+      if (!currentRun || currentRun.status !== 'running') return
+
+      // MockLLM.generateSync() always returns either 'result' or 'question'.
+      // Every simulated run is guaranteed to return one of these two outcomes.
+      const mock = this._createMockLLM(runId, questionProbability)
+      const outcome = mock.generateSync()
+
+      if (outcome.kind === 'question') {
+        this._awaitRun(runId, outcome.text)
+      } else {
+        this._resolveRun(runId, outcome.text)
+      }
+    }, delayMs)
+  }
+
+  /**
+   * Invoke an async executor and route its outcome to the appropriate terminal state.
+   *
+   * Accepts both a plain `string` (legacy / real-LLM path) and a `MockLLMResponse`:
+   *   plain string or { kind: 'result' }  → _resolveRun  (status: 'completed')
+   *   { kind: 'question' }                → _awaitRun    (status: 'awaiting')
+   *
+   * Errors from the executor are caught and routed to `_failRun`.
+   *
+   * @param runId    The ID of the run being executed.
+   * @param executor The async executor to call.
+   */
+  private _runExecutor(runId: string, executor: RunExecutor): void {
+    executor()
+      .then((outcome) => {
+        if (typeof outcome === 'string') {
+          this._resolveRun(runId, outcome)
+        } else if (outcome.kind === 'result') {
+          this._resolveRun(runId, outcome.text)
+        } else {
+          this._awaitRun(runId, outcome.text)
+        }
+      })
+      .catch((err) => {
+        const message =
+          err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
+        this._failRun(runId, message)
+      })
+  }
+
   /** Complete a run with a result produced by the real executor. */
   private _resolveRun(runId: string, result: string): void {
     const run = this._runs.get(runId)
@@ -716,42 +760,6 @@ export class RunEngine {
     }
     this._runs.set(runId, failed)
     this._emit('run:failed', failed)
-  }
-
-  /**
-   * Complete a mock run by randomly producing either:
-   *   • a result string → status 'completed' + 'run:completed' event
-   *   • a question string → status 'awaiting' + 'run:awaiting' event
-   *
-   * The probability of the question path is controlled by _mockQuestionProbability.
-   *
-   * Delegates to `MockLLM.generateSync()` — the single source of truth for
-   * mock response generation. When the run's `configSnapshot` includes a
-   * `goal` or `persona`, MockLLM automatically switches to realistic generation
-   * mode, producing contextual, goal-grounded, and persona-styled responses
-   * even from the engine's built-in no-executor mock path.
-   */
-  private _completeRunWithMock(runId: string): void {
-    const run = this._runs.get(runId)
-    if (!run || run.status !== 'running') return
-
-    const meta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
-
-    // Use configSnapshot's goal and persona when available so that the built-in
-    // mock path benefits from the same realistic generation as the MockLLM executor path.
-    const snapshot = run.configSnapshot
-    const mock = new MockLLM(meta.name, meta.role, run.taskDescription, {
-      questionProbability: this._mockQuestionProbability,
-      goal: snapshot?.goal,
-      persona: snapshot?.persona,
-    })
-
-    const outcome = mock.generateSync()
-    if (outcome.kind === 'question') {
-      this._awaitRun(runId, outcome.text)
-    } else {
-      this._resolveRun(runId, outcome.text)
-    }
   }
 
   private _getOrThrow(runId: string): Run {
