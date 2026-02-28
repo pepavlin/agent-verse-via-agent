@@ -69,6 +69,31 @@ interface SelectedAgentInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Convert a numeric 0xRRGGBB colour to a CSS hex string */
+function toColorHex(color: number): string {
+  return `#${color.toString(16).padStart(6, '0')}`
+}
+
+/** Build AgentPanelAgent from a definition + any user overrides */
+function buildPanelAgent(
+  def: AgentDef,
+  overrides: Record<string, EditSavePayload>,
+): AgentPanelAgent {
+  const o = overrides[def.id]
+  return {
+    id: def.id,
+    name: o?.name ?? def.name,
+    role: def.role,
+    colorHex: toColorHex(def.color),
+    goal: o?.goal ?? def.goal ?? '',
+    persona: o?.persona ?? def.persona ?? '',
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -102,6 +127,10 @@ export default function Grid2D() {
   const [mouseCell, setMouseCell] = useState<{ col: number; row: number } | null>(null)
   // Array of selected agents (empty = nothing selected, 1 = single, 2+ = multi)
   const [selectedAgents, setSelectedAgents] = useState<SelectedAgentInfo[]>([])
+  // Whether camera is following the single selected agent
+  const [isFollowing, setIsFollowing] = useState(false)
+  // Editable overrides keyed by agent id
+  const [agentOverrides, setAgentOverrides] = useState<Record<string, EditSavePayload>>({})
 
   // Agent Panel state
   const [panelAgentId, setPanelAgentId] = useState<string | null>(null)
@@ -578,6 +607,7 @@ export default function Grid2D() {
             }
             selectedAgentIdsRef.current = newIds
             followingAgentRef.current = null
+            setIsFollowing(false)
             syncSelectionState()
           }
 
@@ -599,12 +629,14 @@ export default function Grid2D() {
             if (hitId) {
               selectedAgentIdsRef.current = new Set([hitId])
               followingAgentRef.current = null
+              setIsFollowing(false)
               syncSelectionState()
               // Open Agent Panel for single-agent click
               setPanelAgentId(hitId)
             } else {
               selectedAgentIdsRef.current = new Set()
               followingAgentRef.current = null
+              setIsFollowing(false)
               setSelectedAgents([])
             }
           }
@@ -735,6 +767,7 @@ export default function Grid2D() {
   const closeMultiSelection = () => {
     selectedAgentIdsRef.current = new Set()
     followingAgentRef.current = null
+    setIsFollowing(false)
     setSelectedAgents([])
   }
 
@@ -1199,6 +1232,14 @@ export default function Grid2D() {
   // User display name
   const userName = session?.user?.name ?? session?.user?.email?.split('@')[0] ?? ''
 
+  // Build the full agent info for the panel
+  const panelAgent: AgentPanelAgent | null = singleSelected
+    ? buildPanelAgent(
+        AGENTS.find((a) => a.id === singleSelected.id)!,
+        agentOverrides,
+      )
+    : null
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -1462,7 +1503,9 @@ export default function Grid2D() {
               className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ background: `#${agent.color.toString(16).padStart(6, '0')}` }}
             />
-            <span className="text-xs text-slate-300">{agent.name}</span>
+            <span className="text-xs text-slate-300">
+              {agentOverrides[agent.id]?.name ?? agent.name}
+            </span>
             <span className="text-[10px] text-slate-500">{agent.role}</span>
           </div>
         ))}

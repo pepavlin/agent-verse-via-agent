@@ -75,7 +75,6 @@ docs/
 | `agentsRef` | Map of `id → { state, gfx, container }` for all walking agents |
 | `selectedAgentIdsRef` | `Set<string>` of currently selected agent IDs |
 | `followingAgentRef` | ID of the agent the camera is following (or null) |
-| `menuDivRef` | Ref to the single-agent context-menu DOM element for imperative positioning |
 | `isRectSelectingRef` | Whether a rectangle selection drag is in progress |
 | `rectSelectStartRef` | Screen-space start point of the selection rect |
 | `rectSelectEndRef` | Screen-space current end point of the selection rect |
@@ -90,6 +89,8 @@ docs/
 | `zoomPct` | Displayed zoom percentage in the HUD |
 | `mouseCell` | Current hovered cell `{ col, row }` or null |
 | `selectedAgents` | `SelectedAgentInfo[]` — empty = none, 1 = single, 2+ = multi |
+| `isFollowing` | Whether the camera is actively following the single-selected agent |
+| `agentOverrides` | `Record<string, EditSavePayload>` — user edits from the AgentPanel Edit mode |
 
 ### Rendering
 
@@ -194,6 +195,45 @@ The panel is a centered fixed overlay (`AgentPanel` component). Clicking the bac
 | 0 agents | No panel |
 | 1 agent | Agent Panel dialog (Run / Edit modes) |
 | 2+ agents | Fixed panel centred at bottom of screen listing all selected agents with name, role and colour dot. Action: Dismiss all. |
+
+#### AgentPanel component (`app/components/AgentPanel.tsx`)
+
+**Props:**
+
+| Prop | Type | Purpose |
+|---|---|---|
+| `agent` | `AgentPanelAgent \| null` | Null = panel closed |
+| `isFollowing` | `boolean` | Whether camera is currently following this agent |
+| `onClose` | `() => void` | Close the panel |
+| `onRunTask` | `(RunTaskPayload) => void` | Dispatch a task to the agent |
+| `onEditSave` | `(EditSavePayload) => void` | Persist editable field overrides |
+| `onFollow` | `(id: string) => void` | Start camera follow |
+| `onStopFollow` | `() => void` | Stop camera follow |
+
+**Key types:**
+
+```ts
+interface AgentPanelAgent { id; name; role; colorHex; goal; persona }
+type DeliveryMode = 'wait' | 'inbox'
+interface RunTaskPayload { agentId; task; delivery: DeliveryMode }
+interface EditSavePayload { agentId; name; goal; persona }
+```
+
+**State management in Grid2D:**
+- `agentOverrides: Record<string, EditSavePayload>` stores user edits keyed by agent id.
+- On `onEditSave`, the record is updated; the legend and panel re-render with the new name.
+- `isFollowing: boolean` React state bridges `followingAgentRef` to the panel prop.
+
+#### AgentDef extensions (`app/components/agents-config.ts`)
+
+Two optional fields added to `AgentDef`:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `goal` | `string?` | High-level objective shown in the Edit panel |
+| `persona` | `string?` | Personality description shown in the Edit panel |
+
+All four built-in agents have default values for both fields.
 
 ### Coordinate Mapping
 
