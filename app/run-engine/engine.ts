@@ -52,13 +52,18 @@ function generateId(): string {
  * Lifecycle:
  *   createRun()  → Run(status='pending')
  *   startRun()   → Run(status='running')
- *                  – With executor: awaits executor(), then completes / fails.
+ *                  – With executor: awaits executor(), then completes / fails / awaits.
  *                  – Without executor: falls back to mock (random delay + template).
  *                    The mock randomly resolves to either:
  *                      • 'completed' with a result string, or
  *                      • 'awaiting' with a clarifying question string
  *                    (controlled by RunEngineOptions.mockQuestionProbability)
  *   [resolution] → Run(status='completed' | 'awaiting' | 'failed')
+ *
+ *   resumeRun()  → Run(status='running')   [only when status === 'awaiting']
+ *                  – With executor: awaits executor(), then completes / fails.
+ *                  – Without executor: falls back to mock result (no question, answer provided).
+ *   [resolution] → Run(status='completed' | 'failed')
  *
  * Usage:
  * // Mock mode (no real LLM):
@@ -69,6 +74,13 @@ function generateId(): string {
  * const run = engine.createRun('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
  * engine.startRun(run.id, async () => {
  *   const res = await fetch('/api/run', { ... })
+ *   const data = await res.json()
+ *   return data.result
+ * })
+ *
+ * // Resume after awaiting (needs_user):
+ * engine.resumeRun(run.id, 'User answer here', async () => {
+ *   const res = await fetch('/api/run', { body: JSON.stringify({ ..., userAnswer: 'User answer here' }) })
  *   const data = await res.json()
  *   return data.result
  * })
@@ -169,6 +181,77 @@ export class RunEngine {
       const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
       const handle = setTimeout(() => {
         this._completeRunWithMock(runId)
+        this._pendingTimeouts.delete(runId)
+      }, delayMs)
+      this._pendingTimeouts.set(runId, handle)
+    }
+  }
+
+  /**
+   * Resume a run that is currently in 'awaiting' state (agent had asked a question).
+   *
+   * Transitions the run back to 'running', stores the user's answer, and emits
+   * 'run:resumed'. The run then completes via the executor or mock path.
+   *
+   * @param runId    The ID of the awaiting run.
+   * @param answer   The user's answer to the agent's question.
+   * @param executor Optional async function that produces the result.
+   *                 When omitted, the built-in mock (random delay + template result) is used.
+   *                 The mock never produces another question during resume — it always completes.
+   * @throws Error if the run does not exist or is not in 'awaiting' state.
+   */
+  resumeRun(runId: string, answer: string, executor?: RunExecutor): void {
+    const run = this._getOrThrow(runId)
+
+    if (run.status !== 'awaiting') {
+      throw new Error(
+        `Cannot resume run "${runId}": expected status 'awaiting' but got '${run.status}'.`,
+      )
+    }
+
+    const resumed: Run = {
+      ...run,
+      status: 'running',
+      answer,
+      // Reset completedAt so it gets a fresh timestamp when this run finishes
+      completedAt: undefined,
+    }
+    this._runs.set(runId, resumed)
+    this._emit('run:resumed', resumed)
+
+    if (executor) {
+      executor()
+        .then((outcome) => {
+          if (typeof outcome === 'string') {
+            this._resolveRun(runId, outcome)
+          } else if (outcome.kind === 'result') {
+            this._resolveRun(runId, outcome.text)
+          } else {
+            // On resume, a question response is treated as a result to avoid infinite loops
+            this._resolveRun(runId, outcome.text)
+          }
+        })
+        .catch((err) => {
+          const message =
+            err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
+          this._failRun(runId, message)
+        })
+    } else {
+      // Mock mode: always produce a result (never another question) after resume
+      const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
+      const handle = setTimeout(() => {
+        const currentRun = this._runs.get(runId)
+        if (!currentRun || currentRun.status !== 'running') return
+        const meta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
+        const result = generateResult(meta.name, meta.role, currentRun.taskDescription)
+        const completed: Run = {
+          ...currentRun,
+          status: 'completed',
+          completedAt: Date.now(),
+          result,
+        }
+        this._runs.set(runId, completed)
+        this._emit('run:completed', completed)
         this._pendingTimeouts.delete(runId)
       }, delayMs)
       this._pendingTimeouts.set(runId, handle)

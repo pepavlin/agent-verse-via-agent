@@ -12,6 +12,10 @@ const RunSchema = z.object({
   agentGoal: z.string().optional(),
   agentPersona: z.string().optional(),
   taskDescription: z.string().min(1, 'Popis úkolu nesmí být prázdný'),
+  /** Agent's previous clarifying question (present only on resumed runs). */
+  previousQuestion: z.string().optional(),
+  /** User's answer to the clarifying question (present only on resumed runs). */
+  userAnswer: z.string().optional(),
 })
 
 export async function POST(req: NextRequest) {

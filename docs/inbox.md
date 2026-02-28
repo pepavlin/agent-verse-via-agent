@@ -13,8 +13,12 @@ the user gets a non-blocking notification card in the Inbox when the agent finis
 | Type     | Label (CZ) | Icon | Description |
 |----------|-----------|------|-------------|
 | `done`     | Hotovo    | ✓    | Task completed successfully (green accent) |
-| `question` | Otázka    | ?    | Task in progress — agent is working (indigo, pulsing) |
+| `question` | Otázka    | ?    | Task in progress OR agent waiting for answer (indigo) |
 | `error`    | Chyba     | ✕    | Task failed (red accent) |
+
+The `question` type covers two sub-states:
+- **Working** (`awaitingAnswer: false`) — agent is processing; icon pulses.
+- **Awaiting answer** (`awaitingAnswer: true`) — agent paused with a clarifying question; an inline reply form appears.
 
 ---
 
@@ -32,10 +36,14 @@ Grid2D
 
 1. User opens agent panel, types a task, selects **Inbox** delivery, clicks **Spustit**.
 2. `Grid2D.handleRunTask` creates a `RunEngine` run and immediately adds a
-   `question` message to the inbox (task in progress).
+   `question` message to the inbox (task in progress, `awaitingAnswer: false`).
 3. The inbox panel opens automatically so the user can see the new card.
-4. When the `RunEngine` emits `run:completed`, the message is updated to type `done`
-   with the result text. When `run:failed` fires, it becomes type `error`.
+4. When `run:awaiting` fires, the message text is updated with the agent's question
+   and `awaitingAnswer` is set to `true` — an inline reply form appears.
+5. The user types an answer and submits it; `Grid2D.handleReplyToQuestion()` calls
+   `engine.resumeRun()`. The message returns to a "processing" state.
+6. When `run:completed` fires, the message is updated to type `done` with the result.
+   When `run:failed` fires, it becomes type `error`.
 5. The unread badge on the toggle button increments on each terminal event
    (`done` or `error`). Clicking the toggle calls `markRead()` to reset it.
 
@@ -70,6 +78,7 @@ interface InboxMessage {
   agentColor: number      // 0xRRGGBB agent brand colour
   task: string            // Original task description
   text: string            // Status/result prose
+  awaitingAnswer?: boolean // true when agent is waiting for user reply (needs_user)
 }
 ```
 
@@ -86,7 +95,19 @@ Fixed-position panel on the right side of the screen. Scrollable list of
 message cards. Each card has a dismiss button; the header has a "Vymazat vše"
 (clear all) button.
 
-Props: `{ messages, isOpen, onClose, onDismiss, onClearAll }`
+Props: `{ messages, isOpen, onClose, onDismiss, onClearAll, onReply? }`
+
+When `onReply` is provided and a message has `awaitingAnswer: true`, an inline textarea + submit button is rendered inside the card. Submitting calls `onReply(id, trimmedAnswer)`.
+
+### `QuestionModal` (`app/components/QuestionModal.tsx`)
+
+A blocking modal overlay shown for **wait** delivery runs when the agent transitions to `awaiting`. Displays the agent's question with a textarea for the user's answer.
+
+Props: `{ pending: PendingQuestion | null, onAnswer, onDismiss }`
+
+- `pending` is set by `Grid2D` when `run:awaiting` fires for a wait-delivery run.
+- `onAnswer(runId, answer)` triggers `engine.resumeRun()` and closes the modal.
+- `onDismiss(runId)` closes the modal without answering (run stays `awaiting`).
 
 ---
 
@@ -110,3 +131,5 @@ Tests live in `tests/inbox.test.tsx` and cover:
 - `InboxToggleButton`: rendering, badge display/capping, click handling
 - `InboxPanel`: open/close, empty state, all three message types, dismiss,
   clear all, backdrop click, message count footer
+- **Inline reply form**: visibility conditions, disabled state, submit with trim,
+  Enter key, Shift+Enter no-op, whitespace guard, dismiss still works

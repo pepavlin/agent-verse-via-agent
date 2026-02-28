@@ -31,6 +31,12 @@ export interface InboxMessage {
   task: string
   /** Status text: result prose for done, error description for error, placeholder for question. */
   text: string
+  /**
+   * When true, the message represents an agent waiting for the user's answer.
+   * Enables the inline reply form in the Inbox UI.
+   * Only meaningful when type === 'question'.
+   */
+  awaitingAnswer?: boolean
 }
 
 // ---------------------------------------------------------------------------

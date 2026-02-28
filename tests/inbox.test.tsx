@@ -27,6 +27,16 @@ const questionMessage: InboxMessage = {
   text: 'Zpracovávám úkol…',
 }
 
+const awaitingAnswerMessage: InboxMessage = {
+  id: 'run-4',
+  type: 'question',
+  agentName: 'Dave',
+  agentColor: 0x9b59b6,
+  task: 'Defend the perimeter',
+  text: 'Dave needs clarification: What priority level should this task have?',
+  awaitingAnswer: true,
+}
+
 const errorMessage: InboxMessage = {
   id: 'run-3',
   type: 'error',
@@ -376,5 +386,104 @@ describe('InboxPanel', () => {
       <InboxPanel {...defaultProps} messages={[doneMessage, questionMessage]} />,
     )
     expect(screen.getByText(/2 zprávy/)).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// InboxPanel — reply form (needs_user feature)
+// ---------------------------------------------------------------------------
+
+describe('InboxPanel — inline reply form', () => {
+  const defaultProps = {
+    messages: [] as InboxMessage[],
+    isOpen: true,
+    onClose: vi.fn(),
+    onDismiss: vi.fn(),
+    onClearAll: vi.fn(),
+  }
+
+  it('does not render reply form for question message without awaitingAnswer', () => {
+    render(<InboxPanel {...defaultProps} messages={[questionMessage]} onReply={vi.fn()} />)
+    expect(screen.queryByTestId(`inbox-reply-form-${questionMessage.id}`)).toBeNull()
+  })
+
+  it('does not render reply form for done messages even with awaitingAnswer flag', () => {
+    const doneWithFlag: InboxMessage = { ...doneMessage, awaitingAnswer: true }
+    render(<InboxPanel {...defaultProps} messages={[doneWithFlag]} onReply={vi.fn()} />)
+    expect(screen.queryByTestId(`inbox-reply-form-${doneMessage.id}`)).toBeNull()
+  })
+
+  it('renders reply form for question message with awaitingAnswer: true and onReply', () => {
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={vi.fn()} />)
+    expect(screen.getByTestId(`inbox-reply-form-${awaitingAnswerMessage.id}`)).toBeInTheDocument()
+  })
+
+  it('does not render reply form when onReply is not provided', () => {
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} />)
+    expect(screen.queryByTestId(`inbox-reply-form-${awaitingAnswerMessage.id}`)).toBeNull()
+  })
+
+  it('reply submit button is disabled when input is empty', () => {
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={vi.fn()} />)
+    const submitBtn = screen.getByTestId(`inbox-reply-submit-${awaitingAnswerMessage.id}`)
+    expect(submitBtn).toBeDisabled()
+  })
+
+  it('reply submit button becomes enabled when user types an answer', () => {
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={vi.fn()} />)
+    const input = screen.getByTestId(`inbox-reply-input-${awaitingAnswerMessage.id}`)
+    fireEvent.change(input, { target: { value: 'High priority' } })
+    const submitBtn = screen.getByTestId(`inbox-reply-submit-${awaitingAnswerMessage.id}`)
+    expect(submitBtn).not.toBeDisabled()
+  })
+
+  it('calls onReply with run id and trimmed answer on submit', () => {
+    const onReply = vi.fn()
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={onReply} />)
+    const input = screen.getByTestId(`inbox-reply-input-${awaitingAnswerMessage.id}`)
+    fireEvent.change(input, { target: { value: '  High priority  ' } })
+    fireEvent.click(screen.getByTestId(`inbox-reply-submit-${awaitingAnswerMessage.id}`))
+    expect(onReply).toHaveBeenCalledWith(awaitingAnswerMessage.id, 'High priority')
+  })
+
+  it('calls onReply on Enter keypress (without Shift)', () => {
+    const onReply = vi.fn()
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={onReply} />)
+    const input = screen.getByTestId(`inbox-reply-input-${awaitingAnswerMessage.id}`)
+    fireEvent.change(input, { target: { value: 'My answer' } })
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false })
+    expect(onReply).toHaveBeenCalledWith(awaitingAnswerMessage.id, 'My answer')
+  })
+
+  it('does not call onReply on Shift+Enter keypress', () => {
+    const onReply = vi.fn()
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={onReply} />)
+    const input = screen.getByTestId(`inbox-reply-input-${awaitingAnswerMessage.id}`)
+    fireEvent.change(input, { target: { value: 'My answer' } })
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    expect(onReply).not.toHaveBeenCalled()
+  })
+
+  it('does not call onReply when answer is only whitespace', () => {
+    const onReply = vi.fn()
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={onReply} />)
+    const input = screen.getByTestId(`inbox-reply-input-${awaitingAnswerMessage.id}`)
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.click(screen.getByTestId(`inbox-reply-submit-${awaitingAnswerMessage.id}`))
+    expect(onReply).not.toHaveBeenCalled()
+  })
+
+  it('shows the question text in the message card', () => {
+    render(<InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={vi.fn()} />)
+    expect(screen.getByText(awaitingAnswerMessage.text)).toBeInTheDocument()
+  })
+
+  it('awaitingAnswer message can still be dismissed', () => {
+    const onDismiss = vi.fn()
+    render(
+      <InboxPanel {...defaultProps} messages={[awaitingAnswerMessage]} onReply={vi.fn()} onDismiss={onDismiss} />,
+    )
+    fireEvent.click(screen.getByTestId(`dismiss-${awaitingAnswerMessage.id}`))
+    expect(onDismiss).toHaveBeenCalledWith(awaitingAnswerMessage.id)
   })
 })

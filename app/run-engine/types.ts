@@ -8,7 +8,7 @@
  * - 'pending'   — created, not yet started
  * - 'running'   — currently executing
  * - 'completed' — finished with a result
- * - 'awaiting'  — paused, agent asked a clarifying question (mock mode only)
+ * - 'awaiting'  — paused, agent asked a clarifying question; can be resumed via resumeRun()
  * - 'failed'    — terminated with an error
  */
 export type RunStatus = 'pending' | 'running' | 'completed' | 'awaiting' | 'failed'
@@ -33,9 +33,14 @@ export interface Run {
   result?: string
   /**
    * Clarifying question raised by the agent. Set only when status === 'awaiting'.
-   * The agent needs a human answer before it can continue.
+   * The agent needs a human answer before it can continue via resumeRun().
    */
   question?: string
+  /**
+   * User's answer to the agent's clarifying question. Set when the run is resumed
+   * after being in 'awaiting' state.
+   */
+  answer?: string
   /** Error description. Set only when status === 'failed'. */
   error?: string
 }
@@ -46,6 +51,7 @@ export type RunEventType =
   | 'run:started'
   | 'run:completed'
   | 'run:awaiting'
+  | 'run:resumed'
   | 'run:failed'
 
 /** Callback invoked when a run event fires. */
