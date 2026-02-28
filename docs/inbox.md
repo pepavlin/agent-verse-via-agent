@@ -1,6 +1,70 @@
-# Inbox — Visual Message Feed
+# Delivery Modes — Počkat vs Inbox
 
 ## Overview
+
+When submitting a task from the Agent Panel, the user chooses how the result
+should be delivered once the agent finishes:
+
+| Mode       | Czech label | Behaviour |
+|------------|-------------|-----------|
+| **Počkat** | Wait        | The panel stays open. A spinner replaces the form. The result (or error) is shown inline inside the panel. |
+| **Inbox**  | Inbox       | The panel closes immediately. The task card appears in the Inbox feed. The result arrives asynchronously. |
+
+---
+
+## Počkat (Wait) Delivery
+
+### Flow
+
+1. User submits task with **Počkat** selected.
+2. The Agent Panel stays open (no `handlePanelClose()`).
+3. The Run form is replaced by a spinner (`waitPhase = 'running'`).
+4. If the agent asks a clarifying question, the QuestionModal opens.
+   The spinner is paused; the modal closes once the user answers and the run resumes.
+5. When the run completes:
+   - `waitPhase` → `'done'`, `waitResult` receives the result text.
+   - The panel shows a "Hotovo" card with the full result + a "Nový úkol" button.
+6. When the run fails:
+   - `waitPhase` → `'error'`, `waitError` receives the error text.
+   - The panel shows a "Chyba" card + a "Nový úkol" button.
+7. Clicking **Nový úkol** (`handleNewTask`) resets `waitPhase` to `'idle'`,
+   restoring the original Run form.
+8. Closing the panel (× button or backdrop) also resets all wait state.
+
+### State management
+
+State lives in `Grid2D` and is passed as props to `AgentPanel`:
+
+```ts
+// Grid2D state
+const [waitPhase, setWaitPhase] = useState<WaitRunPhase>('idle')
+const [waitResult, setWaitResult] = useState<string | undefined>()
+const [waitError, setWaitError] = useState<string | undefined>()
+const waitRunIdRef = useRef<string | null>(null) // guards stale updates
+```
+
+`waitRunIdRef` ensures that if the user switches agents while a run is in-flight,
+the stale `run:completed` / `run:failed` events do not overwrite a new agent's UI state.
+
+A `useEffect` keyed on `panelAgentId` resets all wait state whenever a different
+agent's panel is opened.
+
+### WaitRunPhase
+
+```ts
+type WaitRunPhase = 'idle' | 'running' | 'done' | 'error'
+```
+
+| Phase     | AgentPanel Run-tab renders |
+|-----------|---------------------------|
+| `idle`    | Normal RunForm (textarea + delivery choice + submit) |
+| `running` | Spinner + "Zpracovávám…" |
+| `done`    | "✓ Hotovo" header + result text + "Nový úkol" button |
+| `error`   | "✕ Chyba" header + error text + "Nový úkol" button |
+
+---
+
+## Inbox Delivery
 
 The Inbox is a visual feed that collects the results of agent tasks submitted
 with the **"Inbox"** delivery mode. Instead of waiting for a result in the panel,
@@ -169,4 +233,16 @@ Tests live in `tests/inbox.test.tsx` and cover:
 - **Inline reply form**: visibility conditions, disabled state, submit with trim,
   Enter key, Shift+Enter no-op, whitespace guard, dismiss still works
 
-All 43 tests pass.
+All inbox tests pass (see `tests/inbox.test.tsx`).
+
+---
+
+## Wait-delivery test coverage
+
+Tests for `WaitRunPhase` states live in `tests/agent-panel.test.tsx`:
+
+- `idle`: run form is shown (default)
+- `running`: spinner shown, run form hidden
+- `done`: result text shown, "Hotovo" label, "Nový úkol" button triggers `onNewTask`
+- `error`: error text shown, "Chyba" label, "Nový úkol" button triggers `onNewTask`
+- Edit tab remains accessible during all non-idle phases

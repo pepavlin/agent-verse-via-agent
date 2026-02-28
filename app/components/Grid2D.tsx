@@ -8,7 +8,7 @@ import { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
 import { AGENTS, type AgentDef } from './agents-config'
 import { AgentState, createAgentState, updateAgent, hitTestAgent, agentInRect, WorldRect } from './agent-logic'
 import { drawStickFigure } from './agent-drawing'
-import AgentPanel, { type RunTaskPayload, type EditSavePayload } from './AgentPanel'
+import AgentPanel, { type RunTaskPayload, type EditSavePayload, type WaitRunPhase } from './AgentPanel'
 import { RunEngine } from '../run-engine'
 import type { ChildAgentDef } from '../run-engine'
 import type { AgentConfigSnapshot } from '../run-engine/types'
@@ -107,6 +107,17 @@ export default function Grid2D() {
   const [panelAgentId, setPanelAgentId] = useState<string | null>(null)
   // Mutable copy of agent definitions (allows editing name/goal/persona at runtime)
   const [agentDefs, setAgentDefs] = useState<AgentDef[]>(AGENTS)
+
+  // Wait-delivery inline result state
+  // Tracks the phase of the currently open wait-delivery run so that the
+  // AgentPanel can transition from the run form → spinner → inline result.
+  const [waitPhase, setWaitPhase] = useState<WaitRunPhase>('idle')
+  const [waitResult, setWaitResult] = useState<string | undefined>()
+  const [waitError, setWaitError] = useState<string | undefined>()
+  // Ref to the run ID that "owns" the current wait phase, used to guard
+  // against stale updates when the panel is closed mid-run or the user
+  // switches to a different agent.
+  const waitRunIdRef = useRef<string | null>(null)
 
   // Inbox state — manages message feed for inbox-delivery task results
   const { messages, unreadCount, addMessage, updateMessage, addChildMessage, dismissMessage, clearAll, markRead } = useInbox()
@@ -695,11 +706,28 @@ export default function Grid2D() {
 
   // ---- Agent Panel handlers ----
 
+  // Reset wait-delivery state whenever the panel switches to a different agent
+  // (or closes). This prevents stale results from a previous run appearing in
+  // a freshly opened panel.
+  useEffect(() => {
+    setWaitPhase('idle')
+    setWaitResult(undefined)
+    setWaitError(undefined)
+    waitRunIdRef.current = null
+  }, [panelAgentId])
+
   const handlePanelClose = () => {
     setPanelAgentId(null)
     selectedAgentIdsRef.current = new Set()
     followingAgentRef.current = null
     setSelectedAgents([])
+  }
+
+  const handleNewTask = () => {
+    waitRunIdRef.current = null
+    setWaitPhase('idle')
+    setWaitResult(undefined)
+    setWaitError(undefined)
   }
 
   /**
@@ -894,7 +922,15 @@ export default function Grid2D() {
       // Open inbox so the user sees the new task card
       setInboxOpen(true)
     } else {
-      // Wait delivery: subscribe to awaiting to show QuestionModal
+      // ── Wait delivery ─────────────────────────────────────────────────────
+      // The panel stays open. We immediately show a spinner and update it to
+      // either the result or an error once the run terminates.
+      waitRunIdRef.current = run.id
+      setWaitPhase('running')
+
+      // When the agent needs clarification, pause the spinner and open the
+      // QuestionModal. The spinner resumes on run:resumed (handled above in
+      // the global RunEngine subscriber).
       const unsubWaitAwaiting = engine.on('run:awaiting', (awaitingRun) => {
         if (awaitingRun.id !== run.id) return
         // Show completion glow while waiting for answer
@@ -909,16 +945,33 @@ export default function Grid2D() {
         unsubWaitAwaiting()
       })
 
-      const unsubWaitCompleted = engine.on('run:completed', (completedRun) => {
+      // Use let + optional chaining so each handler can clean up both
+      // subscriptions (a run can only complete XOR fail, never both).
+      let unsubWaitCompleted: (() => void) | null = null
+      let unsubWaitFailed: (() => void) | null = null
+
+      unsubWaitCompleted = engine.on('run:completed', (completedRun) => {
         if (completedRun.id !== run.id) return
         agentRunInfoRef.current.set(completedRun.agentId, runCompleted())
-        unsubWaitCompleted()
+        // Guard: only update UI if this run is still the active wait run
+        if (waitRunIdRef.current === run.id) {
+          setWaitPhase('done')
+          setWaitResult(completedRun.result ?? 'Hotovo.')
+        }
+        unsubWaitCompleted?.()
+        unsubWaitFailed?.()
       })
 
-      const unsubWaitFailed = engine.on('run:failed', (failedRun) => {
+      unsubWaitFailed = engine.on('run:failed', (failedRun) => {
         if (failedRun.id !== run.id) return
         agentRunInfoRef.current.set(failedRun.agentId, runFailed())
-        unsubWaitFailed()
+        // Guard: only update UI if this run is still the active wait run
+        if (waitRunIdRef.current === run.id) {
+          setWaitPhase('error')
+          setWaitError(failedRun.error ?? 'Nastala chyba.')
+        }
+        unsubWaitCompleted?.()
+        unsubWaitFailed?.()
       })
     }
 
@@ -984,7 +1037,12 @@ export default function Grid2D() {
       engine.startRun(run.id, buildRunExecutor(def, payload.task))
     }
 
-    handlePanelClose()
+    // Inbox delivery: close the panel so the user can see the inbox feed.
+    // Wait delivery: keep the panel open — it now shows a spinner that
+    // transitions to the inline result once the run completes.
+    if (payload.delivery === 'inbox') {
+      handlePanelClose()
+    }
   }
 
   /**
@@ -1197,6 +1255,10 @@ export default function Grid2D() {
         onRunTask={handleRunTask}
         onEditSave={handleEditSave}
         childAgentDefs={panelChildAgentDefs}
+        waitPhase={waitPhase}
+        waitResult={waitResult}
+        waitError={waitError}
+        onNewTask={handleNewTask}
       />
 
       {/* ── Account Settings Modal ── */}
