@@ -164,3 +164,42 @@ export function calcRuneFlash(
     tint: 0xffffff,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Zoom-adaptive display scale
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute a world-space scale factor that keeps rune glyphs and their orbit
+ * radius visually consistent on screen regardless of the camera zoom level.
+ *
+ * At zoom ≥ 0.5 (50 % and above) no adjustment is applied (factor = 1).
+ * Below 50 % the factor grows so that the on-screen orbit radius stays
+ * constant at the same pixel size as at 50 % zoom.
+ *
+ * Formula: `max(1, 0.5 / zoom)`
+ *
+ * | zoom  | scale | screen orbit (26 × scale × zoom) |
+ * |-------|-------|----------------------------------|
+ * | 0.15  |  3.33 | ≈ 13 px                          |
+ * | 0.25  |  2.00 | ≈ 13 px                          |
+ * | 0.50  |  1.00 | ≈ 13 px                          |
+ * | 1.00  |  1.00 | ≈ 26 px                          |
+ * | 2.00  |  1.00 | ≈ 52 px                          |
+ *
+ * The caller multiplies both the orbit position components (relative to
+ * `HEAD_Y`) and the glyph scale by this factor:
+ *
+ * ```ts
+ * const ds = calcRuneDisplayScale(zoom)
+ * runeText.x = rs.x * ds
+ * runeText.y = HEAD_Y + (rs.y - HEAD_Y) * ds
+ * runeText.scale.set(rs.scale * ds)
+ * ```
+ *
+ * @param zoom  Current camera zoom (> 0).
+ * @returns     World-space multiplier ≥ 1.
+ */
+export function calcRuneDisplayScale(zoom: number): number {
+  return Math.max(1, 0.5 / zoom)
+}

@@ -313,19 +313,37 @@ AgentEntry {
 }
 ```
 
+#### Zoom-adaptive scaling (`calcRuneDisplayScale`)
+
+Rune texts live in world space (as children of the agent container, which is scaled by the camera zoom). At the default zoom of 25 % a world-space font of 14 px would appear as ~3.5 px on screen — invisible. `calcRuneDisplayScale(zoom)` compensates by returning a world-space multiplier that keeps the orbit radius and glyph size at a constant screen size for zoom levels below 50 %:
+
+| zoom  | scale | screen orbit (26 × scale × zoom) |
+|-------|-------|----------------------------------|
+| 0.15  |  3.33 | ≈ 13 px                          |
+| 0.25  |  2.00 | ≈ 13 px                          |
+| 0.50  |  1.00 | ≈ 13 px                          |
+| 1.00  |  1.00 | ≈ 26 px                          |
+| 2.00  |  1.00 | ≈ 52 px (normal growth at high zoom) |
+
+The scale is applied to both orbit position (relative to `HEAD_Y`) and glyph size, so the runes remain readable when the user first sees the world at default zoom.
+
 #### Updated data flow
 
 ```
 pixi ticker (every frame)
-  └─ tickRunInfo(runInfo, deltaSeconds, now)
-       ├─ returns { runTime, completionAge, glowExpired }
-       ├─ drawStickFigure(gfx, state, selected, runTime, completionAge)
-       │    ├─ calcPulseRing(runTime, HEAD_R)    → ring params
-       │    └─ calcCompletionGlow(completionAge) → glow params
-       └─ forEach runeText[i]:
-            ├─ if runTime     → calcRuneOrbit(i, RUNE_COUNT, runTime, agentColor)
-            ├─ if completionAge → calcRuneFlash(completionAge, i, RUNE_COUNT)
-            └─ else           → runeText.visible = false
+  ├─ runeDisplayScale = calcRuneDisplayScale(zoom)   ← computed once per frame
+  └─ per agent:
+       └─ tickRunInfo(runInfo, deltaSeconds, now)
+            ├─ returns { runTime, completionAge, glowExpired }
+            ├─ drawStickFigure(gfx, state, selected, runTime, completionAge)
+            │    ├─ calcPulseRing(runTime, HEAD_R)    → ring params
+            │    └─ calcCompletionGlow(completionAge) → glow params
+            └─ forEach runeText[i]:
+                 ├─ if runTime:       calcRuneOrbit(i, RUNE_COUNT, runTime, agentColor)
+                 │                    → apply runeDisplayScale to x/y/scale
+                 ├─ if completionAge: calcRuneFlash(completionAge, i, RUNE_COUNT)
+                 │                    → apply runeDisplayScale to x/y/scale
+                 └─ else:             runeText.visible = false
 ```
 
 Pure helper functions are in `app/components/agent-runes.ts` and covered by unit tests in `tests/agent-runes.test.ts`.

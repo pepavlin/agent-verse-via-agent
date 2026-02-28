@@ -13,7 +13,7 @@ import { RunEngine } from '../run-engine'
 import type { ChildAgentDef } from '../run-engine'
 import type { AgentConfigSnapshot } from '../run-engine/types'
 import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from './agent-run-state'
-import { RUNE_CHARS, RUNE_COUNT, calcRuneOrbit, calcRuneFlash } from './agent-runes'
+import { RUNE_CHARS, RUNE_COUNT, HEAD_Y as RUNE_HEAD_Y, calcRuneOrbit, calcRuneFlash, calcRuneDisplayScale } from './agent-runes'
 import { useInbox } from './use-inbox'
 import { InboxToggleButton, InboxPanel } from './Inbox'
 import QuestionModal, { type PendingQuestion } from './QuestionModal'
@@ -379,6 +379,12 @@ export default function Grid2D() {
         const now = Date.now()
         const { w: mW, h: mH } = worldSize()
 
+        // Zoom-adaptive scale for rune glyphs: compensates for low zoom levels
+        // so rune orbits and glyphs stay visible even when zoomed far out.
+        // At zoom ≥ 0.5 no adjustment is applied; below 0.5 the world-space
+        // size grows inversely so the on-screen size stays constant.
+        const runeDisplayScale = calcRuneDisplayScale(view.current.zoom)
+
         for (const [id, entry] of agentsRef.current) {
           entry.state = updateAgent(entry.state, ticker.deltaMS, mW, mH)
           entry.container.x = entry.state.x
@@ -410,24 +416,27 @@ export default function Grid2D() {
           )
 
           // ---- Animate rune glyphs ----
+          // runeDisplayScale keeps orbits and glyphs at a consistent screen
+          // size across zoom levels: orbit position components are scaled
+          // relative to RUNE_HEAD_Y so the head stays the orbit centre.
           entry.runeTexts.forEach((runeText, i) => {
             if (runTime !== null) {
               // Orbiting pulse while running
               const rs = calcRuneOrbit(i, RUNE_COUNT, runTime, entry.state.color)
               runeText.visible = rs.visible
-              runeText.x = rs.x
-              runeText.y = rs.y
+              runeText.x = rs.x * runeDisplayScale
+              runeText.y = RUNE_HEAD_Y + (rs.y - RUNE_HEAD_Y) * runeDisplayScale
               runeText.alpha = rs.alpha
-              runeText.scale.set(rs.scale)
+              runeText.scale.set(rs.scale * runeDisplayScale)
               runeText.tint = rs.tint
             } else if (completionAge !== null) {
               // Expanding flash on completion
               const rs = calcRuneFlash(completionAge, i, RUNE_COUNT)
               runeText.visible = rs.visible
-              runeText.x = rs.x
-              runeText.y = rs.y
+              runeText.x = rs.x * runeDisplayScale
+              runeText.y = RUNE_HEAD_Y + (rs.y - RUNE_HEAD_Y) * runeDisplayScale
               runeText.alpha = rs.alpha
-              runeText.scale.set(rs.scale)
+              runeText.scale.set(rs.scale * runeDisplayScale)
               runeText.tint = rs.tint
             } else {
               runeText.visible = false
