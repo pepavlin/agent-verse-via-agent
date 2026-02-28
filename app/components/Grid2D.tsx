@@ -588,6 +588,11 @@ export default function Grid2D() {
       agentRunInfoRef.current.set(run.agentId, runCompleted())
     })
 
+    // Awaiting: agent raised a clarifying question — show the same completion glow
+    const unsubAwaiting = engine.on('run:awaiting', (run) => {
+      agentRunInfoRef.current.set(run.agentId, runCompleted())
+    })
+
     const unsubFailed = engine.on('run:failed', (run) => {
       // Clear all animation state — no glow is shown on failure
       agentRunInfoRef.current.set(run.agentId, runFailed())
@@ -598,6 +603,7 @@ export default function Grid2D() {
     return () => {
       unsubStarted()
       unsubCompleted()
+      unsubAwaiting()
       unsubFailed()
       appRef.current?.destroy(true, { children: true })
       appRef.current = null
@@ -666,11 +672,21 @@ export default function Grid2D() {
         text: 'Zpracovávám úkol…',
       })
 
-      // Subscribe to this specific run's completion
+      // Subscribe to this specific run's terminal events
       const unsubRunCompleted = engine.on('run:completed', (completedRun) => {
         if (completedRun.id !== run.id) return
         updateMessage(run.id, { type: 'done', text: completedRun.result ?? 'Hotovo.' })
         unsubRunCompleted()
+      })
+
+      const unsubRunAwaiting = engine.on('run:awaiting', (awaitingRun) => {
+        if (awaitingRun.id !== run.id) return
+        // Show the question as a 'question' card so the user can see it needs answering
+        updateMessage(run.id, {
+          type: 'question',
+          text: awaitingRun.question ?? 'Agent potřebuje upřesnění.',
+        })
+        unsubRunAwaiting()
       })
 
       const unsubRunFailed = engine.on('run:failed', (failedRun) => {

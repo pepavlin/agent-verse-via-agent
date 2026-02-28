@@ -2,8 +2,16 @@
 // Run engine types — no pixi.js or React dependencies, safe to import anywhere
 // ---------------------------------------------------------------------------
 
-/** Life-cycle states a Run passes through. */
-export type RunStatus = 'pending' | 'running' | 'completed' | 'failed'
+/**
+ * Life-cycle states a Run passes through.
+ *
+ * - 'pending'   — created, not yet started
+ * - 'running'   — currently executing
+ * - 'completed' — finished with a result
+ * - 'awaiting'  — paused, agent asked a clarifying question (mock mode only)
+ * - 'failed'    — terminated with an error
+ */
+export type RunStatus = 'pending' | 'running' | 'completed' | 'awaiting' | 'failed'
 
 /** A single task execution record. */
 export interface Run {
@@ -23,12 +31,22 @@ export interface Run {
   completedAt?: number
   /** Plain-prose result text. Set only when status === 'completed'. */
   result?: string
+  /**
+   * Clarifying question raised by the agent. Set only when status === 'awaiting'.
+   * The agent needs a human answer before it can continue.
+   */
+  question?: string
   /** Error description. Set only when status === 'failed'. */
   error?: string
 }
 
 /** Events emitted by the RunEngine. */
-export type RunEventType = 'run:created' | 'run:started' | 'run:completed' | 'run:failed'
+export type RunEventType =
+  | 'run:created'
+  | 'run:started'
+  | 'run:completed'
+  | 'run:awaiting'
+  | 'run:failed'
 
 /** Callback invoked when a run event fires. */
 export type RunEventHandler = (run: Run) => void
@@ -45,4 +63,10 @@ export interface RunEngineOptions {
    * Override in tests to control timing deterministically.
    */
   delayFn?: (minMs: number, maxMs: number) => number
+  /**
+   * Probability that a mock run (no executor) will produce a clarifying question
+   * instead of a result. Must be in the range [0, 1].
+   * Default: 0.3 (30% chance of asking a question).
+   */
+  mockQuestionProbability?: number
 }

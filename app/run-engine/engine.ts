@@ -8,7 +8,7 @@ import type {
   RunEventHandler,
   RunEngineOptions,
 } from './types'
-import { generateResult } from './results'
+import { generateResult, generateQuestion } from './results'
 
 /** Agent metadata the engine needs to generate results. */
 export interface AgentMeta {
@@ -45,7 +45,11 @@ function generateId(): string {
  *   startRun()   → Run(status='running')
  *                  – With executor: awaits executor(), then completes / fails.
  *                  – Without executor: falls back to mock (random delay + template).
- *   [resolution] → Run(status='completed' | 'failed')
+ *                    The mock randomly resolves to either:
+ *                      • 'completed' with a result string, or
+ *                      • 'awaiting' with a clarifying question string
+ *                    (controlled by RunEngineOptions.mockQuestionProbability)
+ *   [resolution] → Run(status='completed' | 'awaiting' | 'failed')
  *
  * Usage:
  * // Mock mode (no real LLM):
@@ -66,6 +70,7 @@ export class RunEngine {
   private readonly _minDelayMs: number
   private readonly _maxDelayMs: number
   private readonly _delayFn: (minMs: number, maxMs: number) => number
+  private readonly _mockQuestionProbability: number
   /** Tracks pending timeout handles so they can be cleared if needed. */
   private readonly _pendingTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -73,6 +78,7 @@ export class RunEngine {
     this._minDelayMs = options.minDelayMs ?? 2_000
     this._maxDelayMs = options.maxDelayMs ?? 6_000
     this._delayFn = options.delayFn ?? defaultDelayFn
+    this._mockQuestionProbability = options.mockQuestionProbability ?? 0.3
   }
 
   // -------------------------------------------------------------------------
@@ -227,22 +233,42 @@ export class RunEngine {
     this._emit('run:failed', failed)
   }
 
-  /** Complete a run using the mock result generator (legacy / demo mode). */
+  /**
+   * Complete a mock run by randomly producing either:
+   *   • a result string → status 'completed' + 'run:completed' event
+   *   • a question string → status 'awaiting' + 'run:awaiting' event
+   *
+   * The probability of the question path is controlled by _mockQuestionProbability.
+   */
   private _completeRunWithMock(runId: string): void {
     const run = this._runs.get(runId)
     if (!run || run.status !== 'running') return
 
     const meta = this._agentMeta.get(runId) ?? { name: 'Agent', role: 'Agent' }
-    const result = generateResult(meta.name, meta.role, run.taskDescription)
 
-    const completed: Run = {
-      ...run,
-      status: 'completed',
-      completedAt: Date.now(),
-      result,
+    if (Math.random() < this._mockQuestionProbability) {
+      // Question path — agent needs clarification before continuing
+      const question = generateQuestion(meta.name, meta.role, run.taskDescription)
+      const awaiting: Run = {
+        ...run,
+        status: 'awaiting',
+        completedAt: Date.now(),
+        question,
+      }
+      this._runs.set(runId, awaiting)
+      this._emit('run:awaiting', awaiting)
+    } else {
+      // Result path — agent completed the task
+      const result = generateResult(meta.name, meta.role, run.taskDescription)
+      const completed: Run = {
+        ...run,
+        status: 'completed',
+        completedAt: Date.now(),
+        result,
+      }
+      this._runs.set(runId, completed)
+      this._emit('run:completed', completed)
     }
-    this._runs.set(runId, completed)
-    this._emit('run:completed', completed)
   }
 
   private _getOrThrow(runId: string): Run {

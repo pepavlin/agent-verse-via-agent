@@ -230,6 +230,7 @@ User submits task (AgentPanel)
        └─ RunEngine.createRun() + startRun()
             ├─ run:started   → agentRunInfoRef[agentId] = runStarted()
             ├─ run:completed → agentRunInfoRef[agentId] = runCompleted()
+            ├─ run:awaiting  → agentRunInfoRef[agentId] = runCompleted()  (same glow)
             └─ run:failed    → agentRunInfoRef[agentId] = runFailed()
 
 pixi ticker (every frame)
@@ -337,7 +338,10 @@ The Run engine manages the lifecycle of task executions ("runs"). It lives entir
 
 ```
 createRun()  ──►  pending
-startRun()   ──►  running  ──► [2–6 s delay] ──►  completed
+                     │
+startRun()   ──►  running  ──► [2–6 s delay] ──┬──►  completed  (result set)
+                                                ├──►  awaiting   (question set, mock only)
+                                                └──►  failed     (error set)
 ```
 
 | State | Description |
@@ -345,7 +349,8 @@ startRun()   ──►  running  ──► [2–6 s delay] ──►  completed
 | `pending` | Run created, not yet started |
 | `running` | Run is executing; a completion timer is scheduled |
 | `completed` | Run finished; `result` text is available |
-| `failed` | Reserved for future error handling |
+| `awaiting` | Agent raised a clarifying question; `question` text is available (mock mode only) |
+| `failed` | Run terminated with an error; `error` text is available |
 
 ### Public API
 
@@ -376,31 +381,47 @@ engine.off('run:created', handler)
 | `run:created` | After `createRun()` — status is `pending` |
 | `run:started` | After `startRun()` — status is `running` |
 | `run:completed` | After the delay expires — status is `completed`, `result` is set |
-| `run:failed` | Reserved for future use |
+| `run:awaiting` | After the delay expires (mock only) — status is `awaiting`, `question` is set |
+| `run:failed` | On executor error — status is `failed`, `error` is set |
 
 ### Configuration
 
 ```ts
 new RunEngine({
-  minDelayMs: 2000,      // default
-  maxDelayMs: 6000,      // default
-  delayFn: (min, max) => /* custom delay */ // injectable for tests
+  minDelayMs: 2000,              // default
+  maxDelayMs: 6000,              // default
+  delayFn: (min, max) => ...,   // injectable for tests
+  mockQuestionProbability: 0.3,  // 30% chance of question in mock mode (default)
 })
 ```
 
-### Result Generation
+### Result and Question Generation
 
-`generateResult(agentName, agentRole, taskDescription, pickIndex?)` is a pure function
-that selects one of several plain-prose result templates and fills in agent context.
-An optional `pickIndex` enables deterministic selection in tests.
+Both generators are pure functions in `results.ts`:
+
+- `generateResult(agentName, agentRole, taskDescription, pickIndex?)` — selects one of 8 completion templates.
+- `generateQuestion(agentName, agentRole, taskDescription, pickIndex?)` — selects one of 8 clarifying-question templates.
+
+An optional `pickIndex` enables deterministic template selection in tests.
+
+### Mock mode — result vs question
+
+When `startRun()` is called without an executor the engine schedules a timeout.
+After the delay:
+
+1. `Math.random()` is compared to `mockQuestionProbability`.
+2. If the random value is **below** the probability → question path: status becomes `awaiting`, `run:awaiting` is emitted.
+3. Otherwise → result path: status becomes `completed`, `run:completed` is emitted.
+
+The real LLM executor path is unaffected and always resolves to `completed` or `failed`.
 
 ### Modules
 
 | File | Purpose |
 |---|---|
 | `types.ts` | `Run`, `RunStatus`, `RunEventType`, `RunEventHandler`, `RunEngineOptions` |
-| `results.ts` | `generateResult()`, `RESULT_TEMPLATE_COUNT`, template array |
-| `engine.ts` | `RunEngine` class, `AgentMeta` interface |
+| `results.ts` | `generateResult()`, `RESULT_TEMPLATE_COUNT`, `generateQuestion()`, `QUESTION_TEMPLATE_COUNT` |
+| `engine.ts` | `RunEngine` class, `AgentMeta` interface, `RunExecutor` type |
 | `index.ts` | Re-exports for external consumers |
 
 ## Delegation Scene (`/delegation`)

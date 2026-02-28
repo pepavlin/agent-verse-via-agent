@@ -1,20 +1,40 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { RunEngine } from '../app/run-engine/engine'
-import { generateResult, RESULT_TEMPLATE_COUNT } from '../app/run-engine/results'
+import {
+  generateResult,
+  RESULT_TEMPLATE_COUNT,
+  generateQuestion,
+  QUESTION_TEMPLATE_COUNT,
+} from '../app/run-engine/results'
 import type { Run, RunEventType } from '../app/run-engine/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Create an engine with an instant delay (0 ms) for timer-based tests. */
+/**
+ * Create an engine with an instant delay (0 ms) for timer-based tests.
+ * mockQuestionProbability is set to 0 so mock runs always produce a result
+ * (deterministic for existing tests).
+ */
 function instantEngine() {
-  return new RunEngine({ delayFn: () => 0 })
+  return new RunEngine({ delayFn: () => 0, mockQuestionProbability: 0 })
 }
 
-/** Create an engine with a fixed delay for controlled timer tests. */
+/**
+ * Create an engine with a fixed delay for controlled timer tests.
+ * mockQuestionProbability is set to 0 so mock runs always produce a result.
+ */
 function fixedDelayEngine(delayMs: number) {
-  return new RunEngine({ delayFn: () => delayMs })
+  return new RunEngine({ delayFn: () => delayMs, mockQuestionProbability: 0 })
+}
+
+/**
+ * Create an engine that always produces a question (probability = 1).
+ * Useful for deterministic tests of the 'awaiting' path.
+ */
+function questionEngine(delayMs = 0) {
+  return new RunEngine({ delayFn: () => delayMs, mockQuestionProbability: 1 })
 }
 
 const AGENT_ID = 'agent-alice'
@@ -277,7 +297,8 @@ describe('RunEngine — completion after delay', () => {
   })
 
   it('handles multiple runs completing independently', () => {
-    const engine = new RunEngine({ delayFn: (_min, _max) => 1_000 })
+    // Use mockQuestionProbability: 0 so both runs deterministically reach 'completed'
+    const engine = new RunEngine({ delayFn: (_min, _max) => 1_000, mockQuestionProbability: 0 })
     const r1 = engine.createRun('agent-alice', 'Alice', 'Explorer', 'Task A')
     const r2 = engine.createRun('agent-bob', 'Bob', 'Builder', 'Task B')
 
@@ -293,7 +314,8 @@ describe('RunEngine — completion after delay', () => {
   it('delay falls within [minDelayMs, maxDelayMs] by default', () => {
     // Verify by observing that completion does not happen before minDelayMs
     // and does happen by maxDelayMs.
-    const engine = new RunEngine({ minDelayMs: 2_000, maxDelayMs: 6_000 })
+    // mockQuestionProbability: 0 so the terminal state is deterministically 'completed'.
+    const engine = new RunEngine({ minDelayMs: 2_000, maxDelayMs: 6_000, mockQuestionProbability: 0 })
     const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
     engine.startRun(run.id)
 
@@ -431,5 +453,178 @@ describe('RunEngine — querying', () => {
     vi.runAllTimers()
     expect(engine.getRun(run.id)!.status).toBe('completed')
     vi.useRealTimers()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// generateQuestion (pure function)
+// ---------------------------------------------------------------------------
+
+describe('generateQuestion', () => {
+  it('returns a non-empty string', () => {
+    const q = generateQuestion('Alice', 'Explorer', 'Explore the map')
+    expect(q.length).toBeGreaterThan(0)
+  })
+
+  it('includes the agent name in the question', () => {
+    const q = generateQuestion('Alice', 'Explorer', 'Some task')
+    expect(q).toContain('Alice')
+  })
+
+  it('returns different questions for different agents', () => {
+    const q1 = generateQuestion('Alice', 'Explorer', 'Same task', 0)
+    const q2 = generateQuestion('Bob', 'Builder', 'Same task', 0)
+    expect(q1).not.toBe(q2)
+  })
+
+  it('accepts a pickIndex to select a specific template deterministically', () => {
+    const q1 = generateQuestion('Alice', 'Explorer', 'Task', 0)
+    const q2 = generateQuestion('Alice', 'Explorer', 'Task', 0)
+    expect(q1).toBe(q2)
+  })
+
+  it('wraps pickIndex correctly for negative values', () => {
+    const q = generateQuestion('Alice', 'Explorer', 'Task', -1)
+    expect(q.length).toBeGreaterThan(0)
+  })
+
+  it('all templates produce non-empty strings', () => {
+    for (let i = 0; i < QUESTION_TEMPLATE_COUNT; i++) {
+      const q = generateQuestion('Alice', 'Explorer', 'Do something', i)
+      expect(q.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RunEngine — mock question mode (mockQuestionProbability)
+// ---------------------------------------------------------------------------
+
+describe('RunEngine — mock question mode', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('always produces awaiting status when probability is 1', () => {
+    const engine = questionEngine()
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+    vi.runAllTimers()
+
+    expect(engine.getRun(run.id)!.status).toBe('awaiting')
+  })
+
+  it('sets a non-empty question string when awaiting', () => {
+    const engine = questionEngine()
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+    vi.runAllTimers()
+
+    const awaiting = engine.getRun(run.id)!
+    expect(awaiting.question).toBeDefined()
+    expect(awaiting.question!.length).toBeGreaterThan(0)
+  })
+
+  it('question contains the agent name', () => {
+    const engine = questionEngine()
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+    vi.runAllTimers()
+
+    expect(engine.getRun(run.id)!.question).toContain(AGENT_NAME)
+  })
+
+  it('does not set result when awaiting', () => {
+    const engine = questionEngine()
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+    vi.runAllTimers()
+
+    expect(engine.getRun(run.id)!.result).toBeUndefined()
+  })
+
+  it('sets completedAt when transitioning to awaiting', () => {
+    const engine = questionEngine()
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+    vi.runAllTimers()
+
+    const awaiting = engine.getRun(run.id)!
+    expect(awaiting.completedAt).toBeDefined()
+    expect(awaiting.completedAt).toBeGreaterThanOrEqual(awaiting.startedAt!)
+  })
+
+  it('emits run:awaiting event with awaiting run', () => {
+    const handler = vi.fn<[Run], void>()
+    const engine = questionEngine()
+    engine.on('run:awaiting', handler)
+
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+    vi.runAllTimers()
+
+    expect(handler).toHaveBeenCalledOnce()
+    const emitted = handler.mock.calls[0][0]
+    expect(emitted.status).toBe('awaiting')
+    expect(emitted.id).toBe(run.id)
+    expect(emitted.question).toBeDefined()
+  })
+
+  it('does not emit run:completed when awaiting', () => {
+    const completedHandler = vi.fn()
+    const engine = questionEngine()
+    engine.on('run:completed', completedHandler)
+
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+    vi.runAllTimers()
+
+    expect(completedHandler).not.toHaveBeenCalled()
+  })
+
+  it('never produces awaiting when probability is 0', () => {
+    const engine = instantEngine() // mockQuestionProbability: 0
+    const awaitingHandler = vi.fn()
+    engine.on('run:awaiting', awaitingHandler)
+
+    for (let i = 0; i < 5; i++) {
+      const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+      engine.startRun(run.id)
+    }
+    vi.runAllTimers()
+
+    expect(awaitingHandler).not.toHaveBeenCalled()
+  })
+
+  it('full lifecycle emits created → started → awaiting in order', () => {
+    const events: RunEventType[] = []
+    const engine = questionEngine()
+
+    engine.on('run:created', () => events.push('run:created'))
+    engine.on('run:started', () => events.push('run:started'))
+    engine.on('run:awaiting', () => events.push('run:awaiting'))
+    engine.on('run:completed', () => events.push('run:completed'))
+
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+    vi.runAllTimers()
+
+    expect(events).toEqual(['run:created', 'run:started', 'run:awaiting'])
+  })
+
+  it('respects the configured delay before emitting awaiting', () => {
+    const engine = new RunEngine({ delayFn: () => 3_000, mockQuestionProbability: 1 })
+    const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
+    engine.startRun(run.id)
+
+    vi.advanceTimersByTime(2_999)
+    expect(engine.getRun(run.id)!.status).toBe('running')
+
+    vi.advanceTimersByTime(1)
+    expect(engine.getRun(run.id)!.status).toBe('awaiting')
   })
 })
