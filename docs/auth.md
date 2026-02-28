@@ -139,7 +139,7 @@ The mock path (no executor) remains intact for testing and demo purposes.
 | `DATABASE_URL` | ✓ | SQLite file path, e.g. `file:./prisma/dev.db` |
 | `ENCRYPTION_KEY` | ✓ | 64-char hex string (32 bytes) for AES-256-GCM |
 | `NEXTAUTH_SECRET` | ✓ | Random secret for JWT signing |
-| `NEXTAUTH_URL` | ✓ | Base URL of the app (e.g. `http://localhost:3000`) |
+| `NEXTAUTH_URL` | ✓ | Full base URL of the app (e.g. `http://localhost:3000` locally, `https://your-domain.com` in production — must match the actual scheme+host seen by the browser) |
 
 Generate secrets:
 ```bash
