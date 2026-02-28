@@ -27,7 +27,7 @@ cp .env.example .env.local
 Required values in `.env.local`:
 
 ```env
-DATABASE_URL=file:./dev.db
+DATABASE_URL=file:./prisma/dev.db
 ENCRYPTION_KEY=<64 hex chars — generate with: openssl rand -hex 32>
 NEXTAUTH_SECRET=<random secret — generate with: openssl rand -base64 32>
 NEXTAUTH_URL=http://localhost:3000
@@ -36,7 +36,9 @@ NEXTAUTH_URL=http://localhost:3000
 2. Run database migrations:
 
 ```bash
-npx prisma migrate dev
+npx prisma migrate deploy
+# or for first-time setup:
+npx prisma db push
 ```
 
 3. Start the dev server:
@@ -57,7 +59,9 @@ docker compose up --build
 
 ## Authentication
 
-Users register with email and password. Sessions are managed server-side via NextAuth.js JWT strategy. No email verification required for MVP.
+Users register with email and password. Sessions are managed server-side via NextAuth.js JWT strategy (30-day expiry). All routes are protected by `middleware.ts` — unauthenticated requests are automatically redirected to `/login`.
+
+No email verification required for MVP.
 
 ## API Key Management (BYOK)
 
