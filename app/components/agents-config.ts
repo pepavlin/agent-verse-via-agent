@@ -22,6 +22,15 @@ export interface AgentDef {
    * and compose their results before completing the parent run.
    */
   childAgentIds?: string[]
+  /**
+   * Monotonically increasing version counter for this agent's mutable configuration
+   * (name, goal, persona). Starts at 1 and is incremented each time the user edits
+   * the agent via the Edit panel. This version is snapshotted into every run at
+   * creation time so that in-flight runs can be traced back to the config that was
+   * active when they were started, and so that resumed runs always use the original
+   * configuration rather than any later edits.
+   */
+  configVersion: number
 }
 
 export const AGENTS: AgentDef[] = [
@@ -36,6 +45,7 @@ export const AGENTS: AgentDef[] = [
     persona: 'Curious and bold. Always the first to venture into unknown territory.',
     // Alice delegates field work to Bob (Builder) and Carol (Scout)
     childAgentIds: ['agent-bob', 'agent-carol'],
+    configVersion: 1,
   },
   {
     id: 'agent-bob',
@@ -46,6 +56,7 @@ export const AGENTS: AgentDef[] = [
     startRow: 15,
     goal: 'Construct and maintain structures across the grid',
     persona: 'Methodical and reliable. Prefers a solid plan before starting any project.',
+    configVersion: 1,
   },
   {
     id: 'agent-carol',
@@ -56,6 +67,7 @@ export const AGENTS: AgentDef[] = [
     startRow: 30,
     goal: 'Gather intelligence and report back quickly',
     persona: 'Fast and observant. Never lingers — always on the move.',
+    configVersion: 1,
   },
   {
     id: 'agent-dave',
@@ -66,5 +78,6 @@ export const AGENTS: AgentDef[] = [
     startRow: 38,
     goal: 'Protect key locations and prevent intrusions',
     persona: 'Steadfast and vigilant. Takes responsibility seriously and never abandons a post.',
+    configVersion: 1,
   },
 ]

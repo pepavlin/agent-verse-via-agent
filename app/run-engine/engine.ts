@@ -8,6 +8,7 @@ import type {
   RunEventHandler,
   RunEngineOptions,
   MockLLMResponse,
+  AgentConfigSnapshot,
 } from './types'
 import { generateResult, generateQuestion, composeDelegatedResults } from './results'
 import type { ChildRunOutcome } from './results'
@@ -29,6 +30,12 @@ export interface ChildAgentDef {
   agentName: string
   /** Role label used for result generation. */
   agentRole: string
+  /**
+   * Optional configuration snapshot captured when the parent run was created.
+   * When provided, it is stored in the child run so that config changes after
+   * delegation starts do not affect child execution.
+   */
+  configSnapshot?: AgentConfigSnapshot
 }
 
 /**
@@ -136,6 +143,9 @@ export class RunEngine {
    * @param agentRole       Role label used for result generation
    * @param taskDescription Plain-language description of the task
    * @param parentRunId     Optional: ID of the parent run (for child/sub-runs)
+   * @param configSnapshot  Optional: immutable snapshot of the agent configuration
+   *                        at run creation time. When provided, it is stored on the
+   *                        run so that subsequent config edits do not affect this run.
    * @returns               The newly created Run
    */
   createRun(
@@ -144,6 +154,7 @@ export class RunEngine {
     agentRole: string,
     taskDescription: string,
     parentRunId?: string,
+    configSnapshot?: AgentConfigSnapshot,
   ): Run {
     const run: Run = {
       id: generateId(),
@@ -152,6 +163,9 @@ export class RunEngine {
       status: 'pending',
       createdAt: Date.now(),
       ...(parentRunId !== undefined && { parentRunId }),
+      // Defensive shallow copy: all fields are primitives, so spread is sufficient.
+      // This ensures the stored snapshot is immutable with respect to the caller's object.
+      ...(configSnapshot !== undefined && { configSnapshot: { ...configSnapshot } }),
     }
     // Store agent meta alongside the run for result generation later
     this._agentMeta.set(run.id, { name: agentName, role: agentRole })
@@ -247,8 +261,9 @@ export class RunEngine {
     agentRole: string,
     taskDescription: string,
     executor?: RunExecutor,
+    configSnapshot?: AgentConfigSnapshot,
   ): Run {
-    const run = this.createRun(agentId, agentName, agentRole, taskDescription)
+    const run = this.createRun(agentId, agentName, agentRole, taskDescription, undefined, configSnapshot)
     this.startRun(run.id, executor)
     // Return the freshly updated 'running' snapshot from the internal map.
     return this.getRun(run.id)!
@@ -405,8 +420,10 @@ export class RunEngine {
     this._emit('run:delegating', delegating)
 
     // Create child runs, all linked to the parent
+    // Each child run receives its own config snapshot (if provided) so that
+    // edits to agent config after delegation starts do not affect child execution.
     const childRuns: Run[] = childDefs.map((def) =>
-      this.createRun(def.agentId, def.agentName, def.agentRole, delegating.taskDescription, runId),
+      this.createRun(def.agentId, def.agentName, def.agentRole, delegating.taskDescription, runId, def.configSnapshot),
     )
 
     // Update parent with childRunIds

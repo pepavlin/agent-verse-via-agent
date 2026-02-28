@@ -11,6 +11,7 @@ import { drawStickFigure } from './agent-drawing'
 import AgentPanel, { type RunTaskPayload, type EditSavePayload } from './AgentPanel'
 import { RunEngine } from '../run-engine'
 import type { ChildAgentDef } from '../run-engine'
+import type { AgentConfigSnapshot } from '../run-engine/types'
 import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from './agent-run-state'
 import { RUNE_CHARS, RUNE_COUNT, calcRuneOrbit, calcRuneFlash } from './agent-runes'
 import { useInbox } from './use-inbox'
@@ -22,6 +23,26 @@ import type { AgentRunParams } from '../../lib/llm'
 // Re-export so external code can import from either location
 export { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
 export type { GridObject } from './grid-config'
+
+// ---------------------------------------------------------------------------
+// Config snapshot helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Capture an immutable snapshot of the agent's mutable configuration fields.
+ * This snapshot is stored on the run at creation time so that any subsequent
+ * edits to the agent (name, goal, persona) do not affect in-flight runs.
+ */
+function snapshotAgentConfig(def: AgentDef): AgentConfigSnapshot {
+  return {
+    id: def.id,
+    name: def.name,
+    role: def.role,
+    ...(def.goal !== undefined && { goal: def.goal }),
+    ...(def.persona !== undefined && { persona: def.persona }),
+    configVersion: def.configVersion,
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -737,7 +758,13 @@ export default function Grid2D() {
 
     const isDelegation = childDefs.length > 0
 
-    const run = engine.createRun(payload.agentId, def.name, def.role, payload.task)
+    // Capture an immutable snapshot of the agent's config at this exact moment.
+    // This ensures that any subsequent edits to the agent (name, goal, persona)
+    // do not affect this run — the snapshot is stored on the Run object and used
+    // for all execution steps, including delegation and resume.
+    const configSnapshot = snapshotAgentConfig(def)
+
+    const run = engine.createRun(payload.agentId, def.name, def.role, payload.task, undefined, configSnapshot)
 
     // Store params for potential resume (we need taskDescription + agent context)
     runParamsRef.current.set(run.id, {
@@ -897,30 +924,57 @@ export default function Grid2D() {
 
     // Start the run — with or without children
     if (isDelegation) {
+      // Build child agent defs with config snapshots captured NOW (before any edits).
+      // Snapshots are stored in the child Run objects via startRunWithChildren → createRun,
+      // ensuring that edits made after delegation starts do not affect child execution.
+      const childSnapshotMap = new Map<string, AgentConfigSnapshot>(
+        childDefs.map((cd) => [cd.id, snapshotAgentConfig(cd)]),
+      )
       const childAgentDefs: ChildAgentDef[] = childDefs.map((cd) => ({
         agentId: cd.id,
         agentName: cd.name,
         agentRole: cd.role,
+        configSnapshot: childSnapshotMap.get(cd.id),
       }))
 
-      // Factory: each child gets its own executor calling /api/run
+      // Factory: each child gets its own executor using the SNAPSHOTTED config.
+      // We use the snapshot map (captured above) rather than looking up agentDefs
+      // at executor call time, which could return a post-edit config.
       const childExecutorFactory = (childAgentId: string) => {
-        const childDef = agentDefs.find((d) => d.id === childAgentId)
-        if (!childDef) return async () => `Child agent ${childAgentId} not found.`
-        return buildRunExecutor(childDef, payload.task)
+        const snapshot = childSnapshotMap.get(childAgentId)
+        if (!snapshot) return async () => `Child agent ${childAgentId} not found.`
+        // Convert snapshot to minimal AgentDef shape for buildRunExecutor
+        const snapshotDef: AgentDef = {
+          id: snapshot.id,
+          name: snapshot.name,
+          role: snapshot.role,
+          color: 0,
+          startCol: 0,
+          startRow: 0,
+          goal: snapshot.goal,
+          persona: snapshot.persona,
+          configVersion: snapshot.configVersion,
+        }
+        return buildRunExecutor(snapshotDef, payload.task)
       }
 
-      // Parent executor factory: receives completed child runs for synthesis
+      // Parent executor factory: receives completed child runs for synthesis.
+      // Uses the parent's config snapshot (captured above) and child run snapshots
+      // for labelling — never the current (potentially edited) agentDefs.
       const parentExecutorFactory = (completedChildRuns: import('../run-engine').Run[]) => {
         const childContext = completedChildRuns
           .map((cr) => {
-            const childDef = agentDefs.find((d) => d.id === cr.agentId)
-            const label = `[${childDef?.name ?? cr.agentId} — ${childDef?.role ?? ''}]`
+            // Prefer the config snapshot stored on the child run; fall back to ID.
+            const snap = cr.configSnapshot
+            const label = snap
+              ? `[${snap.name} — ${snap.role}]`
+              : `[${cr.agentId}]`
             return cr.result
               ? `${label}\n${cr.result}`
               : `${label} (failed)\n${cr.error ?? 'Unknown error'}`
           })
           .join('\n\n')
+        // Use the parent's snapshotted config (def is captured at handleRunTask call time)
         return buildRunExecutor(def, payload.task, undefined, undefined, childContext)
       }
 
@@ -936,35 +990,71 @@ export default function Grid2D() {
   /**
    * Handle user submitting an answer to a question.
    * Works for both wait-delivery (QuestionModal) and inbox-delivery (inline form).
+   *
+   * Config isolation: we always use the config snapshot stored on the run at creation
+   * time, NOT the current `agentDefs` state. This ensures that edits made to the agent
+   * while the run was in 'awaiting' state (waiting for a user answer) have no effect
+   * on the resumed execution — the same model, persona, and goal are used throughout
+   * the entire run lifecycle.
    */
   const handleReplyToQuestion = (runId: string, answer: string) => {
     const engine = runEngineRef.current
     const run = engine.getRun(runId)
     if (!run || run.status !== 'awaiting') return
 
+    // Close the wait-delivery modal if open (do this early, before async work)
+    setPendingQuestion(null)
+
+    // Prefer the config snapshot stored on the run (set at run creation time).
+    // This is the primary mechanism ensuring config isolation for resumed runs.
+    if (run.configSnapshot) {
+      const snap = run.configSnapshot
+      const snapshotDef: AgentDef = {
+        id: snap.id,
+        name: snap.name,
+        role: snap.role,
+        color: 0,
+        startCol: 0,
+        startRow: 0,
+        goal: snap.goal,
+        persona: snap.persona,
+        configVersion: snap.configVersion,
+      }
+      engine.resumeRun(
+        runId,
+        answer,
+        buildRunExecutor(snapshotDef, run.taskDescription, run.question, answer),
+      )
+      return
+    }
+
+    // Fallback for runs created before config versioning was introduced
+    // (no configSnapshot present). Use params from runParamsRef if available.
     const params = runParamsRef.current.get(runId)
     if (!params) {
       // Mock mode — no params stored; resume without executor
       engine.resumeRun(runId, answer)
-      setPendingQuestion(null)
       return
     }
 
-    // Find the agent def to get current name/goal/persona (may have been edited)
-    const def = agentDefs.find((d) => d.name === params.agentName)
-
-    // Close the wait-delivery modal if open
-    setPendingQuestion(null)
+    // Build a minimal AgentDef from stored params. We use run.agentId (stable)
+    // rather than searching by name (which may have changed).
+    const fallbackDef: AgentDef = {
+      id: run.agentId,
+      name: params.agentName,
+      role: params.agentRole,
+      color: 0,
+      startCol: 0,
+      startRow: 0,
+      goal: params.agentGoal,
+      persona: params.agentPersona,
+      configVersion: 0,
+    }
 
     engine.resumeRun(
       runId,
       answer,
-      buildRunExecutor(
-        def ?? { id: '', name: params.agentName, role: params.agentRole, color: 0, startCol: 0, startRow: 0, goal: params.agentGoal, persona: params.agentPersona },
-        params.taskDescription,
-        run.question,
-        answer,
-      ),
+      buildRunExecutor(fallbackDef, params.taskDescription, run.question, answer),
     )
   }
 
@@ -983,11 +1073,20 @@ export default function Grid2D() {
   }
 
   const handleEditSave = (payload: EditSavePayload) => {
-    // Update mutable agent definitions
+    // Update mutable agent definitions and increment configVersion.
+    // Incrementing configVersion ensures any new runs started after this edit
+    // will carry a different version in their snapshot, making it easy to trace
+    // which config was active when each run was created.
     setAgentDefs((prev) =>
       prev.map((def) =>
         def.id === payload.agentId
-          ? { ...def, name: payload.name, goal: payload.goal, persona: payload.persona }
+          ? {
+              ...def,
+              name: payload.name,
+              goal: payload.goal,
+              persona: payload.persona,
+              configVersion: def.configVersion + 1,
+            }
           : def,
       ),
     )

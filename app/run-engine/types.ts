@@ -14,6 +14,32 @@
  */
 export type RunStatus = 'pending' | 'running' | 'delegating' | 'completed' | 'awaiting' | 'failed'
 
+/**
+ * Immutable snapshot of the agent configuration captured at run creation time.
+ *
+ * This snapshot is stored with the run so that any later changes to the agent's
+ * configuration (name, goal, persona) do not affect in-flight or awaiting runs.
+ * The `configVersion` field identifies which version of the configuration was
+ * active when the run was created.
+ */
+export interface AgentConfigSnapshot {
+  /** Agent unique identifier. */
+  id: string
+  /** Agent display name at the time the run was created. */
+  name: string
+  /** Agent role label at the time the run was created. */
+  role: string
+  /** Agent goal/mission at the time the run was created. */
+  goal?: string
+  /** Agent persona/personality at the time the run was created. */
+  persona?: string
+  /**
+   * Monotonically increasing version number for this agent's configuration.
+   * Incremented each time the agent's mutable properties (name, goal, persona) are edited.
+   */
+  configVersion: number
+}
+
 /** A single task execution record. */
 export interface Run {
   /** Unique run identifier. */
@@ -54,6 +80,18 @@ export interface Run {
    * Set when the parent enters 'delegating' state.
    */
   childRunIds?: string[]
+  /**
+   * Immutable snapshot of the agent configuration captured at run creation time.
+   *
+   * Storing this snapshot ensures that changes to the agent's config (editing
+   * name, goal, or persona) never affect runs that are already in-flight or
+   * in 'awaiting' state. The executor and any resume logic should use this
+   * snapshot instead of looking up the current agent configuration.
+   *
+   * Optional for backward compatibility with runs created before versioning
+   * was introduced.
+   */
+  configSnapshot?: AgentConfigSnapshot
 }
 
 /** Events emitted by the RunEngine. */

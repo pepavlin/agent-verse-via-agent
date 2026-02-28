@@ -336,6 +336,104 @@ Pure helper functions are in `app/components/agent-runes.ts` and covered by unit
 
 These functions have no pixi.js dependency and are covered by unit tests in `tests/agent-run-effects.test.ts`.
 
+## Agent Configuration Versioning
+
+### Problem
+
+Before versioning was introduced, editing an agent's configuration (name, goal, persona) while a run was in the `'awaiting'` state would corrupt the resumed execution. The resume code searched for the agent **by name** — so renaming the agent would produce a "not found" result, and any config change would silently use the new values instead of the original ones.
+
+### Solution: Config snapshots + `configVersion`
+
+Two cooperating mechanisms ensure that in-flight runs are always executed with the configuration that was active when they were created:
+
+#### 1. `configVersion` in `AgentDef`
+
+```ts
+interface AgentDef {
+  // ... existing fields ...
+  configVersion: number  // starts at 1, incremented on every Edit save
+}
+```
+
+- All agents ship with `configVersion: 1` in the static `AGENTS` array.
+- `handleEditSave` increments `configVersion` each time the user saves changes via the Edit panel.
+- This makes it easy to detect "which version of Alice ran task X?" by inspecting `run.configSnapshot.configVersion`.
+
+#### 2. `AgentConfigSnapshot` stored on `Run`
+
+```ts
+interface AgentConfigSnapshot {
+  id: string
+  name: string
+  role: string
+  goal?: string
+  persona?: string
+  configVersion: number
+}
+
+interface Run {
+  // ... existing fields ...
+  configSnapshot?: AgentConfigSnapshot  // captured at createRun() time
+}
+```
+
+The snapshot is captured in `Grid2D.handleRunTask` using the helper `snapshotAgentConfig(def)` and passed to `RunEngine.createRun()`:
+
+```ts
+const configSnapshot = snapshotAgentConfig(def)         // capture NOW
+const run = engine.createRun(agentId, name, role, task, undefined, configSnapshot)
+```
+
+The engine stores a **defensive shallow copy** of the snapshot so the caller cannot accidentally mutate it after run creation.
+
+**Child runs in delegation** also receive their own snapshots:
+
+```ts
+const childAgentDefs: ChildAgentDef[] = childDefs.map((cd) => ({
+  agentId: cd.id,
+  agentName: cd.name,
+  agentRole: cd.role,
+  configSnapshot: snapshotAgentConfig(cd),  // captured at delegation time
+}))
+```
+
+`startRunWithChildren` forwards each child's snapshot to `createRun` when creating child runs.
+
+#### 3. `handleReplyToQuestion` uses the snapshot, not current state
+
+The original bug was in the resume handler:
+
+```ts
+// OLD (buggy): searched by name — breaks if name was changed
+const def = agentDefs.find((d) => d.name === params.agentName)
+```
+
+The fixed version prioritises the config snapshot stored on the run:
+
+```ts
+// NEW: use the immutable snapshot from the run
+if (run.configSnapshot) {
+  const snapshotDef = { id: snap.id, name: snap.name, ... }
+  engine.resumeRun(runId, answer, buildRunExecutor(snapshotDef, ...))
+  return
+}
+```
+
+This means the LLM call on resume uses exactly the same agent name, goal, and persona as the initial call — regardless of edits made while the run was waiting.
+
+### Files involved
+
+| File | Change |
+|---|---|
+| `app/run-engine/types.ts` | Added `AgentConfigSnapshot` interface; added `configSnapshot?` to `Run` |
+| `app/run-engine/engine.ts` | Extended `ChildAgentDef` with `configSnapshot?`; `createRun` accepts + stores snapshot; `startRunWithChildren` forwards child snapshots |
+| `app/components/agents-config.ts` | Added `configVersion: number` to `AgentDef`; all agents initialised with `configVersion: 1` |
+| `app/components/Grid2D.tsx` | `snapshotAgentConfig()` helper; snapshot captured in `handleRunTask`; child snapshots forwarded; `handleReplyToQuestion` uses snapshot; `handleEditSave` increments `configVersion` |
+| `tests/run-engine-config-snapshot.test.ts` | 15 tests covering snapshot storage, state-transition preservation, child delegation, and configVersion semantics |
+| `tests/agents.test.ts` | Added 2 tests verifying every agent has a valid `configVersion` |
+
+---
+
 ## Run Engine
 
 ### Overview
