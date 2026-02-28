@@ -18,6 +18,16 @@ import type { AgentDef } from './agents-config'
 export type PanelMode = 'run' | 'edit'
 export type DeliveryMode = 'wait' | 'inbox'
 
+/**
+ * Phase for wait-delivery runs.
+ *
+ * - idle    : no active run — show the normal Run form
+ * - running : run is executing — show a spinner
+ * - done    : run completed — show the result inline
+ * - error   : run failed — show the error message inline
+ */
+export type WaitRunPhase = 'idle' | 'running' | 'done' | 'error'
+
 export interface RunTaskPayload {
   agentId: string
   task: string
@@ -45,13 +55,34 @@ export interface AgentPanelProps {
    * Displayed in the Run panel so the user knows which sub-agents will be dispatched.
    */
   childAgentDefs?: AgentDef[]
+  /**
+   * Phase of the active wait-delivery run.
+   * Controls whether the Run tab shows the form, a spinner, or an inline result.
+   */
+  waitPhase?: WaitRunPhase
+  /** Result text displayed when waitPhase === 'done'. */
+  waitResult?: string
+  /** Error text displayed when waitPhase === 'error'. */
+  waitError?: string
+  /** Called when the user clicks "Nový úkol" to reset the panel to the form. */
+  onNewTask?: () => void
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function AgentPanel({ agentDef, onClose, onRunTask, onEditSave, childAgentDefs }: AgentPanelProps) {
+export default function AgentPanel({
+  agentDef,
+  onClose,
+  onRunTask,
+  onEditSave,
+  childAgentDefs,
+  waitPhase = 'idle',
+  waitResult,
+  waitError,
+  onNewTask,
+}: AgentPanelProps) {
   const [mode, setMode] = useState<PanelMode>('run')
 
   // Run mode state
@@ -166,14 +197,23 @@ export default function AgentPanel({ agentDef, onClose, onRunTask, onEditSave, c
         {/* ── Body ── */}
         <div className="px-4 py-4 flex flex-col gap-4">
           {mode === 'run' ? (
-            <RunForm
-              task={task}
-              delivery={delivery}
-              onTaskChange={setTask}
-              onDeliveryChange={setDelivery}
-              onSubmit={handleRun}
-              childAgentDefs={childAgentDefs}
-            />
+            waitPhase === 'idle' ? (
+              <RunForm
+                task={task}
+                delivery={delivery}
+                onTaskChange={setTask}
+                onDeliveryChange={setDelivery}
+                onSubmit={handleRun}
+                childAgentDefs={childAgentDefs}
+              />
+            ) : (
+              <WaitResult
+                phase={waitPhase}
+                result={waitResult}
+                error={waitError}
+                onNewTask={onNewTask}
+              />
+            )
           ) : (
             <EditForm
               name={editName}
@@ -342,6 +382,71 @@ function RadioOption({ id, name, value, label, checked, onChange }: RadioOptionP
       />
       {label}
     </label>
+  )
+}
+
+// ---- Wait delivery result ----
+
+interface WaitResultProps {
+  phase: 'running' | 'done' | 'error'
+  result?: string
+  error?: string
+  onNewTask?: () => void
+}
+
+/**
+ * Replaces the RunForm while a wait-delivery run is in progress or has finished.
+ *
+ * - running : shows a spinner with "Zpracovávám…"
+ * - done    : shows the result text with an emerald accent + "Nový úkol" button
+ * - error   : shows the error text with a red accent  + "Nový úkol" button
+ */
+function WaitResult({ phase, result, error, onNewTask }: WaitResultProps) {
+  if (phase === 'running') {
+    return (
+      <div
+        className="flex flex-col items-center gap-4 py-8 text-slate-300"
+        data-testid="wait-running-indicator"
+      >
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm">Zpracovávám…</span>
+      </div>
+    )
+  }
+
+  const isDone = phase === 'done'
+
+  return (
+    <div className="flex flex-col gap-4" data-testid="wait-result-panel">
+      {/* Status header */}
+      <div
+        className={`flex items-center gap-2 text-sm font-semibold ${
+          isDone ? 'text-emerald-400' : 'text-red-400'
+        }`}
+      >
+        <span aria-hidden="true">{isDone ? '✓' : '✕'}</span>
+        <span>{isDone ? 'Hotovo' : 'Chyba'}</span>
+      </div>
+
+      {/* Result / error body */}
+      <div
+        className={`rounded-lg px-3 py-3 text-sm text-slate-200 bg-slate-900 border leading-relaxed whitespace-pre-wrap ${
+          isDone ? 'border-emerald-800/40' : 'border-red-800/40'
+        }`}
+      >
+        {isDone ? (result ?? '') : (error ?? '')}
+      </div>
+
+      {/* Reset to form */}
+      <button
+        onClick={onNewTask}
+        className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors
+                   bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-slate-200"
+        data-testid="wait-new-task-btn"
+      >
+        Nový úkol
+      </button>
+    </div>
   )
 }
 

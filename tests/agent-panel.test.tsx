@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import AgentPanel from '../app/components/AgentPanel'
 import type { AgentDef } from '../app/components/agents-config'
-import type { RunTaskPayload, EditSavePayload } from '../app/components/AgentPanel'
+import type { RunTaskPayload, EditSavePayload, WaitRunPhase } from '../app/components/AgentPanel'
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -29,11 +29,16 @@ function renderPanel(
     onClose?: () => void
     onRunTask?: (p: RunTaskPayload) => void
     onEditSave?: (p: EditSavePayload) => void
+    onNewTask?: () => void
+    waitPhase?: WaitRunPhase
+    waitResult?: string
+    waitError?: string
   } = {},
 ) {
   const onClose = overrides.onClose ?? vi.fn()
   const onRunTask = overrides.onRunTask ?? vi.fn()
   const onEditSave = overrides.onEditSave ?? vi.fn()
+  const onNewTask = overrides.onNewTask ?? vi.fn()
 
   const result = render(
     <AgentPanel
@@ -41,10 +46,14 @@ function renderPanel(
       onClose={onClose}
       onRunTask={onRunTask}
       onEditSave={onEditSave}
+      onNewTask={onNewTask}
+      waitPhase={overrides.waitPhase}
+      waitResult={overrides.waitResult}
+      waitError={overrides.waitError}
     />,
   )
 
-  return { onClose, onRunTask, onEditSave, ...result }
+  return { onClose, onRunTask, onEditSave, onNewTask, ...result }
 }
 
 // ---------------------------------------------------------------------------
@@ -297,5 +306,106 @@ describe('AgentPanel state reset', () => {
     )
 
     expect(screen.getByTestId<HTMLTextAreaElement>('run-task-input').value).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Wait-delivery result states
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel wait-delivery: idle', () => {
+  it('shows the run form when waitPhase is idle (default)', () => {
+    renderPanel()
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+    expect(screen.queryByTestId('wait-running-indicator')).toBeNull()
+    expect(screen.queryByTestId('wait-result-panel')).toBeNull()
+  })
+
+  it('shows the run form when waitPhase is explicitly idle', () => {
+    renderPanel(mockAgent, { waitPhase: 'idle' })
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+})
+
+describe('AgentPanel wait-delivery: running', () => {
+  it('shows spinner and hides run form when waitPhase is running', () => {
+    renderPanel(mockAgent, { waitPhase: 'running' })
+    expect(screen.getByTestId('wait-running-indicator')).toBeInTheDocument()
+    expect(screen.queryByTestId('run-task-input')).toBeNull()
+    expect(screen.queryByTestId('wait-result-panel')).toBeNull()
+  })
+
+  it('shows "Zpracovávám…" text when running', () => {
+    renderPanel(mockAgent, { waitPhase: 'running' })
+    expect(screen.getByText('Zpracovávám…')).toBeInTheDocument()
+  })
+})
+
+describe('AgentPanel wait-delivery: done', () => {
+  it('shows result panel and hides run form when waitPhase is done', () => {
+    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Task completed.' })
+    expect(screen.getByTestId('wait-result-panel')).toBeInTheDocument()
+    expect(screen.queryByTestId('run-task-input')).toBeNull()
+    expect(screen.queryByTestId('wait-running-indicator')).toBeNull()
+  })
+
+  it('displays the result text', () => {
+    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Everything went well.' })
+    expect(screen.getByText('Everything went well.')).toBeInTheDocument()
+  })
+
+  it('shows "Hotovo" status label', () => {
+    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Done.' })
+    expect(screen.getByText('Hotovo')).toBeInTheDocument()
+  })
+
+  it('shows "Nový úkol" button', () => {
+    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Done.' })
+    expect(screen.getByTestId('wait-new-task-btn')).toBeInTheDocument()
+  })
+
+  it('calls onNewTask when "Nový úkol" is clicked', () => {
+    const { onNewTask } = renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Done.' })
+    fireEvent.click(screen.getByTestId('wait-new-task-btn'))
+    expect(onNewTask).toHaveBeenCalledOnce()
+  })
+})
+
+describe('AgentPanel wait-delivery: error', () => {
+  it('shows result panel with error when waitPhase is error', () => {
+    renderPanel(mockAgent, { waitPhase: 'error', waitError: 'Something failed.' })
+    expect(screen.getByTestId('wait-result-panel')).toBeInTheDocument()
+    expect(screen.queryByTestId('run-task-input')).toBeNull()
+    expect(screen.queryByTestId('wait-running-indicator')).toBeNull()
+  })
+
+  it('displays the error text', () => {
+    renderPanel(mockAgent, { waitPhase: 'error', waitError: 'Connection refused.' })
+    expect(screen.getByText('Connection refused.')).toBeInTheDocument()
+  })
+
+  it('shows "Chyba" status label', () => {
+    renderPanel(mockAgent, { waitPhase: 'error', waitError: 'Oops.' })
+    expect(screen.getByText('Chyba')).toBeInTheDocument()
+  })
+
+  it('calls onNewTask when "Nový úkol" is clicked in error state', () => {
+    const { onNewTask } = renderPanel(mockAgent, { waitPhase: 'error', waitError: 'Failed.' })
+    fireEvent.click(screen.getByTestId('wait-new-task-btn'))
+    expect(onNewTask).toHaveBeenCalledOnce()
+  })
+})
+
+describe('AgentPanel wait-delivery: Edit tab still works during non-idle phase', () => {
+  it('can switch to Edit tab while running', () => {
+    renderPanel(mockAgent, { waitPhase: 'running' })
+    fireEvent.click(screen.getByTestId('tab-edit'))
+    expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
+  })
+
+  it('can switch to Edit tab after done', () => {
+    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Finished.' })
+    fireEvent.click(screen.getByTestId('tab-edit'))
+    expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
   })
 })
