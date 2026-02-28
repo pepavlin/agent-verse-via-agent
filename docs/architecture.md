@@ -345,6 +345,44 @@ An optional `pickIndex` enables deterministic selection in tests.
 | `engine.ts` | `RunEngine` class, `AgentMeta` interface |
 | `index.ts` | Re-exports for external consumers |
 
+## Delegation Scene (`/delegation`)
+
+A self-contained animated 2D world that visualises the concept of **task delegation** between stick-figure agents. It lives at the `/delegation` route and uses the same Pixi.js stack as the main Grid2D world.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `app/delegation/page.tsx` | Next.js page that renders `<DelegationScene />` |
+| `app/components/DelegationScene.tsx` | Pixi.js scene component (canvas lifecycle, per-frame update) |
+| `app/components/delegation-logic.ts` | Pure logic: phase definitions, movement helpers, arc math (no pixi.js) |
+| `tests/delegation-scene.test.ts` | 29 unit tests for pure logic |
+
+### Phase state machine
+
+The scene cycles through 10 phases and then loops:
+
+| # | Phase | Description |
+|---|---|---|
+| 1 | `idle` | Manager notices a task, shows "?" bubble. Worker wanders. |
+| 2 | `calling` | Manager calls the worker: "Hey! I need your help!" |
+| 3 | `meeting` | Worker walks to manager's position. |
+| 4 | `briefing` | Manager delegates: "Build the bridge at Sector 7!" |
+| 5 | `acknowledging` | Worker acknowledges: "Understood! I'm on it!" |
+| 6 | `executing` | Animated dashed arrow + flying task card; worker walks to task. |
+| 7 | `working` | Worker at task location, animated "Working…" bubble. |
+| 8 | `completing` | Task done; task marker turns green with checkmark. |
+| 9 | `reporting` | Worker returns to manager. |
+| 10 | `celebrating` | Both celebrate; manager: "Excellent work!" |
+
+### Key design decisions
+
+- **Pure logic / rendering split:** `delegation-logic.ts` exports only pure functions (movement, phase math, arc interpolation). These are unit-tested without a browser or pixi.js context.
+- **Immutable agent updates:** `moveToward()` returns a new `SceneAgent` object rather than mutating in place, matching the style of `agent-logic.ts`.
+- **SceneAgent ↔ AgentState compatibility:** `SceneAgent` satisfies the structural shape of `AgentState` so `drawStickFigure()` from `agent-drawing.ts` can be reused unchanged.
+- **Speech bubbles as world objects:** Bubbles are `PIXI.Container` children of `app.stage`, positioned in world space each frame so they naturally follow agent movement.
+- **Progress indicator:** A thin blue bar at the very bottom of the scene fills left-to-right over the duration of each phase.
+
 ## Deployment
 
 ### Docker Compose
