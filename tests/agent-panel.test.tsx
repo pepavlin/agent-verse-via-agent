@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import AgentPanel from '../app/components/AgentPanel'
+import AgentPanel, {
+  getDateKey,
+  formatDateLabel,
+  groupEntriesWithSeparators,
+} from '../app/components/AgentPanel'
 import type { AgentDef } from '../app/components/agents-config'
 import type { RunTaskPayload, EditSavePayload, WaitRunPhase } from '../app/components/AgentPanel'
 import type { HistoryEntry } from '../app/components/use-agent-history'
@@ -579,7 +583,8 @@ describe('AgentPanel Log tab', () => {
     ]
     renderPanel(mockAgent, { history: entries })
     fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId('agent-history-list').children).toHaveLength(2)
+    // Both entries rendered (list may also contain date separators)
+    expect(screen.getAllByTestId(/^history-entry-/).length).toBe(2)
   })
 
   it('calls onClearHistory when clear button is clicked', () => {
@@ -607,5 +612,154 @@ describe('AgentPanel Log tab', () => {
     fireEvent.click(screen.getByTestId('tab-log'))
     fireEvent.click(screen.getByTestId('tab-run'))
     expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+
+  it('renders date separator between entries from different days', () => {
+    // Timestamps 2 days apart ensure two distinct date groups
+    const dayMs = 24 * 60 * 60 * 1000
+    const yesterday = Date.now() - dayMs
+    const entries = [
+      makeHistoryEntry({ timestamp: yesterday, task: 'Old task' }),
+      makeHistoryEntry({ timestamp: Date.now(), task: 'New task' }),
+    ]
+    renderPanel(mockAgent, { history: entries })
+    fireEvent.click(screen.getByTestId('tab-log'))
+
+    // Expect two separators (yesterday + today) for two different days
+    const yesterdayKey = getDateKey(yesterday)
+    const todayKey = getDateKey(Date.now())
+    expect(screen.getByTestId(`history-date-separator-sep-${yesterdayKey}`)).toBeInTheDocument()
+    expect(screen.getByTestId(`history-date-separator-sep-${todayKey}`)).toBeInTheDocument()
+  })
+
+  it('does not render a date separator between same-day entries', () => {
+    const now = Date.now()
+    // Both entries share the same timestamp (same day)
+    const entries = [
+      makeHistoryEntry({ timestamp: now, task: 'Morning task' }),
+      makeHistoryEntry({ timestamp: now + 1000, task: 'Afternoon task' }),
+    ]
+    renderPanel(mockAgent, { history: entries })
+    fireEvent.click(screen.getByTestId('tab-log'))
+
+    // Only one separator (for today) should appear
+    const todayKey = getDateKey(now)
+    expect(screen.getByTestId(`history-date-separator-sep-${todayKey}`)).toBeInTheDocument()
+    // There should be exactly one separator element
+    const separators = screen.queryAllByTestId(/^history-date-separator-/)
+    expect(separators).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Date utility functions — unit tests
+// ---------------------------------------------------------------------------
+
+describe('getDateKey', () => {
+  it('returns YYYY-MM-DD string from a Unix ms timestamp', () => {
+    // 2024-03-15T12:00:00Z
+    const ts = new Date('2024-03-15T12:00:00Z').getTime()
+    const key = getDateKey(ts)
+    expect(key).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('returns the same key for two timestamps on the same day', () => {
+    const morning = new Date('2024-03-15T08:00:00').getTime()
+    const evening = new Date('2024-03-15T22:00:00').getTime()
+    expect(getDateKey(morning)).toBe(getDateKey(evening))
+  })
+
+  it('returns different keys for consecutive days', () => {
+    const today = new Date('2024-03-15T12:00:00').getTime()
+    const tomorrow = new Date('2024-03-16T12:00:00').getTime()
+    expect(getDateKey(today)).not.toBe(getDateKey(tomorrow))
+  })
+})
+
+describe('formatDateLabel', () => {
+  it('returns "Dnes" for today\'s date key', () => {
+    const todayKey = getDateKey(Date.now())
+    expect(formatDateLabel(todayKey)).toBe('Dnes')
+  })
+
+  it('returns "Včera" for yesterday\'s date key', () => {
+    const yesterdayKey = getDateKey(Date.now() - 24 * 60 * 60 * 1000)
+    expect(formatDateLabel(yesterdayKey)).toBe('Včera')
+  })
+
+  it('returns a non-empty string for older dates', () => {
+    const oldDateKey = '2023-01-15'
+    const label = formatDateLabel(oldDateKey)
+    expect(label).toBeTruthy()
+    expect(label).not.toBe('Dnes')
+    expect(label).not.toBe('Včera')
+  })
+})
+
+describe('groupEntriesWithSeparators', () => {
+  const makeEntry = (ts: number, id: string): HistoryEntry => ({
+    id,
+    agentId: 'agent-test',
+    task: 'Some task',
+    type: 'done',
+    result: 'Done.',
+    timestamp: ts,
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(groupEntriesWithSeparators([])).toEqual([])
+  })
+
+  it('inserts a single separator before a single entry', () => {
+    const entry = makeEntry(Date.now(), 'e1')
+    const result = groupEntriesWithSeparators([entry])
+    expect(result).toHaveLength(2)
+    expect(result[0]).toMatchObject({ _type: 'date-separator' })
+    expect(result[1]).toBe(entry)
+  })
+
+  it('inserts one separator for same-day entries', () => {
+    const now = Date.now()
+    const e1 = makeEntry(now, 'e1')
+    const e2 = makeEntry(now + 1000, 'e2')
+    const result = groupEntriesWithSeparators([e1, e2])
+    // [separator, e1, e2]
+    expect(result).toHaveLength(3)
+    expect(result[0]).toMatchObject({ _type: 'date-separator' })
+    expect(result[1]).toBe(e1)
+    expect(result[2]).toBe(e2)
+  })
+
+  it('inserts two separators for entries on different days', () => {
+    const dayMs = 24 * 60 * 60 * 1000
+    const yesterday = Date.now() - dayMs
+    const e1 = makeEntry(yesterday, 'e1')
+    const e2 = makeEntry(Date.now(), 'e2')
+    const result = groupEntriesWithSeparators([e1, e2])
+    // [sep-yesterday, e1, sep-today, e2]
+    expect(result).toHaveLength(4)
+    expect(result[0]).toMatchObject({ _type: 'date-separator' })
+    expect(result[1]).toBe(e1)
+    expect(result[2]).toMatchObject({ _type: 'date-separator' })
+    expect(result[3]).toBe(e2)
+  })
+
+  it('preserves original entry order', () => {
+    const now = Date.now()
+    const entries = [
+      makeEntry(now, 'a'),
+      makeEntry(now + 1000, 'b'),
+      makeEntry(now + 2000, 'c'),
+    ]
+    const result = groupEntriesWithSeparators(entries)
+    const entryItems = result.filter((item) => !('_type' in item))
+    expect(entryItems).toEqual(entries)
+  })
+
+  it('separator label is "Dnes" for today\'s entries', () => {
+    const e1 = makeEntry(Date.now(), 'e1')
+    const result = groupEntriesWithSeparators([e1])
+    const sep = result[0] as { _type: string; label: string }
+    expect(sep.label).toBe('Dnes')
   })
 })

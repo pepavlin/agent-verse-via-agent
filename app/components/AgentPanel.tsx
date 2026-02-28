@@ -12,7 +12,7 @@
 // Design principle: each mode does exactly one thing, nothing more.
 // ---------------------------------------------------------------------------
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { AgentDef } from './agents-config'
 import type { HistoryEntry } from './use-agent-history'
 
@@ -554,6 +554,70 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
 }
 
 // ---------------------------------------------------------------------------
+// AgentHistoryView utilities — exported for unit testing
+// ---------------------------------------------------------------------------
+
+/** Derives a YYYY-MM-DD date key (local time) from a Unix ms timestamp. */
+export function getDateKey(ts: number): string {
+  const d = new Date(ts)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Returns a human-readable Czech label for a YYYY-MM-DD date key. */
+export function formatDateLabel(isoDate: string): string {
+  try {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const todayKey = getDateKey(today.getTime())
+    const yesterdayKey = getDateKey(yesterday.getTime())
+
+    if (isoDate === todayKey) return 'Dnes'
+    if (isoDate === yesterdayKey) return 'Včera'
+
+    // Parse as local noon to avoid DST boundary issues
+    const d = new Date(`${isoDate}T12:00:00`)
+    return d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
+  } catch {
+    return isoDate
+  }
+}
+
+/** Marker object inserted between groups of entries from different calendar days. */
+export interface DateSeparatorItem {
+  readonly _type: 'date-separator'
+  readonly key: string
+  readonly label: string
+}
+
+/**
+ * Interleaves DateSeparatorItem objects into an ordered entry list whenever
+ * the calendar date (derived from the Unix ms timestamp) changes.
+ * The original entry order (oldest → newest) is preserved.
+ */
+export function groupEntriesWithSeparators(
+  entries: HistoryEntry[],
+): Array<HistoryEntry | DateSeparatorItem> {
+  const result: Array<HistoryEntry | DateSeparatorItem> = []
+  let lastDateKey = ''
+
+  for (const entry of entries) {
+    const dateKey = getDateKey(entry.timestamp)
+    if (dateKey !== lastDateKey) {
+      result.push({ _type: 'date-separator', key: `sep-${dateKey}`, label: formatDateLabel(dateKey) })
+      lastDateKey = dateKey
+    }
+    result.push(entry)
+  }
+
+  return result
+}
+
+// ---------------------------------------------------------------------------
 // AgentHistoryView — chat-style log of past interactions
 // ---------------------------------------------------------------------------
 
@@ -613,6 +677,14 @@ interface AgentHistoryViewProps {
 
 function AgentHistoryView({ history, agentColor, onClear }: AgentHistoryViewProps) {
   const colorHex = `#${agentColor.toString(16).padStart(6, '0')}`
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom whenever entries change (including on initial mount)
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [history.length])
 
   if (history.length === 0) {
     return (
@@ -629,8 +701,7 @@ function AgentHistoryView({ history, agentColor, onClear }: AgentHistoryViewProp
     )
   }
 
-  // Reverse so newest entries are shown at the bottom (chat convention)
-  const ordered = [...history]
+  const items = groupEntriesWithSeparators(history)
 
   return (
     <div className="flex flex-col gap-1" data-testid="agent-history-view">
@@ -650,12 +721,32 @@ function AgentHistoryView({ history, agentColor, onClear }: AgentHistoryViewProp
         )}
       </div>
 
-      {/* Scrollable chat list */}
+      {/* Scrollable chat list with date separators */}
       <div
+        ref={scrollRef}
         className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-0.5"
         data-testid="agent-history-list"
       >
-        {ordered.map((entry) => {
+        {items.map((item) => {
+          // Date separator row
+          if ('_type' in item && item._type === 'date-separator') {
+            return (
+              <div
+                key={item.key}
+                className="flex items-center gap-2"
+                data-testid={`history-date-separator-${item.key}`}
+              >
+                <div className="flex-1 h-px bg-slate-800" />
+                <span className="text-[10px] text-slate-600 font-medium select-none whitespace-nowrap">
+                  {item.label}
+                </span>
+                <div className="flex-1 h-px bg-slate-800" />
+              </div>
+            )
+          }
+
+          // Regular history entry
+          const entry = item as HistoryEntry
           const cfg = HISTORY_TYPE_CONFIG[entry.type]
           return (
             <div

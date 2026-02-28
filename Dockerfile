@@ -42,6 +42,7 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 
 # Prisma CLI is needed to run migrate deploy at startup
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
 COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
 # SQLite database lives here; mount a volume over this path in production
