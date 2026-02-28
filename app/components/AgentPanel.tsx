@@ -4,32 +4,25 @@
 // AgentPanel — unified panel that opens when a user clicks on an agent.
 //
 // Modes:
-//   Run  — enter a task description, choose delivery (Počkat / Inbox),
-//          click Spustit. Clean, focused on the task at hand.
-//   Edit — change agent name, goal, and persona; click Uložit to save.
-//   Log  — chat-style history of all past interactions with this agent.
-//
-// Design principle: each mode does exactly one thing, nothing more.
+//   Chat — chat-style view combining interaction history with a task input
+//           at the bottom (messenger-style); default mode
+//   Edit — change agent name, goal, persona; click Uložit
 // ---------------------------------------------------------------------------
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { AgentDef } from './agents-config'
-import type { HistoryEntry } from './use-agent-history'
+import type { AgentHistoryEntry } from './use-agent-history'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type PanelMode = 'run' | 'edit' | 'log'
+export type PanelMode = 'chat' | 'edit'
 export type DeliveryMode = 'wait' | 'inbox'
 
 /**
  * Phase for wait-delivery runs.
- *
- * - idle    : no active run — show the normal Run form
- * - running : run is executing — show a spinner
- * - done    : run completed — show the result inline
- * - error   : run failed — show the error message inline
+ * Kept for API compatibility — the chat view shows results inline via history entries.
  */
 export type WaitRunPhase = 'idle' | 'running' | 'done' | 'error'
 
@@ -49,20 +42,22 @@ export interface EditSavePayload {
 export interface AgentPanelProps {
   /** Agent definition to display. Setting to null closes the panel. */
   agentDef: AgentDef | null
+  /** Interaction history entries for this agent (ordered oldest → newest). */
+  history?: AgentHistoryEntry[]
   /** Called when the user closes the panel (× button or backdrop). */
   onClose: () => void
-  /** Called when the user submits a task in Run mode. */
+  /** Called when the user submits a task in Chat mode. */
   onRunTask: (payload: RunTaskPayload) => void
   /** Called when the user saves edits in Edit mode. */
   onEditSave: (payload: EditSavePayload) => void
   /**
    * Optional list of child agent definitions resolved from agentDef.childAgentIds.
-   * When present, the submit button label changes to indicate delegation.
+   * When present, the submit button shows a delegation hint in the tooltip.
    */
   childAgentDefs?: AgentDef[]
   /**
    * Phase of the active wait-delivery run.
-   * Controls whether the Run tab shows the form, a spinner, or an inline result.
+   * Kept for API compatibility — results appear in the history chat feed.
    */
   waitPhase?: WaitRunPhase
   /** Result text displayed when waitPhase === 'done'. */
@@ -71,13 +66,14 @@ export interface AgentPanelProps {
   waitError?: string
   /** Called when the user clicks "Nový úkol" to reset the panel to the form. */
   onNewTask?: () => void
-  /**
-   * Ordered list of past interactions for this agent (oldest first).
-   * Displayed in the Log tab as a chat-style history.
-   */
-  history?: HistoryEntry[]
-  /** Called when the user clicks "Vymazat historii" in the Log tab. */
+  /** Called when the user clicks "Smazat historii" in the Chat view. */
   onClearHistory?: () => void
+  /**
+   * Increment this counter to scroll the chat to the bottom
+   * (e.g. immediately after a task is submitted).
+   * @deprecated No longer required — the chat auto-scrolls on history changes.
+   */
+  historyBump?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +82,7 @@ export interface AgentPanelProps {
 
 export default function AgentPanel({
   agentDef,
+  history = [],
   onClose,
   onRunTask,
   onEditSave,
@@ -94,12 +91,12 @@ export default function AgentPanel({
   waitResult,
   waitError,
   onNewTask,
-  history = [],
   onClearHistory,
+  historyBump = 0,
 }: AgentPanelProps) {
-  const [mode, setMode] = useState<PanelMode>('run')
+  const [mode, setMode] = useState<PanelMode>('chat')
 
-  // Run mode state
+  // Chat mode state
   const [task, setTask] = useState('')
   const [delivery, setDelivery] = useState<DeliveryMode>('wait')
 
@@ -114,16 +111,25 @@ export default function AgentPanel({
       setEditName(agentDef.name)
       setEditGoal(agentDef.goal ?? '')
       setEditPersona(agentDef.persona ?? '')
+      // Reset chat state on agent change
       setTask('')
       setDelivery('wait')
-      setMode('run')
+      setMode('chat')
     }
   }, [agentDef?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // historyBump kept for API compatibility — switching to chat is a no-op
+  // since chat is always the default/active view.
+  // (Auto-scroll is handled inside ChatView via history.length effect.)
+  useEffect(() => {
+    if (historyBump > 0) {
+      setMode('chat')
+    }
+  }, [historyBump])
 
   if (!agentDef) return null
 
   const colorHex = `#${agentDef.color.toString(16).padStart(6, '0')}`
-  const hasDelegation = childAgentDefs && childAgentDefs.length > 0
 
   // ---- Handlers ----
 
@@ -131,6 +137,7 @@ export default function AgentPanel({
     const trimmed = task.trim()
     if (!trimmed) return
     onRunTask({ agentId: agentDef!.id, task: trimmed, delivery })
+    setTask('')
   }
 
   function handleSave() {
@@ -201,53 +208,39 @@ export default function AgentPanel({
           </button>
         </div>
 
-        {/* ── Mode toggle (pill) ── */}
-        <div className="px-5 pt-4 pb-0">
-          <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5">
-            <ModeButton
-              label="Run"
-              active={mode === 'run'}
-              onClick={() => setMode('run')}
-              testId="tab-run"
-            />
-            <ModeButton
-              label="Edit"
-              active={mode === 'edit'}
-              onClick={() => setMode('edit')}
-              testId="tab-edit"
-            />
-            <ModeButton
-              label={`Log${history.length > 0 ? ` (${history.length})` : ''}`}
-              active={mode === 'log'}
-              onClick={() => setMode('log')}
-              testId="tab-log"
-            />
-          </div>
+        {/* ── Tab bar ── */}
+        <div className="flex border-b border-slate-700">
+          <TabButton
+            label={`Chat${history.length > 0 ? ` (${history.length})` : ''}`}
+            active={mode === 'chat'}
+            onClick={() => setMode('chat')}
+            testId="tab-chat"
+          />
+          <TabButton
+            label="Edit"
+            active={mode === 'edit'}
+            onClick={() => setMode('edit')}
+            testId="tab-edit"
+          />
         </div>
 
         {/* ── Body ── */}
-        <div className="px-5 py-4 flex flex-col gap-3">
-          {mode === 'run' ? (
-            <>
-              {waitPhase === 'idle' ? (
-                <RunForm
-                  task={task}
-                  delivery={delivery}
-                  onTaskChange={setTask}
-                  onDeliveryChange={setDelivery}
-                  onSubmit={handleRun}
-                  hasDelegation={hasDelegation ?? false}
-                />
-              ) : (
-                <WaitResult
-                  phase={waitPhase}
-                  result={waitResult}
-                  error={waitError}
-                  onNewTask={onNewTask}
-                />
-              )}
-            </>
-          ) : mode === 'edit' ? (
+        {mode === 'chat' && (
+          <ChatView
+            history={history}
+            agentName={agentDef.name}
+            agentColor={colorHex}
+            task={task}
+            delivery={delivery}
+            onTaskChange={setTask}
+            onDeliveryChange={setDelivery}
+            onSubmit={handleRun}
+            onClear={onClearHistory}
+          />
+        )}
+
+        {mode === 'edit' && (
+          <div className="px-5 py-4 flex flex-col gap-3">
             <EditForm
               name={editName}
               goal={editGoal}
@@ -257,14 +250,8 @@ export default function AgentPanel({
               onPersonaChange={setEditPersona}
               onSave={handleSave}
             />
-          ) : (
-            <AgentHistoryView
-              history={history}
-              agentColor={agentDef.color}
-              onClear={onClearHistory}
-            />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </>
   )
@@ -274,22 +261,22 @@ export default function AgentPanel({
 // Sub-components
 // ---------------------------------------------------------------------------
 
-interface ModeButtonProps {
+interface TabButtonProps {
   label: string
   active: boolean
   onClick: () => void
   testId: string
 }
 
-function ModeButton({ label, active, onClick, testId }: ModeButtonProps) {
+function TabButton({ label, active, onClick, testId }: TabButtonProps) {
   return (
     <button
       onClick={onClick}
       data-testid={testId}
-      className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all
+      className={`flex-1 py-2.5 text-sm font-medium transition-all border-b-2
         ${active
-          ? 'bg-slate-700 text-white shadow-sm'
-          : 'text-slate-500 hover:text-slate-300'
+          ? 'border-indigo-500 text-white'
+          : 'border-transparent text-slate-500 hover:text-slate-300'
         }`}
     >
       {label}
@@ -297,172 +284,188 @@ function ModeButton({ label, active, onClick, testId }: ModeButtonProps) {
   )
 }
 
-// ---- Run form ----
+// ---- Chat view (history + input combined) ----
 
-interface RunFormProps {
+interface ChatViewProps {
+  history: AgentHistoryEntry[]
+  agentName: string
+  agentColor: string
   task: string
   delivery: DeliveryMode
   onTaskChange: (v: string) => void
   onDeliveryChange: (v: DeliveryMode) => void
   onSubmit: () => void
-  /** Whether this agent delegates to child agents (changes button label). */
-  hasDelegation: boolean
+  onClear?: () => void
 }
 
-function RunForm({ task, delivery, onTaskChange, onDeliveryChange, onSubmit, hasDelegation }: RunFormProps) {
-  return (
-    <>
-      {/* Task textarea */}
-      <textarea
-        value={task}
-        onChange={(e) => onTaskChange(e.target.value)}
-        placeholder="Zadejte úkol pro agenta…"
-        rows={4}
-        className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-3.5 py-3
-                   text-sm text-slate-100 placeholder:text-slate-600
-                   resize-none focus:outline-none focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/50
-                   transition-colors"
-        data-testid="run-task-input"
-      />
+function ChatView({
+  history,
+  agentName,
+  agentColor,
+  task,
+  delivery,
+  onTaskChange,
+  onDeliveryChange,
+  onSubmit,
+  onClear,
+}: ChatViewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-      {/* Delivery toggle */}
-      <DeliveryToggle value={delivery} onChange={onDeliveryChange} />
-
-      {/* Submit */}
-      <button
-        onClick={onSubmit}
-        disabled={!task.trim()}
-        className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all
-                   bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
-                   text-white disabled:opacity-30 disabled:cursor-not-allowed
-                   shadow-sm"
-        data-testid="run-submit-btn"
-      >
-        {hasDelegation ? 'Spustit s delegací' : 'Spustit'}
-      </button>
-    </>
-  )
-}
-
-// ---- Delivery toggle (pill-style segmented control) ----
-
-interface DeliveryToggleProps {
-  value: DeliveryMode
-  onChange: (v: DeliveryMode) => void
-}
-
-function DeliveryToggle({ value, onChange }: DeliveryToggleProps) {
-  return (
-    <fieldset>
-      <legend className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2">
-        Doručení
-      </legend>
-      <div className="flex bg-slate-800/60 border border-slate-700/60 rounded-xl p-0.5 gap-0.5">
-        <DeliveryOption
-          id="delivery-wait"
-          label="Počkat"
-          active={value === 'wait'}
-          onClick={() => onChange('wait')}
-        />
-        <DeliveryOption
-          id="delivery-inbox"
-          label="Inbox"
-          active={value === 'inbox'}
-          onClick={() => onChange('inbox')}
-        />
-      </div>
-    </fieldset>
-  )
-}
-
-interface DeliveryOptionProps {
-  id: string
-  label: string
-  active: boolean
-  onClick: () => void
-}
-
-function DeliveryOption({ id, label, active, onClick }: DeliveryOptionProps) {
-  return (
-    <button
-      type="button"
-      id={id}
-      aria-pressed={active}
-      onClick={onClick}
-      className={`flex-1 py-1.5 text-sm rounded-lg transition-all font-medium
-        ${active
-          ? 'bg-slate-700 text-white shadow-sm'
-          : 'text-slate-500 hover:text-slate-300'
-        }`}
-    >
-      {label}
-    </button>
-  )
-}
-
-// ---- Wait delivery result ----
-
-interface WaitResultProps {
-  phase: 'running' | 'done' | 'error'
-  result?: string
-  error?: string
-  onNewTask?: () => void
-}
-
-/**
- * Replaces the RunForm while a wait-delivery run is in progress or has finished.
- *
- * - running : shows a spinner with "Zpracovávám…"
- * - done    : shows the result text with an emerald accent + "Nový úkol" button
- * - error   : shows the error text with a red accent  + "Nový úkol" button
- */
-function WaitResult({ phase, result, error, onNewTask }: WaitResultProps) {
-  if (phase === 'running') {
-    return (
-      <div
-        className="flex flex-col items-center gap-4 py-8 text-slate-400"
-        data-testid="wait-running-indicator"
-      >
-        <div className="w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-        <span className="text-sm">Zpracovávám…</span>
-      </div>
-    )
-  }
-
-  const isDone = phase === 'done'
+  // Scroll to bottom whenever entries change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [history.length])
 
   return (
-    <div className="flex flex-col gap-3" data-testid="wait-result-panel">
-      {/* Status header */}
-      <div
-        className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wider ${
-          isDone ? 'text-emerald-500' : 'text-red-500'
-        }`}
-      >
-        <span aria-hidden="true" className="text-sm">{isDone ? '✓' : '✕'}</span>
-        <span>{isDone ? 'Hotovo' : 'Chyba'}</span>
-      </div>
+    <div className="flex flex-col min-h-0">
+      {/* ── Message history ── */}
+      {history.length === 0 ? (
+        <div
+          className="flex flex-col items-center justify-center py-10 px-4 text-center"
+          data-testid="history-empty"
+        >
+          <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center mb-3">
+            <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <p className="text-slate-400 text-sm font-medium">Žádná historie</p>
+          <p className="text-slate-600 text-xs mt-1">Zadejte úkol níže a zahajte konverzaci</p>
+        </div>
+      ) : (
+        <div
+          ref={scrollRef}
+          className="flex flex-col gap-3 px-4 py-3 overflow-y-auto max-h-64"
+          data-testid="history-list"
+        >
+          {history.map((entry) => (
+            <HistoryEntry
+              key={entry.id}
+              entry={entry}
+              agentName={agentName}
+              agentColor={agentColor}
+            />
+          ))}
+        </div>
+      )}
 
-      {/* Result / error body */}
-      <div
-        className={`rounded-xl px-3.5 py-3 text-sm text-slate-200 bg-slate-800/60 border leading-relaxed whitespace-pre-wrap ${
-          isDone ? 'border-emerald-800/30' : 'border-red-800/30'
-        }`}
-      >
-        {isDone ? (result ?? '') : (error ?? '')}
-      </div>
+      {/* ── Input area ── */}
+      <div className="border-t border-slate-700 px-4 pt-3 pb-4 flex flex-col gap-2.5 bg-slate-800/80">
+        {/* Delivery choice */}
+        <div className="flex items-center gap-4">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            Doručení
+          </span>
+          <div className="flex gap-4">
+            <RadioOption
+              id="delivery-wait"
+              name="delivery"
+              value="wait"
+              label="Počkat"
+              checked={delivery === 'wait'}
+              onChange={() => onDeliveryChange('wait')}
+            />
+            <RadioOption
+              id="delivery-inbox"
+              name="delivery"
+              value="inbox"
+              label="Inbox"
+              checked={delivery === 'inbox'}
+              onChange={() => onDeliveryChange('inbox')}
+            />
+          </div>
+        </div>
 
-      {/* Reset to form */}
-      <button
-        onClick={onNewTask}
-        className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all
-                   bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300
-                   border border-slate-700/60"
-        data-testid="wait-new-task-btn"
-      >
-        Nový úkol
-      </button>
+        {/* Textarea + send button */}
+        <div className="flex gap-2 items-end">
+          <textarea
+            value={task}
+            onChange={(e) => onTaskChange(e.target.value)}
+            onKeyDown={(e) => {
+              // Ctrl+Enter or Cmd+Enter submits
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault()
+                onSubmit()
+              }
+            }}
+            placeholder="Zadejte úkol pro agenta…"
+            rows={2}
+            className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2
+                       text-sm text-slate-100 placeholder:text-slate-500
+                       resize-none focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
+                       transition-colors"
+            data-testid="run-task-input"
+          />
+          <button
+            onClick={onSubmit}
+            disabled={!task.trim()}
+            className="flex-shrink-0 px-3 py-2 rounded-lg text-sm font-semibold transition-colors
+                       bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
+                       text-white disabled:opacity-40 disabled:cursor-not-allowed h-[58px] w-[52px]
+                       flex items-center justify-center"
+            data-testid="run-submit-btn"
+            title="Spustit (Ctrl+Enter)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Footer: entry count + clear button */}
+        {history.length > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-slate-600">
+              {history.length} {history.length === 1 ? 'interakce' : history.length < 5 ? 'interakce' : 'interakcí'}
+            </span>
+            {onClear && (
+              <button
+                onClick={onClear}
+                className="text-[10px] text-slate-500 hover:text-red-400 transition-colors"
+                data-testid="history-clear-btn"
+              >
+                Smazat historii
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+// ---- Radio option for delivery choice ----
+
+interface RadioOptionProps {
+  id: string
+  name: string
+  value: string
+  label: string
+  checked: boolean
+  onChange: () => void
+}
+
+function RadioOption({ id, name, value, label, checked, onChange }: RadioOptionProps) {
+  return (
+    <label
+      htmlFor={id}
+      className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300 select-none"
+    >
+      <input
+        type="radio"
+        id={id}
+        name={name}
+        value={value}
+        checked={checked}
+        onChange={onChange}
+        className="accent-indigo-500 w-3.5 h-3.5 cursor-pointer"
+      />
+      {label}
+    </label>
   )
 }
 
@@ -553,162 +556,107 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
   )
 }
 
-// ---------------------------------------------------------------------------
-// AgentHistoryView — chat-style log of past interactions
-// ---------------------------------------------------------------------------
+// ---- History entry ----
 
-const HISTORY_TYPE_CONFIG: Record<
-  HistoryEntry['type'],
-  {
-    icon: string
-    label: string
-    agentBubbleBg: string
-    agentBubbleText: string
-    agentBubbleBorder: string
-    labelColor: string
-  }
-> = {
-  done: {
-    icon: '✓',
-    label: 'Hotovo',
-    agentBubbleBg: 'bg-emerald-950/60',
-    agentBubbleText: 'text-emerald-100',
-    agentBubbleBorder: 'border-emerald-700/40',
-    labelColor: 'text-emerald-400',
-  },
-  question: {
-    icon: '?',
-    label: 'Otázka',
-    agentBubbleBg: 'bg-indigo-950/60',
-    agentBubbleText: 'text-indigo-100',
-    agentBubbleBorder: 'border-indigo-700/40',
-    labelColor: 'text-indigo-400',
-  },
-  error: {
-    icon: '✕',
-    label: 'Chyba',
-    agentBubbleBg: 'bg-red-950/60',
-    agentBubbleText: 'text-red-100',
-    agentBubbleBorder: 'border-red-700/40',
-    labelColor: 'text-red-400',
-  },
+interface HistoryEntryProps {
+  entry: AgentHistoryEntry
+  agentName: string
+  agentColor: string
 }
 
-/** Format a Unix timestamp as a human-readable relative or absolute string. */
-function formatTimestamp(ts: number): string {
-  const diffMs = Date.now() - ts
-  const diffMin = Math.floor(diffMs / 60_000)
-  const diffHr = Math.floor(diffMs / 3_600_000)
-  if (diffMin < 1) return 'právě teď'
-  if (diffMin < 60) return `před ${diffMin} min`
-  if (diffHr < 24) return `před ${diffHr} hod`
-  return new Date(ts).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })
-}
-
-interface AgentHistoryViewProps {
-  history: HistoryEntry[]
-  agentColor: number
-  onClear?: () => void
-}
-
-function AgentHistoryView({ history, agentColor, onClear }: AgentHistoryViewProps) {
-  const colorHex = `#${agentColor.toString(16).padStart(6, '0')}`
-
-  if (history.length === 0) {
-    return (
-      <div
-        className="flex flex-col items-center justify-center py-10 text-center"
-        data-testid="agent-history-empty"
-      >
-        <span className="text-3xl mb-2.5 opacity-20 select-none" aria-hidden="true">💬</span>
-        <p className="text-sm font-medium text-slate-500">Žádná historie</p>
-        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-          Spusťte úkol a výsledek se zobrazí zde
-        </p>
-      </div>
-    )
-  }
-
-  // Reverse so newest entries are shown at the bottom (chat convention)
-  const ordered = [...history]
+function HistoryEntry({ entry, agentName, agentColor }: HistoryEntryProps) {
+  const time = formatTime(entry.timestamp)
 
   return (
-    <div className="flex flex-col gap-1" data-testid="agent-history-view">
-      {/* Header with clear button */}
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
-          {history.length} {history.length === 1 ? 'interakce' : history.length < 5 ? 'interakce' : 'interakcí'}
-        </span>
-        {onClear && (
-          <button
-            onClick={onClear}
-            className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
-            data-testid="agent-history-clear-btn"
+    <div
+      className="flex flex-col gap-2"
+      data-testid={`history-entry-${entry.id}`}
+    >
+      {/* User task bubble (right-aligned) */}
+      <div className="flex flex-col items-end gap-1">
+        <div
+          className="max-w-[85%] bg-indigo-600/80 border border-indigo-500/50 rounded-2xl rounded-tr-sm
+                     px-3 py-2 text-sm text-white leading-relaxed"
+          data-testid={`history-task-${entry.id}`}
+        >
+          {entry.task}
+        </div>
+        <span className="text-[10px] text-slate-600 pr-1">{time}</span>
+      </div>
+
+      {/* Agent response bubble (left-aligned) */}
+      {entry.status === 'pending' && (
+        <div className="flex items-start gap-2">
+          <AgentAvatar color={agentColor} />
+          <div
+            className="flex items-center gap-2 bg-slate-700/60 border border-slate-600/50
+                       rounded-2xl rounded-tl-sm px-3 py-2"
+            data-testid={`history-pending-${entry.id}`}
           >
-            Vymazat
-          </button>
-        )}
-      </div>
+            <span className="flex gap-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
+            </span>
+            <span className="text-xs text-slate-400 italic">Zpracovávám…</span>
+          </div>
+        </div>
+      )}
 
-      {/* Scrollable chat list */}
-      <div
-        className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-0.5"
-        data-testid="agent-history-list"
-      >
-        {ordered.map((entry) => {
-          const cfg = HISTORY_TYPE_CONFIG[entry.type]
-          return (
+      {entry.status === 'done' && entry.result && (
+        <div className="flex items-start gap-2">
+          <AgentAvatar color={agentColor} />
+          <div className="flex flex-col gap-1 min-w-0">
             <div
-              key={entry.id}
-              className="flex flex-col gap-1.5"
-              data-testid={`history-entry-${entry.id}`}
+              className="max-w-[85%] bg-slate-700/60 border border-slate-600/50
+                         rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-slate-100 leading-relaxed"
+              data-testid={`history-result-${entry.id}`}
             >
-              {/* User bubble — task description (right-aligned) */}
-              <div className="flex justify-end">
-                <div
-                  className="
-                    max-w-[85%] px-3 py-2 rounded-xl rounded-tr-sm
-                    bg-slate-700/80 border border-slate-600/40
-                    text-xs text-slate-200 leading-relaxed
-                  "
-                  data-testid={`history-task-${entry.id}`}
-                >
-                  {entry.task}
-                </div>
-              </div>
-
-              {/* Agent bubble — result/question/error (left-aligned) */}
-              <div className="flex items-start gap-1.5">
-                {/* Agent colour dot */}
-                <span
-                  className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-                  style={{ background: colorHex }}
-                  aria-hidden="true"
-                />
-                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                  {/* Type badge */}
-                  <span className={`text-[10px] font-semibold ${cfg.labelColor} flex items-center gap-1`}>
-                    <span aria-hidden="true">{cfg.icon}</span>
-                    {cfg.label}
-                    <span className="text-slate-600 font-normal ml-1">{formatTimestamp(entry.timestamp)}</span>
-                  </span>
-                  {/* Result text */}
-                  <div
-                    className={`
-                      px-3 py-2 rounded-xl rounded-tl-sm
-                      ${cfg.agentBubbleBg} border ${cfg.agentBubbleBorder}
-                      text-xs ${cfg.agentBubbleText} leading-relaxed
-                    `}
-                    data-testid={`history-result-${entry.id}`}
-                  >
-                    {entry.result}
-                  </div>
-                </div>
-              </div>
+              {entry.result}
             </div>
-          )
-        })}
-      </div>
+            <span className="text-[10px] text-slate-600 pl-1">{agentName}</span>
+          </div>
+        </div>
+      )}
+
+      {entry.status === 'error' && entry.result && (
+        <div className="flex items-start gap-2">
+          <AgentAvatar color={agentColor} />
+          <div className="flex flex-col gap-1 min-w-0">
+            <div
+              className="max-w-[85%] bg-red-900/30 border border-red-700/50
+                         rounded-2xl rounded-tl-sm px-3 py-2 text-sm text-red-300 leading-relaxed"
+              data-testid={`history-error-${entry.id}`}
+            >
+              {entry.result}
+            </div>
+            <span className="text-[10px] text-slate-600 pl-1">{agentName}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function AgentAvatar({ color }: { color: string }) {
+  return (
+    <div
+      className="w-6 h-6 rounded-full flex-shrink-0 mt-1 ring-1 ring-white/10"
+      style={{ background: color }}
+      aria-hidden="true"
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+function formatTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
 }

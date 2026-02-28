@@ -1,44 +1,70 @@
 'use client'
 
 // ---------------------------------------------------------------------------
-// useAgentHistory — manages per-agent interaction history
+// useAgentHistory — manages per-agent chat-style interaction history.
 //
-// Stores a chronological log of agent run outcomes (completed tasks,
-// questions asked, and errors) in a chat-style history for each agent.
+// Each agent accumulates a list of AgentHistoryEntry records in chronological
+// order (newest last). Entries start as 'pending' when the task is submitted
+// and transition to 'done' or 'error' when the run resolves.
 //
-// History entries are kept in insertion order (oldest first) so that
-// the UI can show them in reverse order (newest first / newest at bottom
-// depending on layout preference).
+// Persistence:
+//   Entries are stored in localStorage so history survives page refreshes.
+//   Key: HISTORY_STORAGE_KEY (a single flat array of all entries).
 // ---------------------------------------------------------------------------
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/**
- * Visual category of a history entry — mirrors the run terminal states.
- * - 'done'     : run completed successfully
- * - 'question' : run asked a clarifying question (paused or answered)
- * - 'error'    : run failed
- */
-export type HistoryEntryType = 'done' | 'question' | 'error'
+export type HistoryEntryStatus = 'pending' | 'done' | 'error'
 
-/** A single recorded interaction between the user and an agent. */
-export interface HistoryEntry {
-  /** Unique entry identifier (cuid-style). */
+export interface AgentHistoryEntry {
+  /** Matches the RunEngine run id so we can correlate updates. */
   id: string
-  /** ID of the agent this entry belongs to. */
+  /** Which agent this entry belongs to. */
   agentId: string
-  /** The user's task description (acts as the "user message" in chat view). */
+  /** The user's task description (displayed as a user bubble). */
   task: string
-  /** Terminal state type — determines visual styling. */
-  type: HistoryEntryType
-  /** Agent response text: result prose, question text, or error description. */
-  result: string
-  /** Unix timestamp (ms) when this entry was recorded. */
-  timestamp: number
+  /** The agent's response or error message (displayed as an agent bubble). */
+  result?: string
+  /** Current lifecycle state. */
+  status: HistoryEntryStatus
+  /** ISO-8601 creation timestamp. */
+  timestamp: string
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const HISTORY_STORAGE_KEY = 'agent-verse:history'
+/** Maximum entries retained per agent (oldest dropped first). */
+const MAX_ENTRIES_PER_AGENT = 50
+
+// ---------------------------------------------------------------------------
+// Storage helpers
+// ---------------------------------------------------------------------------
+
+function loadFromStorage(): AgentHistoryEntry[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY)
+    if (!raw) return []
+    return JSON.parse(raw) as AgentHistoryEntry[]
+  } catch {
+    return []
+  }
+}
+
+function saveToStorage(entries: AgentHistoryEntry[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries))
+  } catch {
+    // Storage full or unavailable — silently ignore
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -47,23 +73,23 @@ export interface HistoryEntry {
 
 export interface UseAgentHistoryReturn {
   /**
-   * Retrieve all history entries for a given agent, oldest first.
-   * Returns an empty array if the agent has no history.
+   * Returns all history entries for a given agent, ordered oldest → newest.
+   * Returns an empty array if there are no entries for that agent.
    */
-  getHistory: (agentId: string) => HistoryEntry[]
-  /** Record a new interaction outcome for an agent. */
-  addEntry: (entry: Omit<HistoryEntry, 'id'>) => void
-  /** Remove all history entries for a specific agent. */
-  clearHistory: (agentId: string) => void
-}
-
-// ---------------------------------------------------------------------------
-// Simple ID generator — avoids external deps
-// ---------------------------------------------------------------------------
-
-let _seq = 0
-function genId(): string {
-  return `hist-${Date.now()}-${(++_seq).toString(36)}`
+  getEntries: (agentId: string) => AgentHistoryEntry[]
+  /**
+   * Adds a new 'pending' entry to the history for an agent.
+   * @param entryId  The run id (used later for updateEntry).
+   */
+  addEntry: (agentId: string, entryId: string, task: string) => void
+  /**
+   * Transitions an existing entry to 'done' or 'error' and sets the result.
+   */
+  updateEntry: (entryId: string, updates: { result: string; status: 'done' | 'error' }) => void
+  /**
+   * Removes all history entries for a specific agent.
+   */
+  clearAgentHistory: (agentId: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -71,39 +97,74 @@ function genId(): string {
 // ---------------------------------------------------------------------------
 
 /**
- * useAgentHistory — pure React state management for per-agent interaction logs.
+ * useAgentHistory — pure state management for per-agent interaction history.
  *
- * Does not communicate with the run engine directly; the caller (Grid2D) is
- * responsible for calling `addEntry` when run events fire.
+ * Does NOT subscribe to RunEngine directly; coordination lives in the
+ * component that owns both RunEngine and this hook (Grid2D).
  */
 export function useAgentHistory(): UseAgentHistoryReturn {
-  // Map from agentId → ordered array of history entries (oldest first)
-  const [historyMap, setHistoryMap] = useState<Map<string, HistoryEntry[]>>(new Map())
+  // Flat list of all entries across all agents, kept in insertion order.
+  const [entries, setEntries] = useState<AgentHistoryEntry[]>([])
 
-  const getHistory = useCallback(
-    (agentId: string): HistoryEntry[] => {
-      return historyMap.get(agentId) ?? []
-    },
-    [historyMap],
+  // Hydrate from localStorage once on mount (client-side only).
+  useEffect(() => {
+    const stored = loadFromStorage()
+    if (stored.length > 0) {
+      setEntries(stored)
+    }
+  }, [])
+
+  // Persist to localStorage whenever entries change.
+  useEffect(() => {
+    saveToStorage(entries)
+  }, [entries])
+
+  // ---- Derived selector ----
+
+  const getEntries = useCallback(
+    (agentId: string): AgentHistoryEntry[] =>
+      entries.filter((e) => e.agentId === agentId),
+    [entries],
   )
 
-  const addEntry = useCallback((entry: Omit<HistoryEntry, 'id'>) => {
-    const withId: HistoryEntry = { ...entry, id: genId() }
-    setHistoryMap((prev) => {
-      const next = new Map(prev)
-      const existing = next.get(entry.agentId) ?? []
-      next.set(entry.agentId, [...existing, withId])
-      return next
+  // ---- Mutators ----
+
+  const addEntry = useCallback((agentId: string, entryId: string, task: string) => {
+    const newEntry: AgentHistoryEntry = {
+      id: entryId,
+      agentId,
+      task,
+      status: 'pending',
+      timestamp: new Date().toISOString(),
+    }
+
+    setEntries((prev) => {
+      // Enforce per-agent cap: keep only the newest MAX_ENTRIES_PER_AGENT - 1 existing
+      const agentEntries = prev.filter((e) => e.agentId === agentId)
+      let next = [...prev]
+      if (agentEntries.length >= MAX_ENTRIES_PER_AGENT) {
+        // Remove oldest entry for this agent
+        const oldestForAgent = prev.find((e) => e.agentId === agentId)!
+        next = next.filter((e) => e.id !== oldestForAgent.id)
+      }
+      return [...next, newEntry]
     })
   }, [])
 
-  const clearHistory = useCallback((agentId: string) => {
-    setHistoryMap((prev) => {
-      const next = new Map(prev)
-      next.delete(agentId)
-      return next
-    })
+  const updateEntry = useCallback(
+    (entryId: string, updates: { result: string; status: 'done' | 'error' }) => {
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id === entryId ? { ...e, result: updates.result, status: updates.status } : e,
+        ),
+      )
+    },
+    [],
+  )
+
+  const clearAgentHistory = useCallback((agentId: string) => {
+    setEntries((prev) => prev.filter((e) => e.agentId !== agentId))
   }, [])
 
-  return { getHistory, addEntry, clearHistory }
+  return { getEntries, addEntry, updateEntry, clearAgentHistory }
 }

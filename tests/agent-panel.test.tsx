@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import AgentPanel from '../app/components/AgentPanel'
 import type { AgentDef } from '../app/components/agents-config'
 import type { RunTaskPayload, EditSavePayload, WaitRunPhase } from '../app/components/AgentPanel'
-import type { HistoryEntry } from '../app/components/use-agent-history'
+import type { AgentHistoryEntry } from '../app/components/use-agent-history'
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -21,6 +21,32 @@ const mockAgent: AgentDef = {
   configVersion: 1,
 }
 
+const doneEntry: AgentHistoryEntry = {
+  id: 'run-1',
+  agentId: 'agent-test',
+  task: 'Explore the sector',
+  result: 'Exploration complete.',
+  status: 'done',
+  timestamp: new Date('2026-02-28T12:00:00Z').toISOString(),
+}
+
+const pendingEntry: AgentHistoryEntry = {
+  id: 'run-2',
+  agentId: 'agent-test',
+  task: 'Build something',
+  status: 'pending',
+  timestamp: new Date('2026-02-28T12:05:00Z').toISOString(),
+}
+
+const errorEntry: AgentHistoryEntry = {
+  id: 'run-3',
+  agentId: 'agent-test',
+  task: 'Scout the area',
+  result: 'API key missing.',
+  status: 'error',
+  timestamp: new Date('2026-02-28T12:10:00Z').toISOString(),
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -28,26 +54,28 @@ const mockAgent: AgentDef = {
 function renderPanel(
   agentDef: AgentDef | null = mockAgent,
   overrides: {
+    history?: AgentHistoryEntry[]
     onClose?: () => void
     onRunTask?: (p: RunTaskPayload) => void
     onEditSave?: (p: EditSavePayload) => void
-    onNewTask?: () => void
     onClearHistory?: () => void
+    onNewTask?: () => void
     waitPhase?: WaitRunPhase
     waitResult?: string
     waitError?: string
-    history?: HistoryEntry[]
   } = {},
 ) {
   const onClose = overrides.onClose ?? vi.fn()
   const onRunTask = overrides.onRunTask ?? vi.fn()
   const onEditSave = overrides.onEditSave ?? vi.fn()
-  const onNewTask = overrides.onNewTask ?? vi.fn()
   const onClearHistory = overrides.onClearHistory ?? vi.fn()
+  const onNewTask = overrides.onNewTask ?? vi.fn()
+  const history = overrides.history ?? []
 
   const result = render(
     <AgentPanel
       agentDef={agentDef}
+      history={history}
       onClose={onClose}
       onRunTask={onRunTask}
       onEditSave={onEditSave}
@@ -56,27 +84,10 @@ function renderPanel(
       waitPhase={overrides.waitPhase}
       waitResult={overrides.waitResult}
       waitError={overrides.waitError}
-      history={overrides.history}
     />,
   )
 
   return { onClose, onRunTask, onEditSave, onNewTask, onClearHistory, ...result }
-}
-
-// ---------------------------------------------------------------------------
-// History entry fixture helper
-// ---------------------------------------------------------------------------
-
-function makeHistoryEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
-  return {
-    id: `hist-${Math.random().toString(36).slice(2)}`,
-    agentId: 'agent-test',
-    task: 'Explore the northern sector',
-    type: 'done',
-    result: 'Northern sector fully mapped.',
-    timestamp: Date.now(),
-    ...overrides,
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -128,9 +139,19 @@ describe('AgentPanel close', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentPanel tabs', () => {
-  it('defaults to Run mode (task textarea is visible)', () => {
+  it('defaults to Chat mode (task textarea is visible)', () => {
     renderPanel()
     expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+
+  it('shows Chat tab button', () => {
+    renderPanel()
+    expect(screen.getByTestId('tab-chat')).toBeInTheDocument()
+  })
+
+  it('shows Edit tab button', () => {
+    renderPanel()
+    expect(screen.getByTestId('tab-edit')).toBeInTheDocument()
   })
 
   it('switches to Edit mode when Edit tab is clicked', () => {
@@ -140,41 +161,42 @@ describe('AgentPanel tabs', () => {
     expect(screen.queryByTestId('run-task-input')).toBeNull()
   })
 
-  it('switches back to Run mode when Run tab is clicked', () => {
+  it('switches back to Chat mode when Chat tab is clicked', () => {
     renderPanel()
     fireEvent.click(screen.getByTestId('tab-edit'))
-    fireEvent.click(screen.getByTestId('tab-run'))
+    fireEvent.click(screen.getByTestId('tab-chat'))
     expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+
+  it('Chat tab label shows entry count when history is non-empty', () => {
+    renderPanel(mockAgent, { history: [doneEntry, pendingEntry] })
+    const chatTab = screen.getByTestId('tab-chat')
+    expect(chatTab.textContent).toContain('2')
+  })
+
+  it('Chat tab label shows no count when history is empty', () => {
+    renderPanel(mockAgent, { history: [] })
+    const chatTab = screen.getByTestId('tab-chat')
+    expect(chatTab.textContent).not.toMatch(/\(\d+\)/)
+  })
+
+  it('does not render a separate History tab', () => {
+    renderPanel()
+    expect(screen.queryByTestId('tab-history')).toBeNull()
   })
 })
 
 // ---------------------------------------------------------------------------
-// Run mode — clean interface: only textarea, delivery choice, Spustit button
+// Chat mode — task input
 // ---------------------------------------------------------------------------
 
-describe('AgentPanel Run mode', () => {
-  it('shows only the task textarea, delivery toggle, and submit button', () => {
-    renderPanel()
-    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Počkat' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
-    expect(screen.getByTestId('run-submit-btn')).toBeInTheDocument()
-  })
-
-  it('does not show agent goal or persona in Run mode', () => {
-    renderPanel()
-    // Goal and persona are only available in Edit mode
-    expect(screen.queryByTestId('agent-context-section')).toBeNull()
-    expect(screen.queryByTestId('edit-goal-input')).toBeNull()
-    expect(screen.queryByTestId('edit-persona-input')).toBeNull()
-  })
-
-  it('Spustit button is disabled when task is empty', () => {
+describe('AgentPanel Chat mode — task input', () => {
+  it('send button is disabled when task is empty', () => {
     renderPanel()
     expect(screen.getByTestId('run-submit-btn')).toBeDisabled()
   })
 
-  it('Spustit button is enabled when task has text', () => {
+  it('send button is enabled when task has text', () => {
     renderPanel()
     fireEvent.change(screen.getByTestId('run-task-input'), {
       target: { value: 'Do something useful' },
@@ -195,20 +217,6 @@ describe('AgentPanel Run mode', () => {
     })
   })
 
-  it('calls onRunTask with delivery=inbox when Inbox button is selected', () => {
-    const { onRunTask } = renderPanel()
-    fireEvent.change(screen.getByTestId('run-task-input'), {
-      target: { value: 'Another task' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Inbox' }))
-    fireEvent.click(screen.getByTestId('run-submit-btn'))
-    expect(onRunTask).toHaveBeenCalledWith<[RunTaskPayload]>({
-      agentId: 'agent-test',
-      task: 'Another task',
-      delivery: 'inbox',
-    })
-  })
-
   it('does not call onRunTask when task is whitespace only', () => {
     const { onRunTask } = renderPanel()
     fireEvent.change(screen.getByTestId('run-task-input'), {
@@ -218,26 +226,37 @@ describe('AgentPanel Run mode', () => {
     expect(onRunTask).not.toHaveBeenCalled()
   })
 
-  it('shows delegation label when agent has child agents', () => {
-    const childAgent: AgentDef = { ...mockAgent, id: 'agent-child', name: 'Child' }
-    render(
-      <AgentPanel
-        agentDef={mockAgent}
-        onClose={vi.fn()}
-        onRunTask={vi.fn()}
-        onEditSave={vi.fn()}
-        childAgentDefs={[childAgent]}
-      />,
-    )
-    fireEvent.change(screen.getByTestId('run-task-input'), {
-      target: { value: 'Delegate this' },
-    })
-    expect(screen.getByTestId('run-submit-btn')).toHaveTextContent('Spustit s delegací')
+})
+
+// ---------------------------------------------------------------------------
+// Chat mode — history is always visible alongside the input
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel Chat mode — history visible with input', () => {
+  it('shows empty state AND input when there is no history', () => {
+    renderPanel(mockAgent, { history: [] })
+    expect(screen.getByTestId('history-empty')).toBeInTheDocument()
+    // Input is always present in chat mode
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+
+  it('shows history list AND input when history has entries', () => {
+    renderPanel(mockAgent, { history: [doneEntry] })
+    expect(screen.getByTestId('history-list')).toBeInTheDocument()
+    // Input is still visible below history
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+
+  it('task input and history list are simultaneously visible (no tab switch needed)', () => {
+    renderPanel(mockAgent, { history: [doneEntry, pendingEntry] })
+    expect(screen.getByTestId('history-list')).toBeInTheDocument()
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+    expect(screen.getByTestId('run-submit-btn')).toBeInTheDocument()
   })
 })
 
 // ---------------------------------------------------------------------------
-// Edit mode — name, goal, persona
+// Edit mode
 // ---------------------------------------------------------------------------
 
 describe('AgentPanel Edit mode', () => {
@@ -323,11 +342,180 @@ describe('AgentPanel Edit mode', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Chat mode — empty state
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel Chat mode — empty', () => {
+  it('shows empty state when there is no history', () => {
+    renderPanel(mockAgent, { history: [] })
+    expect(screen.getByTestId('history-empty')).toBeInTheDocument()
+  })
+
+  it('empty state contains a descriptive message', () => {
+    renderPanel(mockAgent, { history: [] })
+    expect(screen.getByText('Žádná historie')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Chat mode — with entries
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel Chat mode — entries', () => {
+  it('renders a done entry with task text and result', () => {
+    renderPanel(mockAgent, { history: [doneEntry] })
+
+    expect(screen.getByTestId(`history-entry-${doneEntry.id}`)).toBeInTheDocument()
+    expect(screen.getByTestId(`history-task-${doneEntry.id}`)).toHaveTextContent(doneEntry.task)
+    expect(screen.getByTestId(`history-result-${doneEntry.id}`)).toHaveTextContent(doneEntry.result!)
+  })
+
+  it('renders a pending entry with loading indicator', () => {
+    renderPanel(mockAgent, { history: [pendingEntry] })
+
+    expect(screen.getByTestId(`history-task-${pendingEntry.id}`)).toBeInTheDocument()
+    expect(screen.getByTestId(`history-pending-${pendingEntry.id}`)).toBeInTheDocument()
+    expect(screen.queryByTestId(`history-result-${pendingEntry.id}`)).toBeNull()
+  })
+
+  it('renders an error entry with error message', () => {
+    renderPanel(mockAgent, { history: [errorEntry] })
+
+    expect(screen.getByTestId(`history-error-${errorEntry.id}`)).toHaveTextContent(errorEntry.result!)
+  })
+
+  it('renders multiple entries', () => {
+    renderPanel(mockAgent, { history: [doneEntry, pendingEntry, errorEntry] })
+
+    expect(screen.getByTestId(`history-entry-${doneEntry.id}`)).toBeInTheDocument()
+    expect(screen.getByTestId(`history-entry-${pendingEntry.id}`)).toBeInTheDocument()
+    expect(screen.getByTestId(`history-entry-${errorEntry.id}`)).toBeInTheDocument()
+  })
+
+  it('shows the history list container', () => {
+    renderPanel(mockAgent, { history: [doneEntry] })
+    expect(screen.getByTestId('history-list')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Chat mode — clear button
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel Chat mode — clear', () => {
+  it('shows clear history button when there are entries', () => {
+    renderPanel(mockAgent, { history: [doneEntry] })
+    expect(screen.getByTestId('history-clear-btn')).toBeInTheDocument()
+  })
+
+  it('does not show clear button when history is empty', () => {
+    renderPanel(mockAgent, { history: [] })
+    expect(screen.queryByTestId('history-clear-btn')).toBeNull()
+  })
+
+  it('calls onClearHistory when clear button is clicked', () => {
+    const onClearHistory = vi.fn()
+    renderPanel(mockAgent, { history: [doneEntry], onClearHistory })
+    fireEvent.click(screen.getByTestId('history-clear-btn'))
+    expect(onClearHistory).toHaveBeenCalledOnce()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// historyBump — ensures chat mode stays active
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel historyBump', () => {
+  it('stays on Chat tab when historyBump is 0', () => {
+    renderPanel(mockAgent, {})
+    // By default historyBump=0 → Chat tab stays active (input visible)
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+
+  it('returns to Chat tab when historyBump becomes 1 (even from Edit tab)', () => {
+    const { rerender } = renderPanel(mockAgent, { history: [doneEntry] })
+
+    // Navigate to Edit tab
+    fireEvent.click(screen.getByTestId('tab-edit'))
+    expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
+
+    rerender(
+      <AgentPanel
+        agentDef={mockAgent}
+        history={[doneEntry]}
+        historyBump={1}
+        onClose={vi.fn()}
+        onRunTask={vi.fn()}
+        onEditSave={vi.fn()}
+        onClearHistory={vi.fn()}
+      />,
+    )
+
+    // After bump → Chat tab should be active (shows history + input)
+    expect(screen.queryByTestId('edit-name-input')).toBeNull()
+    expect(screen.getByTestId('history-list')).toBeInTheDocument()
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+
+  it('returns to Chat tab on each subsequent bump', () => {
+    const { rerender } = renderPanel(mockAgent, { history: [doneEntry] })
+
+    // Navigate away to Edit tab
+    fireEvent.click(screen.getByTestId('tab-edit'))
+    expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
+
+    // Bump → should switch back to Chat
+    rerender(
+      <AgentPanel
+        agentDef={mockAgent}
+        history={[doneEntry]}
+        historyBump={2}
+        onClose={vi.fn()}
+        onRunTask={vi.fn()}
+        onEditSave={vi.fn()}
+        onClearHistory={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByTestId('edit-name-input')).toBeNull()
+    expect(screen.getByTestId('history-list')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Task input is cleared after submission
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel task input cleared after submit', () => {
+  it('clears the task input after send button is clicked', () => {
+    renderPanel()
+    const input = screen.getByTestId('run-task-input') as HTMLTextAreaElement
+
+    fireEvent.change(input, { target: { value: 'Do something' } })
+    expect(input.value).toBe('Do something')
+
+    fireEvent.click(screen.getByTestId('run-submit-btn'))
+
+    expect(input.value).toBe('')
+  })
+
+  it('does not call onRunTask or clear input when task is empty', () => {
+    const { onRunTask } = renderPanel()
+    const input = screen.getByTestId('run-task-input') as HTMLTextAreaElement
+
+    fireEvent.click(screen.getByTestId('run-submit-btn'))
+
+    expect(onRunTask).not.toHaveBeenCalled()
+    expect(input.value).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // State reset on agent change
 // ---------------------------------------------------------------------------
 
 describe('AgentPanel state reset', () => {
-  it('resets to Run mode when a new agent is shown', () => {
+  it('resets to Chat mode when a new agent is shown', () => {
     const { rerender } = renderPanel()
     fireEvent.click(screen.getByTestId('tab-edit'))
     expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
@@ -340,9 +528,11 @@ describe('AgentPanel state reset', () => {
     rerender(
       <AgentPanel
         agentDef={anotherAgent}
+        history={[]}
         onClose={vi.fn()}
         onRunTask={vi.fn()}
         onEditSave={vi.fn()}
+        onClearHistory={vi.fn()}
       />,
     )
 
@@ -363,9 +553,11 @@ describe('AgentPanel state reset', () => {
     rerender(
       <AgentPanel
         agentDef={anotherAgent}
+        history={[]}
         onClose={vi.fn()}
         onRunTask={vi.fn()}
         onEditSave={vi.fn()}
+        onClearHistory={vi.fn()}
       />,
     )
 
@@ -396,216 +588,5 @@ describe('AgentPanel state reset', () => {
     fireEvent.click(screen.getByTestId('tab-edit'))
     expect(screen.getByTestId<HTMLInputElement>('edit-name-input').value).toBe('OtherBot')
     expect(screen.getByTestId<HTMLTextAreaElement>('edit-goal-input').value).toBe('Different goal')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Wait-delivery result states
-// ---------------------------------------------------------------------------
-
-describe('AgentPanel wait-delivery: idle', () => {
-  it('shows the run form when waitPhase is idle (default)', () => {
-    renderPanel()
-    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
-    expect(screen.queryByTestId('wait-running-indicator')).toBeNull()
-    expect(screen.queryByTestId('wait-result-panel')).toBeNull()
-  })
-
-  it('shows the run form when waitPhase is explicitly idle', () => {
-    renderPanel(mockAgent, { waitPhase: 'idle' })
-    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
-  })
-})
-
-describe('AgentPanel wait-delivery: running', () => {
-  it('shows spinner and hides run form when waitPhase is running', () => {
-    renderPanel(mockAgent, { waitPhase: 'running' })
-    expect(screen.getByTestId('wait-running-indicator')).toBeInTheDocument()
-    expect(screen.queryByTestId('run-task-input')).toBeNull()
-    expect(screen.queryByTestId('wait-result-panel')).toBeNull()
-  })
-
-  it('shows "Zpracovávám…" text when running', () => {
-    renderPanel(mockAgent, { waitPhase: 'running' })
-    expect(screen.getByText('Zpracovávám…')).toBeInTheDocument()
-  })
-})
-
-describe('AgentPanel wait-delivery: done', () => {
-  it('shows result panel and hides run form when waitPhase is done', () => {
-    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Task completed.' })
-    expect(screen.getByTestId('wait-result-panel')).toBeInTheDocument()
-    expect(screen.queryByTestId('run-task-input')).toBeNull()
-    expect(screen.queryByTestId('wait-running-indicator')).toBeNull()
-  })
-
-  it('displays the result text', () => {
-    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Everything went well.' })
-    expect(screen.getByText('Everything went well.')).toBeInTheDocument()
-  })
-
-  it('shows "Hotovo" status label', () => {
-    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Done.' })
-    expect(screen.getByText('Hotovo')).toBeInTheDocument()
-  })
-
-  it('shows "Nový úkol" button', () => {
-    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Done.' })
-    expect(screen.getByTestId('wait-new-task-btn')).toBeInTheDocument()
-  })
-
-  it('calls onNewTask when "Nový úkol" is clicked', () => {
-    const { onNewTask } = renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Done.' })
-    fireEvent.click(screen.getByTestId('wait-new-task-btn'))
-    expect(onNewTask).toHaveBeenCalledOnce()
-  })
-})
-
-describe('AgentPanel wait-delivery: error', () => {
-  it('shows result panel with error when waitPhase is error', () => {
-    renderPanel(mockAgent, { waitPhase: 'error', waitError: 'Something failed.' })
-    expect(screen.getByTestId('wait-result-panel')).toBeInTheDocument()
-    expect(screen.queryByTestId('run-task-input')).toBeNull()
-    expect(screen.queryByTestId('wait-running-indicator')).toBeNull()
-  })
-
-  it('displays the error text', () => {
-    renderPanel(mockAgent, { waitPhase: 'error', waitError: 'Connection refused.' })
-    expect(screen.getByText('Connection refused.')).toBeInTheDocument()
-  })
-
-  it('shows "Chyba" status label', () => {
-    renderPanel(mockAgent, { waitPhase: 'error', waitError: 'Oops.' })
-    expect(screen.getByText('Chyba')).toBeInTheDocument()
-  })
-
-  it('calls onNewTask when "Nový úkol" is clicked in error state', () => {
-    const { onNewTask } = renderPanel(mockAgent, { waitPhase: 'error', waitError: 'Failed.' })
-    fireEvent.click(screen.getByTestId('wait-new-task-btn'))
-    expect(onNewTask).toHaveBeenCalledOnce()
-  })
-})
-
-describe('AgentPanel wait-delivery: Edit tab still works during non-idle phase', () => {
-  it('can switch to Edit tab while running', () => {
-    renderPanel(mockAgent, { waitPhase: 'running' })
-    fireEvent.click(screen.getByTestId('tab-edit'))
-    expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
-  })
-
-  it('can switch to Edit tab after done', () => {
-    renderPanel(mockAgent, { waitPhase: 'done', waitResult: 'Finished.' })
-    fireEvent.click(screen.getByTestId('tab-edit'))
-    expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Log tab — agent history in chat style
-// ---------------------------------------------------------------------------
-
-describe('AgentPanel Log tab', () => {
-  it('shows the Log tab button', () => {
-    renderPanel()
-    expect(screen.getByTestId('tab-log')).toBeInTheDocument()
-  })
-
-  it('switches to Log mode when Log tab is clicked', () => {
-    renderPanel()
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.queryByTestId('run-task-input')).toBeNull()
-    expect(screen.queryByTestId('edit-name-input')).toBeNull()
-  })
-
-  it('shows empty state message when history is empty', () => {
-    renderPanel(mockAgent, { history: [] })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId('agent-history-empty')).toBeInTheDocument()
-  })
-
-  it('shows empty state when history prop is omitted', () => {
-    renderPanel()
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId('agent-history-empty')).toBeInTheDocument()
-  })
-
-  it('shows the history view when entries are present', () => {
-    const entry = makeHistoryEntry()
-    renderPanel(mockAgent, { history: [entry] })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId('agent-history-view')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-history-empty')).toBeNull()
-  })
-
-  it('renders task bubble for each history entry', () => {
-    const entry = makeHistoryEntry({ task: 'Explore the western caves' })
-    renderPanel(mockAgent, { history: [entry] })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId(`history-task-${entry.id}`)).toHaveTextContent('Explore the western caves')
-  })
-
-  it('renders result bubble for each history entry', () => {
-    const entry = makeHistoryEntry({ result: 'Western caves fully mapped.' })
-    renderPanel(mockAgent, { history: [entry] })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId(`history-result-${entry.id}`)).toHaveTextContent('Western caves fully mapped.')
-  })
-
-  it('shows "Hotovo" label for done entries', () => {
-    const entry = makeHistoryEntry({ type: 'done' })
-    renderPanel(mockAgent, { history: [entry] })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId(`history-entry-${entry.id}`)).toHaveTextContent('Hotovo')
-  })
-
-  it('shows "Otázka" label for question entries', () => {
-    const entry = makeHistoryEntry({ type: 'question', result: 'What is the priority?' })
-    renderPanel(mockAgent, { history: [entry] })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId(`history-entry-${entry.id}`)).toHaveTextContent('Otázka')
-  })
-
-  it('shows "Chyba" label for error entries', () => {
-    const entry = makeHistoryEntry({ type: 'error', result: 'Network timeout.' })
-    renderPanel(mockAgent, { history: [entry] })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId(`history-entry-${entry.id}`)).toHaveTextContent('Chyba')
-  })
-
-  it('shows multiple history entries', () => {
-    const entries = [
-      makeHistoryEntry({ task: 'Task one', result: 'Done one.' }),
-      makeHistoryEntry({ task: 'Task two', result: 'Done two.', type: 'error' }),
-    ]
-    renderPanel(mockAgent, { history: entries })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    expect(screen.getByTestId('agent-history-list').children).toHaveLength(2)
-  })
-
-  it('calls onClearHistory when clear button is clicked', () => {
-    const entry = makeHistoryEntry()
-    const { onClearHistory } = renderPanel(mockAgent, { history: [entry] })
-    fireEvent.click(screen.getByTestId('tab-log'))
-    fireEvent.click(screen.getByTestId('agent-history-clear-btn'))
-    expect(onClearHistory).toHaveBeenCalledOnce()
-  })
-
-  it('shows entry count in the tab label when history is non-empty', () => {
-    const entries = [makeHistoryEntry(), makeHistoryEntry()]
-    renderPanel(mockAgent, { history: entries })
-    expect(screen.getByTestId('tab-log')).toHaveTextContent('Log (2)')
-  })
-
-  it('does not show entry count in the tab label when history is empty', () => {
-    renderPanel(mockAgent, { history: [] })
-    expect(screen.getByTestId('tab-log')).toHaveTextContent('Log')
-    expect(screen.getByTestId('tab-log')).not.toHaveTextContent('(')
-  })
-
-  it('can switch back to Run mode from Log mode', () => {
-    renderPanel()
-    fireEvent.click(screen.getByTestId('tab-log'))
-    fireEvent.click(screen.getByTestId('tab-run'))
-    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
   })
 })
