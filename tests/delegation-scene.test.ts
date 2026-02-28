@@ -14,6 +14,7 @@ import {
   phaseFraction,
   lerp,
   arcPoint,
+  calcDelegationRuneState,
 } from '../app/components/delegation-logic'
 
 // ---------------------------------------------------------------------------
@@ -285,5 +286,78 @@ describe('WKR_BUBBLE_CS', () => {
 
   it('has an entry for celebrating phase', () => {
     expect(WKR_BUBBLE_CS.celebrating).toBeDefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// calcDelegationRuneState — maps phase to rune/pulse/glow params
+// ---------------------------------------------------------------------------
+
+describe('calcDelegationRuneState', () => {
+  describe('working phase', () => {
+    it('returns non-null runTime equal to phaseMs / 1000', () => {
+      const state = calcDelegationRuneState('working', 2000)
+      expect(state.runTime).toBeCloseTo(2)
+    })
+
+    it('returns null completionAge while working', () => {
+      const state = calcDelegationRuneState('working', 1500)
+      expect(state.completionAge).toBeNull()
+    })
+
+    it('starts at runTime 0 when phase just began', () => {
+      const state = calcDelegationRuneState('working', 0)
+      expect(state.runTime).toBe(0)
+    })
+
+    it('accumulates runTime up to the full phase duration', () => {
+      const phaseMs = PHASE_MS.working
+      const state = calcDelegationRuneState('working', phaseMs)
+      expect(state.runTime).toBeCloseTo(phaseMs / 1000)
+    })
+  })
+
+  describe('completing phase', () => {
+    it('returns non-null completionAge equal to phaseMs', () => {
+      const state = calcDelegationRuneState('completing', 500)
+      expect(state.completionAge).toBe(500)
+    })
+
+    it('returns null runTime during completing', () => {
+      const state = calcDelegationRuneState('completing', 800)
+      expect(state.runTime).toBeNull()
+    })
+
+    it('starts at completionAge 0 when completing just began', () => {
+      const state = calcDelegationRuneState('completing', 0)
+      expect(state.completionAge).toBe(0)
+    })
+  })
+
+  describe('inactive phases', () => {
+    const inactivePhases: Phase[] = [
+      'idle', 'calling', 'meeting', 'briefing',
+      'acknowledging', 'executing', 'reporting', 'celebrating',
+    ]
+
+    for (const phase of inactivePhases) {
+      it(`returns both null for phase "${phase}"`, () => {
+        const state = calcDelegationRuneState(phase, 1000)
+        expect(state.runTime).toBeNull()
+        expect(state.completionAge).toBeNull()
+      })
+    }
+  })
+
+  it('covers all phases from PHASES array', () => {
+    // Every phase must return a well-formed DelegationRuneState
+    for (const phase of PHASES) {
+      const state = calcDelegationRuneState(phase, 1000)
+      expect(state).toHaveProperty('runTime')
+      expect(state).toHaveProperty('completionAge')
+      // Only one of runTime / completionAge can be non-null at once
+      const bothNonNull = state.runTime !== null && state.completionAge !== null
+      expect(bothNonNull).toBe(false)
+    }
   })
 })

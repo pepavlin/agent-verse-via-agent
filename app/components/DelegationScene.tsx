@@ -16,7 +16,9 @@ import {
   moveToward,
   nextPhase,
   arcPoint,
+  calcDelegationRuneState,
 } from './delegation-logic'
+import { RUNE_CHARS, RUNE_COUNT, calcRuneOrbit, calcRuneFlash } from './agent-runes'
 
 // ---------------------------------------------------------------------------
 // Layout constants
@@ -60,6 +62,8 @@ interface SceneData {
   wkrContainer: PIXI.Container
   mgrGfx: PIXI.Graphics
   wkrGfx: PIXI.Graphics
+  /** Rune glyph texts orbiting the worker during working/completing phases. */
+  wkrRuneTexts: PIXI.Text[]
   mgrBubble: Bubble
   wkrBubble: Bubble
   taskGfx: PIXI.Graphics
@@ -343,7 +347,25 @@ function buildScene(app: PIXI.Application): SceneData {
   })
   wkrNameLabel.anchor.set(0.5, 1)
   wkrNameLabel.position.set(0, HEAD_TOP - 8)
+  // Rune glyph texts for the worker (orbit during working, flash on completing)
+  const wkrRuneTexts = RUNE_CHARS.slice(0, RUNE_COUNT).map((char) => {
+    const text = new PIXI.Text({
+      text: char,
+      style: {
+        fontSize: 14,
+        fill: 0xffffff,
+        fontFamily: 'serif',
+        fontWeight: 'bold',
+        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.6 },
+      },
+    })
+    text.anchor.set(0.5, 0.5)
+    text.visible = false
+    return text
+  })
+
   wkrContainer.addChild(wkrGfx)
+  for (const r of wkrRuneTexts) wkrContainer.addChild(r)
   wkrContainer.addChild(wkrNameLabel)
   app.stage.addChild(wkrContainer)
 
@@ -447,6 +469,7 @@ function buildScene(app: PIXI.Application): SceneData {
     mgr, wkr,
     mgrContainer, wkrContainer,
     mgrGfx, wkrGfx,
+    wkrRuneTexts,
     mgrBubble, wkrBubble,
     taskGfx, delegArrow, taskCard,
     phaseLabel, phaseSubLabel, phaseBar, progressGfx,
@@ -624,11 +647,39 @@ function updateScene(
   // ---- Task marker ----
   drawTaskMarker(scene.taskGfx, scene.taskComplete, tt)
 
+  // ---- Rune / pulse / glow effects on the worker ----
+  const { runTime: wkrRunTime, completionAge: wkrCompletionAge } =
+    calcDelegationRuneState(phase, phaseMs)
+
+  scene.wkrRuneTexts.forEach((runeText, i) => {
+    if (wkrRunTime !== null) {
+      // Orbiting pulse while working
+      const rs = calcRuneOrbit(i, RUNE_COUNT, wkrRunTime, WKR_COLOR)
+      runeText.visible = rs.visible
+      runeText.x = rs.x
+      runeText.y = rs.y
+      runeText.alpha = rs.alpha
+      runeText.scale.set(rs.scale)
+      runeText.tint = rs.tint
+    } else if (wkrCompletionAge !== null) {
+      // Expanding flash on task completion
+      const rs = calcRuneFlash(wkrCompletionAge, i, RUNE_COUNT)
+      runeText.visible = rs.visible
+      runeText.x = rs.x
+      runeText.y = rs.y
+      runeText.alpha = rs.alpha
+      runeText.scale.set(rs.scale)
+      runeText.tint = rs.tint
+    } else {
+      runeText.visible = false
+    }
+  })
+
   // ---- Draw stick figures ----
   scene.mgrContainer.position.set(mgr.x, mgr.y)
   scene.wkrContainer.position.set(wkr.x, wkr.y)
   drawStickFigure(scene.mgrGfx, mgr as AgentState, false)
-  drawStickFigure(scene.wkrGfx, wkr as AgentState, false)
+  drawStickFigure(scene.wkrGfx, wkr as AgentState, false, wkrRunTime, wkrCompletionAge)
 
   // ---- Phase info bar ----
   const barH = 60
