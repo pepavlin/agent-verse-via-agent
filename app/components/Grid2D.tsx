@@ -9,7 +9,7 @@ import { AgentState, createAgentState, updateAgent, hitTestAgent, agentInRect, W
 import { drawStickFigure } from './agent-drawing'
 import AgentPanel, { type RunTaskPayload, type EditSavePayload } from './AgentPanel'
 import { RunEngine } from '../run-engine'
-import { GLOW_DURATION_MS } from './agent-run-effects'
+import { AgentRunInfo, runStarted, runCompleted, runFailed, tickRunInfo } from './agent-run-state'
 import { useInbox } from './use-inbox'
 import { InboxToggleButton, InboxPanel } from './Inbox'
 import AccountSettings from './AccountSettings'
@@ -38,19 +38,6 @@ interface SelectedAgentInfo {
   id: string
   name: string
   role: string
-}
-
-/**
- * Per-agent run animation state, kept in a ref so the pixi ticker can read
- * it without triggering React re-renders.
- */
-interface AgentRunInfo {
-  /** 'running' while a run is active; null when idle or completed. */
-  runState: 'running' | null
-  /** Timestamp (ms) when the latest run completed; null if no recent completion. */
-  completionStart: number | null
-  /** Accumulated seconds of running time — used as phase for the pulse effect. */
-  runTime: number
 }
 
 // ---------------------------------------------------------------------------
@@ -307,25 +294,21 @@ export default function Grid2D() {
           entry.container.x = entry.state.x
           entry.container.y = entry.state.y
 
-          // ---- Compute run-state animation params ----
-          let runTime: number | null = null
-          let completionAge: number | null = null
-
+          // ---- Compute run-state animation params via pure tick function ----
           const runInfo = agentRunInfoRef.current.get(id)
-          if (runInfo) {
-            if (runInfo.runState === 'running') {
-              runInfo.runTime += ticker.deltaMS / 1000
-              runTime = runInfo.runTime
-            }
-            if (runInfo.completionStart !== null) {
-              const age = now - runInfo.completionStart
-              if (age < GLOW_DURATION_MS) {
-                completionAge = age
-              } else {
-                // Glow expired — clear so we stop rendering it
-                runInfo.completionStart = null
-              }
-            }
+          const { runTime, completionAge, glowExpired } = tickRunInfo(
+            runInfo,
+            ticker.deltaMS / 1000,
+            now,
+          )
+
+          // Accumulate runTime in the stored ref so phase is continuous
+          if (runInfo && runTime !== null) {
+            runInfo.runTime = runTime
+          }
+          // Clear expired glow from the stored ref
+          if (runInfo && glowExpired) {
+            runInfo.completionStart = null
           }
 
           drawStickFigure(
@@ -551,28 +534,16 @@ export default function Grid2D() {
     const engine = runEngineRef.current
 
     const unsubStarted = engine.on('run:started', (run) => {
-      agentRunInfoRef.current.set(run.agentId, {
-        runState: 'running',
-        completionStart: null,
-        runTime: 0,
-      })
+      agentRunInfoRef.current.set(run.agentId, runStarted())
     })
 
     const unsubCompleted = engine.on('run:completed', (run) => {
-      agentRunInfoRef.current.set(run.agentId, {
-        runState: null,
-        completionStart: Date.now(),
-        runTime: 0,
-      })
+      agentRunInfoRef.current.set(run.agentId, runCompleted())
     })
 
     const unsubFailed = engine.on('run:failed', (run) => {
-      // Clear running state without showing a completion glow
-      agentRunInfoRef.current.set(run.agentId, {
-        runState: null,
-        completionStart: null,
-        runTime: 0,
-      })
+      // Clear all animation state — no glow is shown on failure
+      agentRunInfoRef.current.set(run.agentId, runFailed())
     })
 
     init()

@@ -19,6 +19,7 @@ app/
     agent-logic.ts      – Pure agent state functions (no pixi.js dep, fully testable)
     agent-drawing.ts    – Stick-figure drawing via PIXI.Graphics
     agent-run-effects.ts – Pure animation math for run-state effects (no pixi.js dep)
+    agent-run-state.ts  – Pure run animation state machine: factory fns + tickRunInfo()
   run-engine/
     types.ts            – Run interface, RunStatus enum, RunEventType, RunEngineOptions
     results.ts          – Pure result-text generation (generateResult, templates)
@@ -31,6 +32,7 @@ tests/
   agent-panel.test.tsx      – Unit tests for AgentPanel component (Run mode, Edit mode, tabs)
   run-engine.test.ts        – Unit tests for RunEngine lifecycle, events, delays, querying
   agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
+  agent-run-state.test.ts   – Unit tests for run animation state machine (transitions + ticks)
   setup.ts                  – @testing-library/jest-dom setup
 docs/
   architecture.md       – This file
@@ -224,17 +226,39 @@ A bright white expanding ring flashes and fades out when a run completes.
 User submits task (AgentPanel)
   └─ Grid2D.handleRunTask()
        └─ RunEngine.createRun() + startRun()
-            ├─ run:started  → agentRunInfoRef[agentId].runState = 'running'
-            └─ run:completed → agentRunInfoRef[agentId].completionStart = Date.now()
+            ├─ run:started   → agentRunInfoRef[agentId] = runStarted()
+            ├─ run:completed → agentRunInfoRef[agentId] = runCompleted()
+            └─ run:failed    → agentRunInfoRef[agentId] = runFailed()
 
 pixi ticker (every frame)
-  └─ reads agentRunInfoRef[id]
-       ├─ accumulates runTime while running
-       ├─ computes completionAge from completionStart
+  └─ tickRunInfo(runInfo, deltaSeconds, now)
+       ├─ returns { runTime, completionAge, glowExpired }
        └─ drawStickFigure(gfx, state, selected, runTime, completionAge)
-            ├─ calcPulseRing(runTime, HEAD_R)   → ring params
+            ├─ calcPulseRing(runTime, HEAD_R)    → ring params
             └─ calcCompletionGlow(completionAge) → glow params
 ```
+
+### Run animation state machine (`agent-run-state.ts`)
+
+Pure functions with no pixi.js / React dependency, fully covered by unit tests in `tests/agent-run-state.test.ts`.
+
+**Factory functions** (called by RunEngine event handlers):
+
+| Function | Returns | Effect |
+|---|---|---|
+| `runStarted()` | `AgentRunInfo` | Starts the pulse; clears any previous glow |
+| `runCompleted(now?)` | `AgentRunInfo` | Stops the pulse; starts the glow timer |
+| `runFailed()` | `AgentRunInfo` | Clears all animation state (no glow on failure) |
+
+**Tick function** (called every pixi frame):
+
+| Function | Input | Output |
+|---|---|---|
+| `tickRunInfo(runInfo, deltaSeconds, now, glowDurationMs?)` | current state + frame delta | `{ runTime, completionAge, glowExpired }` |
+
+- `runTime` is non-null while `runState === 'running'`; used as phase for `calcPulseRing`.
+- `completionAge` is non-null while the glow animation is active; used by `calcCompletionGlow`.
+- `glowExpired` signals when the caller should clear `completionStart` from the stored ref.
 
 ### Pure animation helpers (`agent-run-effects.ts`)
 
