@@ -1,84 +1,85 @@
-# 2D Grid Explorer
+# Agent Verse
 
-Interactive 2D grid with zoom and pan, built with Next.js and pixi.js.
+Interactive 2D world with AI agents, built with Next.js and pixi.js. Users bring their own Anthropic API key — agents run real AI tasks in response to user commands.
 
 ## Features
 
-- **50 × 50 cell grid** with a hard maximum boundary
+- **50 × 50 cell grid** with animated stick-figure AI agents
 - **Zoom** — scroll wheel or +/− buttons (15 % – 400 %)
-- **Pan** — click and drag anywhere on the map
-- **Coordinate display** — hover to see cell coordinates in real time
-- **Two objects** — a square (Alpha) and a circle (Beta) placed on the grid
-- **Reset view** — ⌂ button centres the map at 25 %
-- **Walking agents** — 4 animated stick figures (Alice, Bob, Carol, Dave) that wander the grid autonomously
-- **Agent context menu** — click any agent to open a small menu with Follow / Stop following / Dismiss actions
-- **Camera follow** — select "Follow" to lock the camera onto the chosen agent
+- **Pan** — middle-mouse drag
+- **Agent tasks** — click any agent, type a task, choose delivery mode (Wait / Inbox)
+- **Real LLM execution** — uses Anthropic Claude with the user's own API key
+- **Inbox** — async task results delivered to a message feed
+- **User authentication** — email + password login and registration
+- **BYOK (Bring Your Own Key)** — users paste their Anthropic API key; it's stored AES-256-GCM encrypted server-side and never returned to the browser
 
 ## Getting Started
 
-### Docker Compose (recommended)
+### Local development
+
+1. Copy the environment template and fill in the required values:
+
+```bash
+cp .env.example .env.local
+```
+
+Required values in `.env.local`:
+
+```env
+DATABASE_URL=file:./dev.db
+ENCRYPTION_KEY=<64 hex chars — generate with: openssl rand -hex 32>
+NEXTAUTH_SECRET=<random secret — generate with: openssl rand -base64 32>
+NEXTAUTH_URL=http://localhost:3000
+```
+
+2. Run database migrations:
+
+```bash
+npx prisma migrate dev
+```
+
+3. Start the dev server:
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to the login page.
+
+### Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+> **Note:** Docker Compose currently uses the legacy PostgreSQL config. Update `DATABASE_URL` and add `ENCRYPTION_KEY` / `NEXTAUTH_SECRET` to the compose file for production use.
 
-### Local development
+## Authentication
 
-```bash
-npm install
-npm run dev
-```
+Users register with email and password. Sessions are managed server-side via NextAuth.js JWT strategy. No email verification required for MVP.
 
-Open [http://localhost:3000](http://localhost:3000).
+## API Key Management (BYOK)
+
+1. After login, click the settings button (gear icon) in the top-left corner.
+2. Paste your Anthropic API key (starts with `sk-ant-`).
+3. Optionally click **Otestovat klíč** to validate the key before saving.
+4. Click **Uložit** — the key is encrypted with AES-256-GCM and stored in the database.
+5. The key is shown only as a fingerprint (`sk-ant...xxxx`) — the plaintext is never returned to the browser.
+
+To use a new key, open settings and click **Změnit**, then paste the new key.
 
 ## Controls
 
 | Action | Input |
 |---|---|
-| Pan | Click and drag |
+| Pan | Middle-mouse drag |
 | Zoom in | Scroll up / `+` button |
 | Zoom out | Scroll down / `−` button |
 | Reset view | `⌂` button (bottom-right) |
-| Open agent menu | Click on a walking agent |
-| Follow agent | Click agent → "Follow" |
-| Close menu | Click "Dismiss" or click empty space |
-
-## Configuration
-
-### Grid
-
-```ts
-export const MAP_CONFIG = {
-  COLS: 50,        // columns
-  ROWS: 50,        // rows
-  CELL_SIZE: 64,   // px per cell at zoom = 1
-  MIN_ZOOM: 0.15,
-  MAX_ZOOM: 4,
-  ZOOM_STEP: 0.15,
-}
-```
-
-### Objects (`app/components/grid-config.ts`)
-
-```ts
-export const GRID_OBJECTS: GridObject[] = [
-  { id: 'square-1', type: 'square', col: 8,  row: 8,  color: 0x6366f1, size: 4, label: 'Alpha' },
-  { id: 'circle-1', type: 'circle', col: 30, row: 22, color: 0xf59e0b, size: 4, label: 'Beta'  },
-]
-```
-
-### Agents (`app/components/agents-config.ts`)
-
-```ts
-export const AGENTS: AgentDef[] = [
-  { id: 'agent-alice', name: 'Alice', role: 'Explorer', color: 0xff6b6b, startCol: 5,  startRow: 5  },
-  { id: 'agent-bob',   name: 'Bob',   role: 'Builder',  color: 0x4ecdc4, startCol: 20, startRow: 15 },
-  { id: 'agent-carol', name: 'Carol', role: 'Scout',    color: 0xffe66d, startCol: 35, startRow: 30 },
-  { id: 'agent-dave',  name: 'Dave',  role: 'Defender', color: 0xa78bfa, startCol: 12, startRow: 38 },
-]
-```
+| Open agent panel | Click on a walking agent |
+| Run a task | Agent panel → task field → Spustit |
+| Inbox | Message icon (top-right) |
+| Settings | Gear icon (top-left) |
 
 ## Tests
 
@@ -90,5 +91,8 @@ npm test
 
 - [Next.js 16](https://nextjs.org/)
 - [pixi.js 8](https://pixijs.com/) — WebGL 2D renderer
+- [NextAuth.js 4](https://next-auth.js.org/) — authentication
+- [Prisma 5](https://www.prisma.io/) + SQLite — database
+- [Anthropic SDK](https://www.npmjs.com/package/@anthropic-ai/sdk) — LLM integration
 - [Tailwind CSS 4](https://tailwindcss.com/)
 - [Vitest](https://vitest.dev/)

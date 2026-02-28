@@ -4,7 +4,6 @@
 
 import type {
   Run,
-  RunStatus,
   RunEventType,
   RunEventHandler,
   RunEngineOptions,
@@ -16,6 +15,13 @@ export interface AgentMeta {
   name: string
   role: string
 }
+
+/**
+ * Optional async executor that produces the run result.
+ * When provided, it replaces the mock timeout behaviour.
+ * When omitted, the engine falls back to the built-in mock (random delay + template).
+ */
+export type RunExecutor = () => Promise<string>
 
 /** Default random delay: uniform distribution in [minMs, maxMs]. */
 function defaultDelayFn(minMs: number, maxMs: number): number {
@@ -36,18 +42,23 @@ function generateId(): string {
  *
  * Lifecycle:
  *   createRun()  → Run(status='pending')
- *   startRun()   → Run(status='running') — schedules completion after 2–6 s
- *   [timeout]    → Run(status='completed') with generated result text
+ *   startRun()   → Run(status='running')
+ *                  – With executor: awaits executor(), then completes / fails.
+ *                  – Without executor: falls back to mock (random delay + template).
+ *   [resolution] → Run(status='completed' | 'failed')
  *
  * Usage:
- * ```ts
- * const engine = new RunEngine()
- *
- * engine.on('run:completed', (run) => console.log(run.result))
- *
+ * // Mock mode (no real LLM):
  * const run = engine.createRun('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
  * engine.startRun(run.id)
- * ```
+ *
+ * // Real LLM mode:
+ * const run = engine.createRun('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
+ * engine.startRun(run.id, async () => {
+ *   const res = await fetch('/api/run', { ... })
+ *   const data = await res.json()
+ *   return data.result
+ * })
  */
 export class RunEngine {
   private readonly _runs = new Map<string, Run>()
@@ -100,9 +111,12 @@ export class RunEngine {
   /**
    * Transition a pending run to 'running' and schedule its completion.
    *
+   * @param runId    The ID of the run to start.
+   * @param executor Optional async function that produces the result string.
+   *                 When omitted, the built-in mock (random delay + template) is used.
    * @throws Error if the run does not exist or is not in 'pending' state.
    */
-  startRun(runId: string): void {
+  startRun(runId: string, executor?: RunExecutor): void {
     const run = this._getOrThrow(runId)
 
     if (run.status !== 'pending') {
@@ -115,12 +129,24 @@ export class RunEngine {
     this._runs.set(runId, started)
     this._emit('run:started', started)
 
-    const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
-    const handle = setTimeout(() => {
-      this._completeRun(runId)
-      this._pendingTimeouts.delete(runId)
-    }, delayMs)
-    this._pendingTimeouts.set(runId, handle)
+    if (executor) {
+      // Real executor: call it synchronously, resolve/reject via promise chain
+      executor()
+        .then((result) => this._resolveRun(runId, result))
+        .catch((err) => {
+          const message =
+            err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
+          this._failRun(runId, message)
+        })
+    } else {
+      // Mock mode: schedule completion after a random delay
+      const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
+      const handle = setTimeout(() => {
+        this._completeRunWithMock(runId)
+        this._pendingTimeouts.delete(runId)
+      }, delayMs)
+      this._pendingTimeouts.set(runId, handle)
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -171,7 +197,38 @@ export class RunEngine {
   /** Secondary map that keeps agent meta (name/role) keyed by run ID. */
   private readonly _agentMeta = new Map<string, AgentMeta>()
 
-  private _completeRun(runId: string): void {
+  /** Complete a run with a result produced by the real executor. */
+  private _resolveRun(runId: string, result: string): void {
+    const run = this._runs.get(runId)
+    if (!run || run.status !== 'running') return
+
+    const completed: Run = {
+      ...run,
+      status: 'completed',
+      completedAt: Date.now(),
+      result,
+    }
+    this._runs.set(runId, completed)
+    this._emit('run:completed', completed)
+  }
+
+  /** Fail a run with a user-facing error message. */
+  private _failRun(runId: string, errorMessage: string): void {
+    const run = this._runs.get(runId)
+    if (!run || run.status !== 'running') return
+
+    const failed: Run = {
+      ...run,
+      status: 'failed',
+      completedAt: Date.now(),
+      error: errorMessage,
+    }
+    this._runs.set(runId, failed)
+    this._emit('run:failed', failed)
+  }
+
+  /** Complete a run using the mock result generator (legacy / demo mode). */
+  private _completeRunWithMock(runId: string): void {
     const run = this._runs.get(runId)
     if (!run || run.status !== 'running') return
 
