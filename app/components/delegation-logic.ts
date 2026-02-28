@@ -57,6 +57,36 @@ export const PHASE_TEXT: Record<Phase, string> = {
   celebrating: 'Manager: "Excellent work!"',
 }
 
+/** Czech subtitles shown below each phase label in the bar. */
+export const PHASE_TEXT_CS: Record<Phase, string> = {
+  idle: 'Manažer zjistí, co je třeba udělat...',
+  calling: 'Manažer zavolá pracovníka',
+  meeting: 'Pracovník přichází za manažerem',
+  briefing: 'Manažer deleguje úkol: "Postav most v Sektoru 7!"',
+  acknowledging: 'Pracovník: "Rozumím! Jdu na to!"',
+  executing: 'Pracovník se vydává k místu úkolu',
+  working: 'Pracovník plní delegovaný úkol...',
+  completing: 'Úkol úspěšně splněn!',
+  reporting: 'Pracovník se vrací s hlášením',
+  celebrating: 'Manažer: "Výborná práce!"',
+}
+
+/** Czech speech-bubble texts for the Manager per phase (empty = no bubble). */
+export const MGR_BUBBLE_CS: Partial<Record<Phase, string>> = {
+  idle: '?',
+  calling: 'Hej! Potřebuji\ntvou pomoc!',
+  briefing: 'Postav most\nv Sektoru 7!',
+  celebrating: 'Výborná práce!',
+}
+
+/** Czech speech-bubble texts for the Worker per phase (empty = no bubble). */
+export const WKR_BUBBLE_CS: Partial<Record<Phase, string>> = {
+  acknowledging: 'Rozumím!\nJdu na to!',
+  working: 'Pracuji',
+  completing: 'Hotovo! \u2713',
+  celebrating: 'Připraven na\ndalší úkol!',
+}
+
 // ---------------------------------------------------------------------------
 // Scene agent (position + animation state)
 // ---------------------------------------------------------------------------

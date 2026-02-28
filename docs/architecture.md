@@ -441,18 +441,45 @@ A self-contained animated 2D world that visualises the concept of **task delegat
 
 The scene cycles through 10 phases and then loops:
 
-| # | Phase | Description |
+| # | Phase | English description | Czech description |
+|---|---|---|---|
+| 1 | `idle` | Manager notices a task, shows "?" bubble. Worker wanders. | Manažer zjistí, co je třeba udělat |
+| 2 | `calling` | Manager calls the worker | Manažer zavolá pracovníka |
+| 3 | `meeting` | Worker walks to manager's position | Pracovník přichází za manažerem |
+| 4 | `briefing` | Manager delegates: "Build the bridge at Sector 7!" | Deleguje: "Postav most v Sektoru 7!" |
+| 5 | `acknowledging` | Worker: "Understood! I'm on it!" | Pracovník: "Rozumím! Jdu na to!" |
+| 6 | `executing` | Animated dashed arrow + flying task card; worker walks to task | Pracovník se vydává k místu úkolu |
+| 7 | `working` | Worker at task location, animated "Working…" bubble | Pracovník plní delegovaný úkol |
+| 8 | `completing` | Task done; task marker turns green with checkmark | Úkol úspěšně splněn |
+| 9 | `reporting` | Worker returns to manager | Pracovník se vrací s hlášením |
+| 10 | `celebrating` | Both celebrate; manager: "Excellent work!" | Manažer: "Výborná práce!" |
+
+### Czech localisation
+
+All visible text in the scene is rendered in Czech:
+
+| Element | Value |
+|---|---|
+| Scene title | "Delegace v 2D světě" |
+| Subtitle | "Delegation in a 2D World" (English, dimmed) |
+| Agent labels | "Manažer" (red), "Pracovník" (blue) |
+| Task location | "Sektor 7" |
+| Flying card | "ÚKOL" |
+| Phase bar | Czech subtitle (bold) + English (dimmed) |
+| Speech bubbles | Czech (sourced from `MGR_BUBBLE_CS` / `WKR_BUBBLE_CS`) |
+
+`delegation-logic.ts` exports three localisation maps:
+
+| Export | Type | Purpose |
 |---|---|---|
-| 1 | `idle` | Manager notices a task, shows "?" bubble. Worker wanders. |
-| 2 | `calling` | Manager calls the worker: "Hey! I need your help!" |
-| 3 | `meeting` | Worker walks to manager's position. |
-| 4 | `briefing` | Manager delegates: "Build the bridge at Sector 7!" |
-| 5 | `acknowledging` | Worker acknowledges: "Understood! I'm on it!" |
-| 6 | `executing` | Animated dashed arrow + flying task card; worker walks to task. |
-| 7 | `working` | Worker at task location, animated "Working…" bubble. |
-| 8 | `completing` | Task done; task marker turns green with checkmark. |
-| 9 | `reporting` | Worker returns to manager. |
-| 10 | `celebrating` | Both celebrate; manager: "Excellent work!" |
+| `PHASE_TEXT` | `Record<Phase, string>` | English phase bar label |
+| `PHASE_TEXT_CS` | `Record<Phase, string>` | Czech phase bar label |
+| `MGR_BUBBLE_CS` | `Partial<Record<Phase, string>>` | Czech manager speech bubble text per phase |
+| `WKR_BUBBLE_CS` | `Partial<Record<Phase, string>>` | Czech worker speech bubble text per phase |
+
+### Navigation
+
+The main `Grid2D` world includes a **Delegace** button in the top-left HUD (next to the user/settings button). Clicking it navigates to `/delegation` using Next.js `<Link>`. The icon is a people-group SVG in emerald green, with the text "Delegace" hidden on small screens.
 
 ### Key design decisions
 
@@ -461,6 +488,7 @@ The scene cycles through 10 phases and then loops:
 - **SceneAgent ↔ AgentState compatibility:** `SceneAgent` satisfies the structural shape of `AgentState` so `drawStickFigure()` from `agent-drawing.ts` can be reused unchanged.
 - **Speech bubbles as world objects:** Bubbles are `PIXI.Container` children of `app.stage`, positioned in world space each frame so they naturally follow agent movement.
 - **Progress indicator:** A thin blue bar at the very bottom of the scene fills left-to-right over the duration of each phase.
+- **Bilingual bar:** The phase info bar at the bottom shows Czech text (bold, white) on the lower line and English (dimmer, smaller) on the upper line, supporting both Czech and international users.
 
 ## Deployment
 

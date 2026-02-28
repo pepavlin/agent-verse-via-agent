@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react'
+import Link from 'next/link'
 import * as PIXI from 'pixi.js'
 import { useSession } from 'next-auth/react'
 import { MAP_CONFIG, GRID_OBJECTS, worldSize } from './grid-config'
@@ -781,8 +782,18 @@ export default function Grid2D() {
         </p>
       </div>
 
-      {/* User + Settings button (top-left) */}
+      {/* User + Settings button + Delegation link (top-left) */}
       <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+        <Link
+          href="/delegation"
+          className="flex items-center gap-1.5 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:border-emerald-600 transition-colors"
+          title="Zobrazit animaci delegace"
+        >
+          <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="hidden sm:block">Delegace</span>
+        </Link>
         <button
           onClick={() => setSettingsOpen(true)}
           className="flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:border-slate-600 transition-colors group"
