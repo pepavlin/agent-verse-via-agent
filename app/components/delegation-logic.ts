@@ -179,6 +179,59 @@ export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
 
+// ---------------------------------------------------------------------------
+// Rune animation state for the delegation scene
+// ---------------------------------------------------------------------------
+
+/**
+ * Animation parameters derived from the current delegation phase.
+ *
+ * Mirrors the `runTime` / `completionAge` convention used by the main Grid2D
+ * world so that the same `calcRuneOrbit`, `calcRuneFlash`, `calcPulseRing`,
+ * and `calcCompletionGlow` pure helpers can be reused without modification.
+ */
+export interface DelegationRuneState {
+  /**
+   * Seconds elapsed since the worker started executing the task.
+   * Non-null only during the `working` phase.
+   * Pass this to `calcRuneOrbit` and `calcPulseRing`.
+   */
+  runTime: number | null
+  /**
+   * Milliseconds elapsed since the worker completed the task.
+   * Non-null only during the `completing` phase.
+   * Pass this to `calcRuneFlash` and `calcCompletionGlow`.
+   */
+  completionAge: number | null
+}
+
+/**
+ * Map the current delegation phase to rune / pulse / glow animation params.
+ *
+ * - `working`    → pulse ring + orbiting runes (runTime = phaseMs / 1000 s)
+ * - `completing` → glow ring + expanding rune flash (completionAge = phaseMs ms)
+ * - everything else → both null (no effects)
+ *
+ * @param phase    Current scene phase.
+ * @param phaseMs  Milliseconds elapsed in this phase.
+ */
+export function calcDelegationRuneState(
+  phase: Phase,
+  phaseMs: number,
+): DelegationRuneState {
+  if (phase === 'working') {
+    return { runTime: phaseMs / 1000, completionAge: null }
+  }
+  if (phase === 'completing') {
+    return { runTime: null, completionAge: phaseMs }
+  }
+  return { runTime: null, completionAge: null }
+}
+
+// ---------------------------------------------------------------------------
+// Delegation arc path
+// ---------------------------------------------------------------------------
+
 /**
  * Compute the position of the flying task card on its arc from (fromX, fromY)
  * to (toX, toY).

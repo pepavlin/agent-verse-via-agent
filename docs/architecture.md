@@ -804,11 +804,41 @@ All visible text in the scene is rendered in Czech:
 
 The main `Grid2D` world includes a **Delegace** button in the top-left HUD (next to the user/settings button). Clicking it navigates to `/delegation` using Next.js `<Link>`. The icon is a people-group SVG in emerald green, with the text "Delegace" hidden on small screens.
 
+### Rune / pulse / glow effects in the delegation scene
+
+The worker stick figure uses the same visual effects as agents in the main Grid2D world during the two relevant phases:
+
+| Phase | Effect |
+|---|---|
+| `working` | Pulse ring around the head + 4 Elder Futhark runes orbiting the head |
+| `completing` | White expanding glow ring + runes flash outward and fade |
+| all other phases | No special effects |
+
+**Data flow:**
+
+```
+calcDelegationRuneState(phase, phaseMs)
+  ├─ working    → { runTime: phaseMs/1000, completionAge: null }
+  ├─ completing → { runTime: null, completionAge: phaseMs }
+  └─ other      → { runTime: null, completionAge: null }
+       ↓
+  drawStickFigure(wkrGfx, wkr, false, runTime, completionAge)
+       ├─ calcPulseRing(runTime)      → pulse ring (if running)
+       └─ calcCompletionGlow(age)     → glow ring  (if completing)
+
+  wkrRuneTexts[i]:
+       ├─ calcRuneOrbit(i, RUNE_COUNT, runTime, WKR_COLOR) → orbit (if running)
+       └─ calcRuneFlash(completionAge, i, RUNE_COUNT)      → flash  (if completing)
+```
+
+`calcDelegationRuneState` is a pure function in `delegation-logic.ts`, fully covered by tests.
+
 ### Key design decisions
 
-- **Pure logic / rendering split:** `delegation-logic.ts` exports only pure functions (movement, phase math, arc interpolation). These are unit-tested without a browser or pixi.js context.
+- **Pure logic / rendering split:** `delegation-logic.ts` exports only pure functions (movement, phase math, arc interpolation, rune state). These are unit-tested without a browser or pixi.js context.
 - **Immutable agent updates:** `moveToward()` returns a new `SceneAgent` object rather than mutating in place, matching the style of `agent-logic.ts`.
 - **SceneAgent ↔ AgentState compatibility:** `SceneAgent` satisfies the structural shape of `AgentState` so `drawStickFigure()` from `agent-drawing.ts` can be reused unchanged.
+- **Shared effect helpers:** `calcRuneOrbit`, `calcRuneFlash`, `calcPulseRing`, `calcCompletionGlow` are the same pure functions used in the main Grid2D world — no duplication.
 - **Speech bubbles as world objects:** Bubbles are `PIXI.Container` children of `app.stage`, positioned in world space each frame so they naturally follow agent movement.
 - **Progress indicator:** A thin blue bar at the very bottom of the scene fills left-to-right over the duration of each phase.
 - **Bilingual bar:** The phase info bar at the bottom shows Czech text (bold, white) on the lower line and English (dimmer, smaller) on the upper line, supporting both Czech and international users.
