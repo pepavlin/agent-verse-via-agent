@@ -7,6 +7,7 @@ import type {
   RunEventType,
   RunEventHandler,
   RunEngineOptions,
+  MockLLMResponse,
 } from './types'
 import { generateResult, generateQuestion } from './results'
 
@@ -17,11 +18,19 @@ export interface AgentMeta {
 }
 
 /**
- * Optional async executor that produces the run result.
- * When provided, it replaces the mock timeout behaviour.
+ * Optional async executor that produces the run outcome.
+ * When provided, it replaces the built-in mock timeout behaviour.
  * When omitted, the engine falls back to the built-in mock (random delay + template).
+ *
+ * The executor may return:
+ *   - A plain `string` → treated as a result; run transitions to 'completed'.
+ *   - A `MockLLMResponse` with `kind: 'result'` → same as plain string.
+ *   - A `MockLLMResponse` with `kind: 'question'` → run transitions to 'awaiting'.
+ *
+ * The `MockLLM` class produces `MockLLMResponse` values and exposes `asExecutor()`
+ * to create a compatible executor function.
  */
-export type RunExecutor = () => Promise<string>
+export type RunExecutor = () => Promise<string | MockLLMResponse>
 
 /** Default random delay: uniform distribution in [minMs, maxMs]. */
 function defaultDelayFn(minMs: number, maxMs: number): number {
@@ -136,9 +145,20 @@ export class RunEngine {
     this._emit('run:started', started)
 
     if (executor) {
-      // Real executor: call it synchronously, resolve/reject via promise chain
+      // Executor path: call it and route the outcome to the correct terminal state.
+      // Accepts both a plain string (legacy / real-LLM) and a MockLLMResponse:
+      //   plain string or { kind: 'result' }  → _resolveRun  (status: 'completed')
+      //   { kind: 'question' }                → _awaitRun    (status: 'awaiting')
       executor()
-        .then((result) => this._resolveRun(runId, result))
+        .then((outcome) => {
+          if (typeof outcome === 'string') {
+            this._resolveRun(runId, outcome)
+          } else if (outcome.kind === 'result') {
+            this._resolveRun(runId, outcome.text)
+          } else {
+            this._awaitRun(runId, outcome.text)
+          }
+        })
         .catch((err) => {
           const message =
             err instanceof Error ? err.message : 'Nastala neočekávaná chyba. Zkus to znovu.'
@@ -216,6 +236,24 @@ export class RunEngine {
     }
     this._runs.set(runId, completed)
     this._emit('run:completed', completed)
+  }
+
+  /**
+   * Transition a running run to 'awaiting' with a clarifying question.
+   * Called when an executor (e.g. MockLLM) signals it needs more information.
+   */
+  private _awaitRun(runId: string, question: string): void {
+    const run = this._runs.get(runId)
+    if (!run || run.status !== 'running') return
+
+    const awaiting: Run = {
+      ...run,
+      status: 'awaiting',
+      completedAt: Date.now(),
+      question,
+    }
+    this._runs.set(runId, awaiting)
+    this._emit('run:awaiting', awaiting)
   }
 
   /** Fail a run with a user-facing error message. */

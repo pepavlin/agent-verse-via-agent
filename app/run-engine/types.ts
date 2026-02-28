@@ -51,6 +51,22 @@ export type RunEventType =
 /** Callback invoked when a run event fires. */
 export type RunEventHandler = (run: Run) => void
 
+/**
+ * Structured response returned by a MockLLM executor.
+ *
+ * - `{ kind: 'result'; text: string }` — the simulated agent completed the task.
+ *   The RunEngine will transition the run to 'completed' and store `text` as the result.
+ * - `{ kind: 'question'; text: string }` — the simulated agent needs clarification.
+ *   The RunEngine will transition the run to 'awaiting' and store `text` as the question.
+ *
+ * When a RunExecutor returns a plain `string` (legacy / real-LLM path), the engine
+ * treats it as a result and transitions to 'completed' — this ensures full backward
+ * compatibility with existing executor implementations.
+ */
+export type MockLLMResponse =
+  | { kind: 'result'; text: string }
+  | { kind: 'question'; text: string }
+
 /** Optional constructor configuration for RunEngine. */
 export interface RunEngineOptions {
   /** Minimum execution delay in milliseconds (default: 2000). */

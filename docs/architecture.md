@@ -22,9 +22,10 @@ app/
     agent-run-state.ts  – Pure run animation state machine: factory fns + tickRunInfo()
     agent-runes.ts      – Pure rune glyph animation math (orbit + flash, no pixi.js dep)
   run-engine/
-    types.ts            – Run interface, RunStatus enum, RunEventType, RunEngineOptions
+    types.ts            – Run interface, RunStatus enum, RunEventType, RunEngineOptions, MockLLMResponse
     results.ts          – Pure result-text generation (generateResult, templates)
     engine.ts           – RunEngine class (createRun, startRun, events, querying)
+    mock-llm.ts         – MockLLM class (simulated LLM executor, result or question)
     index.ts            – Re-exports public API
 tests/
   grid.test.ts              – Unit tests for config, worldSize(), and objects
@@ -32,6 +33,7 @@ tests/
   controls.test.ts          – Unit tests for click-threshold and coord-conversion helpers
   agent-panel.test.tsx      – Unit tests for AgentPanel component (Run mode, Edit mode, tabs)
   run-engine.test.ts        – Unit tests for RunEngine lifecycle, events, delays, querying
+  mock-llm.test.ts          – Unit tests for MockLLM (result/question paths, delay, RunEngine integration)
   agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
   agent-run-state.test.ts   – Unit tests for run animation state machine (transitions + ticks)
   agent-runes.test.ts       – Unit tests for rune orbit and flash animation math
@@ -415,13 +417,50 @@ After the delay:
 
 The real LLM executor path is unaffected and always resolves to `completed` or `failed`.
 
+### MockLLM
+
+`MockLLM` is a first-class simulated LLM executor that connects to `RunEngine.startRun()` via `asExecutor()`. It replaces the engine's built-in anonymous mock with a configurable, independently testable class.
+
+After a configurable delay `MockLLM.run()` resolves with a `MockLLMResponse`:
+- `{ kind: 'result', text }` — the RunEngine transitions the run to `'completed'`.
+- `{ kind: 'question', text }` — the RunEngine transitions the run to `'awaiting'`.
+
+```ts
+const mock = new MockLLM(agentName, agentRole, taskDescription, {
+  questionProbability: 0.3,  // 30 % chance of question (default)
+  minDelayMs: 2_000,         // default
+  maxDelayMs: 6_000,         // default
+  delayFn: (min, max) => …,  // injectable for tests
+})
+
+// Use directly
+const response = await mock.run()
+// response.kind === 'result' | 'question'
+// response.text — the generated prose
+
+// Integrate with RunEngine
+engine.startRun(run.id, mock.asExecutor())
+```
+
+#### Executor routing in RunEngine
+
+`RunExecutor` now returns `Promise<string | MockLLMResponse>` for full backward compatibility:
+
+| Executor return value | RunEngine action |
+|---|---|
+| `string` | `_resolveRun` → status `'completed'`, `result` set |
+| `{ kind: 'result', text }` | `_resolveRun` → status `'completed'`, `result` set |
+| `{ kind: 'question', text }` | `_awaitRun` → status `'awaiting'`, `question` set |
+| Promise rejection | `_failRun` → status `'failed'`, `error` set |
+
 ### Modules
 
 | File | Purpose |
 |---|---|
-| `types.ts` | `Run`, `RunStatus`, `RunEventType`, `RunEventHandler`, `RunEngineOptions` |
+| `types.ts` | `Run`, `RunStatus`, `RunEventType`, `RunEventHandler`, `RunEngineOptions`, `MockLLMResponse` |
 | `results.ts` | `generateResult()`, `RESULT_TEMPLATE_COUNT`, `generateQuestion()`, `QUESTION_TEMPLATE_COUNT` |
 | `engine.ts` | `RunEngine` class, `AgentMeta` interface, `RunExecutor` type |
+| `mock-llm.ts` | `MockLLM` class, `MockLLMOptions` interface |
 | `index.ts` | Re-exports for external consumers |
 
 ## Delegation Scene (`/delegation`)
