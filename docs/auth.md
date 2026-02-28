@@ -35,9 +35,10 @@ Browser                     Next.js Server              Database (SQLite)
 - Issues JWT cookie (30-day session)
 - JWT contains `{ id, email, name }`
 
-**Route protection:** `middleware.ts`
-- All routes except `/login` and `/api/auth/*` require authentication
+**Route protection:** `proxy.ts` (Next.js 16 middleware convention)
+- All routes except `/login`, `/api/auth/*`, and `/api/user/register` require authentication
 - Unauthenticated requests are redirected to `/login`
+- Authenticated users visiting `/login` are redirected to `/` (handled in proxy)
 
 ## API Key Encryption
 
@@ -99,6 +100,29 @@ The server:
 
 The client opens the settings modal automatically.
 
+## API Key Setup Banner
+
+When a user logs in without a configured API key, a non-blocking banner appears
+at the bottom of the grid. The banner:
+
+- Fetches `/api/user/api-key` on mount (after session resolves)
+- Shows a friendly call-to-action: "Připoj svůj AI klíč"
+- Has a "Nastavit klíč →" button that opens AccountSettings
+- Is dismissible with an × button (hides for the session)
+- Automatically disappears after the user saves a key (re-fetches status when
+  AccountSettings closes)
+
+## Session Loading State
+
+`Grid2D` reads the NextAuth session via `useSession()`. During the initial
+client-side hydration (before the JWT cookie is verified), `status === 'loading'`.
+During this brief window, a minimal spinner is shown to prevent a flash of
+unauthenticated content. Once `status === 'authenticated'`, the grid renders
+normally.
+
+The middleware handles server-side protection; the client-side guard is an
+additional safety net for the brief hydration window.
+
 ## RunEngine Integration
 
 The `RunEngine.startRun(runId, executor?)` method now accepts an optional async executor function. When an executor is provided (real LLM mode), it replaces the built-in mock timeout. The executor is called synchronously, and its promise drives the run lifecycle:
@@ -112,7 +136,7 @@ The mock path (no executor) remains intact for testing and demo purposes.
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | ✓ | SQLite file path, e.g. `file:./dev.db` |
+| `DATABASE_URL` | ✓ | SQLite file path, e.g. `file:./prisma/dev.db` |
 | `ENCRYPTION_KEY` | ✓ | 64-char hex string (32 bytes) for AES-256-GCM |
 | `NEXTAUTH_SECRET` | ✓ | Random secret for JWT signing |
 | `NEXTAUTH_URL` | ✓ | Base URL of the app (e.g. `http://localhost:3000`) |

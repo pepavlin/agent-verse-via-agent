@@ -73,7 +73,7 @@ interface SelectedAgentInfo {
 // ---------------------------------------------------------------------------
 
 export default function Grid2D() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const mountRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<PIXI.Application | null>(null)
   const worldRef = useRef<PIXI.Container | null>(null)
@@ -132,6 +132,31 @@ export default function Grid2D() {
 
   // Account settings modal
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // API key status — fetched once after login to show the setup banner
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null)
+  const [keyBannerDismissed, setKeyBannerDismissed] = useState(false)
+
+  // Fetch API key status once the session is available, so we can show a
+  // non-blocking setup banner for users who haven't configured their key yet.
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    fetch('/api/user/api-key')
+      .then((r) => r.json())
+      .then((d) => setHasApiKey(d.hasKey === true))
+      .catch(() => setHasApiKey(null))
+  }, [status])
+
+  // When AccountSettings closes, re-check API key status so the banner
+  // disappears immediately after the user saves their key.
+  useEffect(() => {
+    if (settingsOpen) return
+    if (status !== 'authenticated') return
+    fetch('/api/user/api-key')
+      .then((r) => r.json())
+      .then((d) => setHasApiKey(d.hasKey === true))
+      .catch(() => {})
+  }, [settingsOpen, status])
 
   // -------------------------------------------------------------------------
   // Draw static world (grid + objects)
@@ -1169,6 +1194,24 @@ export default function Grid2D() {
   // Render
   // -------------------------------------------------------------------------
 
+  // While NextAuth resolves the session, show a minimal loading screen to
+  // avoid a flash of unauthenticated content.  The middleware handles the
+  // actual server-side redirect; this guard is just for the client-side hydration gap.
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-slate-500">Načítání…</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show the API key setup banner when the user is authenticated but has not
+  // yet configured their LLM key, and has not dismissed the banner this session.
+  const showKeyBanner = hasApiKey === false && !keyBannerDismissed
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-900">
       {/* Pixi canvas mount point */}
@@ -1266,6 +1309,38 @@ export default function Grid2D() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+
+      {/* ── API Key setup banner ── */}
+      {showKeyBanner && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 w-full max-w-sm px-4 pointer-events-auto">
+          <div className="bg-slate-800/95 backdrop-blur-sm border border-indigo-500/40 rounded-2xl shadow-2xl p-4 flex items-start gap-3">
+            <div className="w-8 h-8 bg-indigo-600/20 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white">Připoj svůj AI klíč</p>
+              <p className="text-xs text-slate-400 mt-0.5">Pro spuštění agentů potřebuješ Anthropic API klíč.</p>
+              <button
+                onClick={() => { setSettingsOpen(true); setKeyBannerDismissed(true) }}
+                className="mt-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                Nastavit klíč →
+              </button>
+            </div>
+            <button
+              onClick={() => setKeyBannerDismissed(true)}
+              className="text-slate-600 hover:text-slate-400 transition-colors flex-shrink-0"
+              aria-label="Zavřít"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Multi-agent selection panel ── */}
       {multiSelected && (
