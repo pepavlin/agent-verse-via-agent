@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   calcRuneOrbit,
   calcRuneFlash,
+  calcRuneDisplayScale,
   RUNE_CHARS,
   RUNE_COUNT,
   RUNE_ORBIT_RADIUS,
@@ -197,5 +198,56 @@ describe('calcRuneFlash', () => {
       const { alpha } = calcRuneFlash(age, 0, RUNE_COUNT)
       expect(alpha).toBeGreaterThanOrEqual(0)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// calcRuneDisplayScale
+// ---------------------------------------------------------------------------
+
+describe('calcRuneDisplayScale', () => {
+  it('returns 1 at zoom = 1 (no scaling at 100%)', () => {
+    expect(calcRuneDisplayScale(1)).toBe(1)
+  })
+
+  it('returns 1 at zoom = 0.5 (breakpoint — no scaling at 50%)', () => {
+    expect(calcRuneDisplayScale(0.5)).toBe(1)
+  })
+
+  it('returns 1 for zoom values above the breakpoint', () => {
+    expect(calcRuneDisplayScale(0.75)).toBe(1)
+    expect(calcRuneDisplayScale(2)).toBe(1)
+    expect(calcRuneDisplayScale(4)).toBe(1)
+  })
+
+  it('returns 2 at zoom = 0.25 (the default world zoom)', () => {
+    expect(calcRuneDisplayScale(0.25)).toBe(2)
+  })
+
+  it('returns correct scale below the breakpoint — formula: 0.5 / zoom', () => {
+    expect(calcRuneDisplayScale(0.1)).toBeCloseTo(5, 5)
+    expect(calcRuneDisplayScale(0.15)).toBeCloseTo(0.5 / 0.15, 5)
+    expect(calcRuneDisplayScale(0.4)).toBeCloseTo(0.5 / 0.4, 5)
+  })
+
+  it('result is always ≥ 1', () => {
+    for (const zoom of [0.01, 0.1, 0.25, 0.5, 1, 2, 4]) {
+      expect(calcRuneDisplayScale(zoom)).toBeGreaterThanOrEqual(1)
+    }
+  })
+
+  it('screen orbit stays constant at the breakpoint: ORBIT_RADIUS × scale × zoom ≈ 13 px', () => {
+    // At zoom = 0.25 with scale = 2: 26 × 2 × 0.25 = 13 screen pixels
+    const zoom = 0.25
+    const scale = calcRuneDisplayScale(zoom)
+    const screenOrbit = RUNE_ORBIT_RADIUS * scale * zoom
+    expect(screenOrbit).toBeCloseTo(RUNE_ORBIT_RADIUS * 0.5, 4)
+  })
+
+  it('screen orbit stays constant at zoom = 0.1: 26 × scale × 0.1 ≈ 13 px', () => {
+    const zoom = 0.1
+    const scale = calcRuneDisplayScale(zoom)
+    const screenOrbit = RUNE_ORBIT_RADIUS * scale * zoom
+    expect(screenOrbit).toBeCloseTo(RUNE_ORBIT_RADIUS * 0.5, 4)
   })
 })
