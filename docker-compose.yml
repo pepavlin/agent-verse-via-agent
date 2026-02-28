@@ -7,8 +7,14 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-file:/app/data/app.db}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    volumes:
+      # Persist the SQLite database across container restarts
+      - sqlite_data:/app/data
     restart: unless-stopped
+
+volumes:
+  sqlite_data:
