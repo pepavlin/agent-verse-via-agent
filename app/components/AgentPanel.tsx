@@ -7,18 +7,20 @@
 //   Run  — enter a task description, choose delivery (Počkat / Inbox),
 //          click Spustit. Clean, focused on the task at hand.
 //   Edit — change agent name, goal, and persona; click Uložit to save.
+//   Log  — chat-style history of all past interactions with this agent.
 //
 // Design principle: each mode does exactly one thing, nothing more.
 // ---------------------------------------------------------------------------
 
 import { useState, useEffect } from 'react'
 import type { AgentDef } from './agents-config'
+import type { HistoryEntry } from './use-agent-history'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type PanelMode = 'run' | 'edit'
+export type PanelMode = 'run' | 'edit' | 'log'
 export type DeliveryMode = 'wait' | 'inbox'
 
 /**
@@ -69,6 +71,13 @@ export interface AgentPanelProps {
   waitError?: string
   /** Called when the user clicks "Nový úkol" to reset the panel to the form. */
   onNewTask?: () => void
+  /**
+   * Ordered list of past interactions for this agent (oldest first).
+   * Displayed in the Log tab as a chat-style history.
+   */
+  history?: HistoryEntry[]
+  /** Called when the user clicks "Vymazat historii" in the Log tab. */
+  onClearHistory?: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +94,8 @@ export default function AgentPanel({
   waitResult,
   waitError,
   onNewTask,
+  history = [],
+  onClearHistory,
 }: AgentPanelProps) {
   const [mode, setMode] = useState<PanelMode>('run')
 
@@ -205,6 +216,12 @@ export default function AgentPanel({
               onClick={() => setMode('edit')}
               testId="tab-edit"
             />
+            <ModeButton
+              label={`Log${history.length > 0 ? ` (${history.length})` : ''}`}
+              active={mode === 'log'}
+              onClick={() => setMode('log')}
+              testId="tab-log"
+            />
           </div>
         </div>
 
@@ -230,7 +247,7 @@ export default function AgentPanel({
                 />
               )}
             </>
-          ) : (
+          ) : mode === 'edit' ? (
             <EditForm
               name={editName}
               goal={editGoal}
@@ -239,6 +256,12 @@ export default function AgentPanel({
               onGoalChange={setEditGoal}
               onPersonaChange={setEditPersona}
               onSave={handleSave}
+            />
+          ) : (
+            <AgentHistoryView
+              history={history}
+              agentColor={agentDef.color}
+              onClear={onClearHistory}
             />
           )}
         </div>
@@ -527,5 +550,165 @@ function EditForm({ name, goal, persona, onNameChange, onGoalChange, onPersonaCh
         Uložit
       </button>
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// AgentHistoryView — chat-style log of past interactions
+// ---------------------------------------------------------------------------
+
+const HISTORY_TYPE_CONFIG: Record<
+  HistoryEntry['type'],
+  {
+    icon: string
+    label: string
+    agentBubbleBg: string
+    agentBubbleText: string
+    agentBubbleBorder: string
+    labelColor: string
+  }
+> = {
+  done: {
+    icon: '✓',
+    label: 'Hotovo',
+    agentBubbleBg: 'bg-emerald-950/60',
+    agentBubbleText: 'text-emerald-100',
+    agentBubbleBorder: 'border-emerald-700/40',
+    labelColor: 'text-emerald-400',
+  },
+  question: {
+    icon: '?',
+    label: 'Otázka',
+    agentBubbleBg: 'bg-indigo-950/60',
+    agentBubbleText: 'text-indigo-100',
+    agentBubbleBorder: 'border-indigo-700/40',
+    labelColor: 'text-indigo-400',
+  },
+  error: {
+    icon: '✕',
+    label: 'Chyba',
+    agentBubbleBg: 'bg-red-950/60',
+    agentBubbleText: 'text-red-100',
+    agentBubbleBorder: 'border-red-700/40',
+    labelColor: 'text-red-400',
+  },
+}
+
+/** Format a Unix timestamp as a human-readable relative or absolute string. */
+function formatTimestamp(ts: number): string {
+  const diffMs = Date.now() - ts
+  const diffMin = Math.floor(diffMs / 60_000)
+  const diffHr = Math.floor(diffMs / 3_600_000)
+  if (diffMin < 1) return 'právě teď'
+  if (diffMin < 60) return `před ${diffMin} min`
+  if (diffHr < 24) return `před ${diffHr} hod`
+  return new Date(ts).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })
+}
+
+interface AgentHistoryViewProps {
+  history: HistoryEntry[]
+  agentColor: number
+  onClear?: () => void
+}
+
+function AgentHistoryView({ history, agentColor, onClear }: AgentHistoryViewProps) {
+  const colorHex = `#${agentColor.toString(16).padStart(6, '0')}`
+
+  if (history.length === 0) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center py-10 text-center"
+        data-testid="agent-history-empty"
+      >
+        <span className="text-3xl mb-2.5 opacity-20 select-none" aria-hidden="true">💬</span>
+        <p className="text-sm font-medium text-slate-500">Žádná historie</p>
+        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+          Spusťte úkol a výsledek se zobrazí zde
+        </p>
+      </div>
+    )
+  }
+
+  // Reverse so newest entries are shown at the bottom (chat convention)
+  const ordered = [...history]
+
+  return (
+    <div className="flex flex-col gap-1" data-testid="agent-history-view">
+      {/* Header with clear button */}
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
+          {history.length} {history.length === 1 ? 'interakce' : history.length < 5 ? 'interakce' : 'interakcí'}
+        </span>
+        {onClear && (
+          <button
+            onClick={onClear}
+            className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
+            data-testid="agent-history-clear-btn"
+          >
+            Vymazat
+          </button>
+        )}
+      </div>
+
+      {/* Scrollable chat list */}
+      <div
+        className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-0.5"
+        data-testid="agent-history-list"
+      >
+        {ordered.map((entry) => {
+          const cfg = HISTORY_TYPE_CONFIG[entry.type]
+          return (
+            <div
+              key={entry.id}
+              className="flex flex-col gap-1.5"
+              data-testid={`history-entry-${entry.id}`}
+            >
+              {/* User bubble — task description (right-aligned) */}
+              <div className="flex justify-end">
+                <div
+                  className="
+                    max-w-[85%] px-3 py-2 rounded-xl rounded-tr-sm
+                    bg-slate-700/80 border border-slate-600/40
+                    text-xs text-slate-200 leading-relaxed
+                  "
+                  data-testid={`history-task-${entry.id}`}
+                >
+                  {entry.task}
+                </div>
+              </div>
+
+              {/* Agent bubble — result/question/error (left-aligned) */}
+              <div className="flex items-start gap-1.5">
+                {/* Agent colour dot */}
+                <span
+                  className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+                  style={{ background: colorHex }}
+                  aria-hidden="true"
+                />
+                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                  {/* Type badge */}
+                  <span className={`text-[10px] font-semibold ${cfg.labelColor} flex items-center gap-1`}>
+                    <span aria-hidden="true">{cfg.icon}</span>
+                    {cfg.label}
+                    <span className="text-slate-600 font-normal ml-1">{formatTimestamp(entry.timestamp)}</span>
+                  </span>
+                  {/* Result text */}
+                  <div
+                    className={`
+                      px-3 py-2 rounded-xl rounded-tl-sm
+                      ${cfg.agentBubbleBg} border ${cfg.agentBubbleBorder}
+                      text-xs ${cfg.agentBubbleText} leading-relaxed
+                    `}
+                    data-testid={`history-result-${entry.id}`}
+                  >
+                    {entry.result}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
