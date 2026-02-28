@@ -270,6 +270,94 @@ export class RunEngine {
   }
 
   /**
+   * Create a run, start it immediately, and return a Promise that resolves when
+   * the run reaches a terminal state.
+   *
+   * This is the async counterpart to `dispatch()`. Where `dispatch()` returns
+   * the run in 'running' state and requires subscribing to events for the
+   * outcome, `runAsync()` wraps the full lifecycle into a single awaitable
+   * operation — making it easy to use in async/await code.
+   *
+   * Lifecycle:
+   *   pending → running  (synchronously, before the Promise returns)
+   *   running → completed | awaiting | failed  (after the configured delay or executor)
+   *
+   * Resolution:
+   *   - 'completed' → resolves with the completed Run (result is set)
+   *   - 'awaiting'  → resolves with the awaiting Run (question is set)
+   *   - 'failed'    → rejects with an Error containing the run's error message
+   *
+   * After the configured delay (default 2–6 s, mock mode) or after the executor
+   * resolves (real LLM mode), the returned Promise settles.
+   *
+   * @param agentId         Identifier of the executing agent
+   * @param agentName       Display name used for result generation
+   * @param agentRole       Role label used for result generation
+   * @param taskDescription Plain-language description of the task
+   * @param executor        Optional async function that produces the result string.
+   *                        When omitted, the built-in mock (random delay 2–6 s + template) is used.
+   * @param configSnapshot  Optional: immutable snapshot of the agent configuration.
+   * @returns               Promise that resolves with the settled Run or rejects on failure.
+   *
+   * @example
+   * // Mock mode — resolves after 2–6 seconds with a result:
+   * const run = await engine.runAsync('agent-alice', 'Alice', 'Explorer', 'Map the north sector')
+   * console.log(run.status)  // 'completed'
+   * console.log(run.result)  // 'Alice has completed...'
+   *
+   * // Real LLM mode:
+   * const run = await engine.runAsync('agent-alice', 'Alice', 'Explorer', 'Map the north sector', async () => {
+   *   const res = await fetch('/api/run', { ... })
+   *   const data = await res.json()
+   *   return data.result
+   * })
+   */
+  runAsync(
+    agentId: string,
+    agentName: string,
+    agentRole: string,
+    taskDescription: string,
+    executor?: RunExecutor,
+    configSnapshot?: AgentConfigSnapshot,
+  ): Promise<Run> {
+    return new Promise<Run>((resolve, reject) => {
+      const run = this.createRun(agentId, agentName, agentRole, taskDescription, undefined, configSnapshot)
+      const runId = run.id
+
+      // Subscribe to all terminal events for this specific run.
+      // Unsubscribe immediately after the first matching event to avoid leaks.
+      const unsubCompleted = this.on('run:completed', (r) => {
+        if (r.id !== runId) return
+        unsubCompleted()
+        unsubAwaiting()
+        unsubFailed()
+        resolve(r)
+      })
+
+      const unsubAwaiting = this.on('run:awaiting', (r) => {
+        if (r.id !== runId) return
+        unsubCompleted()
+        unsubAwaiting()
+        unsubFailed()
+        resolve(r)
+      })
+
+      const unsubFailed = this.on('run:failed', (r) => {
+        if (r.id !== runId) return
+        unsubCompleted()
+        unsubAwaiting()
+        unsubFailed()
+        reject(new Error(r.error ?? 'Nastala neočekávaná chyba. Zkus to znovu.'))
+      })
+
+      // Start the run — this transitions it to 'running' and schedules completion.
+      // Must be called AFTER subscribing to events to avoid a race condition where
+      // a synchronous executor resolves before the listeners are registered.
+      this.startRun(runId, executor)
+    })
+  }
+
+  /**
    * Resume a run that is currently in 'awaiting' state (agent had asked a question).
    *
    * Transitions the run back to 'running', stores the user's answer, and emits
