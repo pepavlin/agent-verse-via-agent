@@ -103,7 +103,8 @@ describe('RunEngine.startRun with executor', () => {
 
   it('without executor uses the mock timeout path (backward compatible)', async () => {
     vi.useFakeTimers()
-    const engine = new RunEngine({ delayFn: () => 0 })
+    // mockQuestionProbability: 0 ensures the result path is taken deterministically
+    const engine = new RunEngine({ delayFn: () => 0, mockQuestionProbability: 0 })
     const run = engine.createRun(AGENT_ID, AGENT_NAME, AGENT_ROLE, TASK)
 
     engine.startRun(run.id) // no executor → mock mode
