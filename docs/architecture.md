@@ -25,7 +25,7 @@ app/
     types.ts            – Run interface, RunStatus enum, RunEventType, RunEngineOptions, MockLLMResponse
     results.ts          – Pure result-text generation (generateResult, templates)
     realistic-results.ts – Realistic result/question generation: topic detection, persona style, goal injection
-    engine.ts           – RunEngine class (createRun, startRun, events, querying)
+    engine.ts           – RunEngine class (createRun, startRun, dispatch, runAsync, events, querying)
     mock-llm.ts         – MockLLM class (simulated LLM executor, result or question, realistic mode)
     index.ts            – Re-exports public API
 tests/
@@ -38,6 +38,7 @@ tests/
   run-engine-executor.test.ts – Unit tests for RunEngine executor (real LLM) path
   run-engine-resume.test.ts – Unit tests for RunEngine.resumeRun() (needs_user feature)
   run-engine-children.test.ts – Unit tests for child agent delegation (startRunWithChildren, composeDelegatedResults)
+  run-engine-async.test.ts  – Unit tests for RunEngine.runAsync() (Promise-based lifecycle, timing, awaiting, failure, concurrency)
   mock-llm.test.ts          – Unit tests for MockLLM (result/question paths, delay, RunEngine integration, goal/persona, realistic mode)
   realistic-results.test.ts – Unit tests for realistic result/question generation (topic detection, persona style, all templates)
   agent-run-effects.test.ts – Unit tests for pulse and glow animation calculations
@@ -473,8 +474,24 @@ startRunWithChildren()  ──►  running  ──►  delegating  ──► (ch
 ```ts
 const engine = new RunEngine(options?)
 
-// ── Primary entry point ─────────────────────────────────────────────────────
+// ── Async entry point (Promise-based) ───────────────────────────────────────
+// Create a run, start it, and await its terminal state as a single async call.
+// The Promise resolves with the settled Run (completed or awaiting) or rejects
+// on failure. This is the recommended API for async/await code.
+//
+// The run transitions: pending → running → {completed | awaiting | failed}
+// Default mock delay: random 2–6 s before completion with a result.
+//
+// Resolution rules:
+//   'completed' → resolves with Run (result is set)
+//   'awaiting'  → resolves with Run (question is set; caller can check status)
+//   'failed'    → rejects with Error containing the run's error message
+const run = await engine.runAsync(agentId, agentName, agentRole, taskDescription)            // mock mode
+const run = await engine.runAsync(agentId, agentName, agentRole, taskDescription, executor)  // real LLM mode
+
+// ── Fire-and-forget entry point ─────────────────────────────────────────────
 // Create a run AND immediately start it in a single call (status: 'running').
+// Returns the run in 'running' state; subscribe to events for the outcome.
 // After the configured delay (default 2–6 s) the run transitions to
 // 'completed' (mock) or to whatever the executor resolves to.
 const run = engine.dispatch(agentId, agentName, agentRole, taskDescription)            // mock mode
