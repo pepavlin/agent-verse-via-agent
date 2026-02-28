@@ -143,10 +143,57 @@ export class MockLLM {
   }
 
   /**
+   * Generate a result or question synchronously — no delay, no Promise.
+   *
+   * This is the core generation logic shared between the asynchronous `run()`
+   * method and the `RunEngine`'s internal mock path, which calls this method
+   * from inside its own `setTimeout` callback.
+   *
+   * By centralising generation here, both the explicit `MockLLM.asExecutor()`
+   * path and the engine's built-in mock (no-executor) path produce responses
+   * through identical code, ensuring consistent behaviour and a single source
+   * of truth for mock output generation.
+   *
+   * When realistic generation is active, the text is contextualised by the
+   * agent's goal, persona, and the inferred topic of the task description.
+   *
+   * @returns A `MockLLMResponse` — either `{ kind: 'result', text }` or
+   *          `{ kind: 'question', text }`.
+   */
+  generateSync(): MockLLMResponse {
+    if (Math.random() < this._questionProbability) {
+      const text = this._useRealistic
+        ? generateRealisticQuestion(
+            this._agentName,
+            this._agentRole,
+            this._taskDescription,
+            this._goal,
+            this._persona,
+          )
+        : generateQuestion(this._agentName, this._agentRole, this._taskDescription)
+      return { kind: 'question', text }
+    } else {
+      const text = this._useRealistic
+        ? generateRealisticResult(
+            this._agentName,
+            this._agentRole,
+            this._taskDescription,
+            this._goal,
+            this._persona,
+          )
+        : generateResult(this._agentName, this._agentRole, this._taskDescription)
+      return { kind: 'result', text }
+    }
+  }
+
+  /**
    * Simulate LLM processing and resolve with a result or a question.
    *
    * The promise resolves (never rejects) after the configured delay.
    * Use `asExecutor()` to pass this directly to `RunEngine.startRun()`.
+   *
+   * Internally delegates to `generateSync()` after the configured delay so
+   * that both timing paths use the same generation logic.
    *
    * When realistic generation is active, the result/question text is
    * contextualised by the agent's goal, persona, and the inferred topic
@@ -156,29 +203,7 @@ export class MockLLM {
     const delayMs = this._delayFn(this._minDelayMs, this._maxDelayMs)
     return new Promise<MockLLMResponse>((resolve) => {
       setTimeout(() => {
-        if (Math.random() < this._questionProbability) {
-          const text = this._useRealistic
-            ? generateRealisticQuestion(
-                this._agentName,
-                this._agentRole,
-                this._taskDescription,
-                this._goal,
-                this._persona,
-              )
-            : generateQuestion(this._agentName, this._agentRole, this._taskDescription)
-          resolve({ kind: 'question', text })
-        } else {
-          const text = this._useRealistic
-            ? generateRealisticResult(
-                this._agentName,
-                this._agentRole,
-                this._taskDescription,
-                this._goal,
-                this._persona,
-              )
-            : generateResult(this._agentName, this._agentRole, this._taskDescription)
-          resolve({ kind: 'result', text })
-        }
+        resolve(this.generateSync())
       }, delayMs)
     })
   }
