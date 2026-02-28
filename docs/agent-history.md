@@ -10,15 +10,20 @@ and survives page refreshes via `localStorage`.
 
 ## User Experience
 
-1. User clicks an agent → AgentPanel opens.
-2. User submits a task via the **Run** tab.
-3. The task immediately appears in the **Historie** tab as a user bubble
-   with a **loading indicator** (the entry is `pending`).
-4. When the agent completes the task, the loading indicator is replaced
-   by the **agent's response** in a grey bubble (`done`).
-5. If the task fails, the error message appears in a **red bubble** (`error`).
-6. The **Historie** tab label shows the entry count: `Historie (3)`.
-7. The user can clear history for an agent with the **"Smazat historii"** button.
+1. User clicks an agent → AgentPanel opens on the **Run** tab.
+2. User types a task and clicks **Spustit**.
+3. **For `wait` delivery** (default):
+   - The panel stays open and automatically switches to the **Historie** tab.
+   - The task appears immediately as an indigo user bubble with a **bouncing
+     dots** loading indicator (the entry is `pending`).
+   - When the agent responds, the loading indicator is replaced by the
+     **agent's response** in a grey bubble (`done`).
+   - If the task fails, the error appears in a **red bubble** (`error`).
+   - The task input is cleared so the Run tab is ready for the next task.
+4. **For `inbox` delivery**:
+   - The panel closes and the Inbox panel opens to show the new task card.
+5. The **Historie** tab label shows the entry count: `Historie (3)`.
+6. The user can clear history for an agent with the **"Smazat historii"** button.
 
 ---
 
@@ -59,11 +64,14 @@ Grid2D
 1. User submits task → `Grid2D.handleRunTask` is called.
 2. `addEntry(agentId, run.id, task)` creates a `pending` entry immediately.
 3. RunEngine starts the LLM call asynchronously.
-4. On **success**: the executor calls `updateEntry(run.id, { result, status: 'done' })`.
-5. On **failure** (HTTP error): the executor calls `updateEntry` with `status: 'error'`
+4. **For `wait` delivery**: `historyBump` is incremented → AgentPanel switches
+   to History tab. The panel stays open.
+5. **For `inbox` delivery**: panel closes, inbox opens.
+6. On **success**: the executor calls `updateEntry(run.id, { result, status: 'done' })`.
+7. On **failure** (HTTP error): the executor calls `updateEntry` with `status: 'error'`
    before rethrowing. A `run:failed` listener handles non-HTTP errors (e.g. network).
-6. AgentPanel receives entries via `history={getEntries(panelAgentId)}` prop and
-   displays them in the HistoryView.
+8. AgentPanel receives live-updated entries via `history={getEntries(panelAgentId)}`
+   and displays them in the HistoryView.
 
 ---
 
@@ -88,16 +96,23 @@ change via a second `useEffect`.
 
 ### `AgentPanel` (`app/components/AgentPanel.tsx`)
 
-New props added:
+Props related to history:
 
 ```ts
 interface AgentPanelProps {
   history: AgentHistoryEntry[]   // filtered for this agent, oldest → newest
   onClearHistory: () => void
+  /** Increment to programmatically switch to the History tab (e.g. after task submit). */
+  historyBump?: number
 }
 ```
 
-New tab added: **Historie** (tab-history). Renders `HistoryView`.
+Tabs: **Run** · **Edit** · **Historie** (`tab-history`). Renders `HistoryView`.
+
+**Auto-switch on submit**: `Grid2D` increments `historyBump` whenever a task
+is submitted with `delivery='wait'`. `AgentPanel` watches this via a
+`useEffect` and calls `setMode('history')`, keeping the panel open so the user
+sees the live pending→done transition.
 
 ### `HistoryView` (sub-component of `AgentPanel.tsx`)
 
@@ -143,3 +158,10 @@ Tests live in `tests/agent-history.test.ts` and `tests/agent-panel.test.tsx`.
 - Empty state message
 - `done`, `pending`, `error` entry rendering
 - Clear button calls `onClearHistory`
+- `historyBump` switches panel to History tab
+- Task input is cleared after submission
+
+### `agent-history.test.ts` (additions)
+
+- MAX_ENTRIES_PER_AGENT cap (50): oldest entry is dropped when exceeded
+- Cap is per-agent: adding to one agent does not evict another agent's entries

@@ -164,6 +164,10 @@ export default function Grid2D() {
   // Maps runId → the params used for the initial API call
   const runParamsRef = useRef<Map<string, Omit<AgentRunParams, 'apiKey'>>>(new Map())
 
+  // Bump counter forwarded to AgentPanel to switch it to the History tab
+  // immediately after the user submits a task (for 'wait' delivery).
+  const [historyBump, setHistoryBump] = useState(0)
+
   // Account settings modal
   const [settingsOpen, setSettingsOpen] = useState(false)
 
@@ -1145,10 +1149,12 @@ export default function Grid2D() {
     }
 
     // Inbox delivery: close the panel so the user can see the inbox feed.
-    // Wait delivery: keep the panel open — it now shows a spinner that
-    // transitions to the inline result once the run completes.
+    // Wait delivery: keep the panel open and switch to the History tab
+    // so the user can watch the pending → done/error transition live.
     if (payload.delivery === 'inbox') {
       handlePanelClose()
+    } else {
+      setHistoryBump((prev) => prev + 1)
     }
   }
 
@@ -1423,6 +1429,7 @@ export default function Grid2D() {
         onNewTask={handleNewTask}
         history={panelAgentId ? getEntries(panelAgentId) : []}
         onClearHistory={() => panelAgentId && clearAgentHistory(panelAgentId)}
+        historyBump={historyBump}
       />
 
       {/* ── Account Settings Modal ── */}

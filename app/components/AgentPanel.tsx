@@ -72,6 +72,12 @@ export interface AgentPanelProps {
   onNewTask?: () => void
   /** Called when the user clicks "Smazat historii" in the History tab. */
   onClearHistory?: () => void
+  /**
+   * Increment this counter to programmatically switch the panel to the History
+   * tab (e.g. immediately after a task is submitted so the user can watch the
+   * pending → done transition live).
+   */
+  historyBump?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +96,7 @@ export default function AgentPanel({
   waitError,
   onNewTask,
   onClearHistory,
+  historyBump = 0,
 }: AgentPanelProps) {
   const [mode, setMode] = useState<PanelMode>('run')
 
@@ -114,6 +121,14 @@ export default function AgentPanel({
     }
   }, [agentDef?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Switch to History tab when the parent signals a new task was submitted.
+  // historyBump starts at 0; any increment means "show history now".
+  useEffect(() => {
+    if (historyBump > 0) {
+      setMode('history')
+    }
+  }, [historyBump])
+
   if (!agentDef) return null
 
   const colorHex = `#${agentDef.color.toString(16).padStart(6, '0')}`
@@ -125,6 +140,8 @@ export default function AgentPanel({
     const trimmed = task.trim()
     if (!trimmed) return
     onRunTask({ agentId: agentDef!.id, task: trimmed, delivery })
+    // Clear the input immediately so it's empty when the user returns to Run tab.
+    setTask('')
   }
 
   function handleSave() {

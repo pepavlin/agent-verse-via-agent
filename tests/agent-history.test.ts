@@ -265,6 +265,48 @@ describe('useAgentHistory — clearAgentHistory', () => {
 })
 
 // ---------------------------------------------------------------------------
+// MAX_ENTRIES_PER_AGENT cap (50 entries)
+// ---------------------------------------------------------------------------
+
+describe('useAgentHistory — per-agent entry cap', () => {
+  it('keeps at most 50 entries per agent, dropping the oldest when exceeded', () => {
+    const { result } = renderHook(() => useAgentHistory())
+
+    // Add 51 entries for the same agent
+    act(() => {
+      for (let i = 1; i <= 51; i++) {
+        result.current.addEntry('agent-alice', `run-${i}`, `Task ${i}`)
+      }
+    })
+
+    const entries = result.current.getEntries('agent-alice')
+    expect(entries).toHaveLength(50)
+    // The oldest (run-1) should have been dropped; run-2 is now the oldest
+    expect(entries[0].id).toBe('run-2')
+    // The newest (run-51) should be the last entry
+    expect(entries[entries.length - 1].id).toBe('run-51')
+  })
+
+  it('cap is per-agent: adding to agent B does not evict entries for agent A', () => {
+    const { result } = renderHook(() => useAgentHistory())
+
+    act(() => {
+      // Fill agent-alice to exactly the cap
+      for (let i = 1; i <= 50; i++) {
+        result.current.addEntry('agent-alice', `alice-${i}`, `Alice task ${i}`)
+      }
+      // Add one entry for agent-bob
+      result.current.addEntry('agent-bob', 'bob-1', 'Bob task')
+    })
+
+    // Alice still has all 50 entries (cap was not exceeded for alice)
+    expect(result.current.getEntries('agent-alice')).toHaveLength(50)
+    // Bob has 1 entry
+    expect(result.current.getEntries('agent-bob')).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // localStorage persistence
 // ---------------------------------------------------------------------------
 

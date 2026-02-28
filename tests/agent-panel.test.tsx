@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import AgentPanel from '../app/components/AgentPanel'
 import type { AgentDef } from '../app/components/agents-config'
 import type { RunTaskPayload, EditSavePayload, WaitRunPhase } from '../app/components/AgentPanel'
@@ -438,6 +438,93 @@ describe('AgentPanel History mode — clear', () => {
     fireEvent.click(screen.getByTestId('tab-history'))
     fireEvent.click(screen.getByTestId('history-clear-btn'))
     expect(onClearHistory).toHaveBeenCalledOnce()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// historyBump — programmatic tab switch
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel historyBump', () => {
+  it('stays on Run tab when historyBump is 0', () => {
+    renderPanel(mockAgent, {})
+    // By default historyBump=0 → Run tab stays active
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+  })
+
+  it('switches to History tab when historyBump becomes 1', () => {
+    const { rerender } = renderPanel(mockAgent, { history: [doneEntry] })
+
+    // historyBump starts at 0 → Run tab is active
+    expect(screen.getByTestId('run-task-input')).toBeInTheDocument()
+
+    rerender(
+      <AgentPanel
+        agentDef={mockAgent}
+        history={[doneEntry]}
+        historyBump={1}
+        onClose={vi.fn()}
+        onRunTask={vi.fn()}
+        onEditSave={vi.fn()}
+        onClearHistory={vi.fn()}
+      />,
+    )
+
+    // After bump → History tab should be active
+    expect(screen.queryByTestId('run-task-input')).toBeNull()
+    expect(screen.getByTestId('history-list')).toBeInTheDocument()
+  })
+
+  it('switches to History tab on each subsequent bump', () => {
+    const { rerender } = renderPanel(mockAgent, { history: [doneEntry] })
+
+    // Navigate away to Edit tab
+    fireEvent.click(screen.getByTestId('tab-edit'))
+    expect(screen.getByTestId('edit-name-input')).toBeInTheDocument()
+
+    // Bump → should switch to History
+    rerender(
+      <AgentPanel
+        agentDef={mockAgent}
+        history={[doneEntry]}
+        historyBump={2}
+        onClose={vi.fn()}
+        onRunTask={vi.fn()}
+        onEditSave={vi.fn()}
+        onClearHistory={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByTestId('edit-name-input')).toBeNull()
+    expect(screen.getByTestId('history-list')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Task input is cleared after submission
+// ---------------------------------------------------------------------------
+
+describe('AgentPanel task input cleared after submit', () => {
+  it('clears the task input after Spustit is clicked', () => {
+    renderPanel()
+    const input = screen.getByTestId('run-task-input') as HTMLTextAreaElement
+
+    fireEvent.change(input, { target: { value: 'Do something' } })
+    expect(input.value).toBe('Do something')
+
+    fireEvent.click(screen.getByTestId('run-submit-btn'))
+
+    expect(input.value).toBe('')
+  })
+
+  it('does not call onRunTask or clear input when task is empty', () => {
+    const { onRunTask } = renderPanel()
+    const input = screen.getByTestId('run-task-input') as HTMLTextAreaElement
+
+    fireEvent.click(screen.getByTestId('run-submit-btn'))
+
+    expect(onRunTask).not.toHaveBeenCalled()
+    expect(input.value).toBe('')
   })
 })
 
