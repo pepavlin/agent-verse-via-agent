@@ -2,6 +2,10 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 
+# OpenSSL must be present so npm postinstall for @prisma/engines downloads
+# the linux-musl-openssl-3.0.x binaries (matching the runner environment).
+RUN apk add --no-cache openssl
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -38,16 +42,19 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-# Copy Prisma schema (needed for migrate deploy) and generated engines
+# Copy Prisma schema (needed for migrate deploy) and generated client
 COPY --from=builder /app/prisma ./prisma
+# Generated client with musl engine binary (produced by prisma generate in builder)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Copy all @prisma/* packages (client + engines + debug + get-platform + etc.)
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Copy all @prisma/* packages from the deps stage (pristine npm ci on Alpine+OpenSSL).
+# Using deps (not builder) guarantees @prisma/engines contains the correct
+# linux-musl-openssl-3.0.x binaries without any post-build mutations.
+COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
 
-# Prisma CLI is needed to run migrate deploy at startup
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# Prisma CLI is needed to run migrate deploy at startup — copy from deps too
+COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
+COPY --from=deps /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
 # SQLite database lives here; mount a volume over this path in production
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data /app/node_modules
