@@ -13,8 +13,8 @@ app/
   globals.css           – Base styles (Tailwind 4 reset)
   components/
     Grid2D.tsx          – Grid component: rendering, input, agents integration
-    AgentPanel.tsx      – Unified agent panel (Run / Edit / Log modes)
-    use-agent-history.ts – useAgentHistory hook: per-agent chat-style interaction log
+    AgentPanel.tsx      – Unified agent panel (Run / Edit / History modes)
+    use-agent-history.ts – Per-agent chat history hook (localStorage-backed)
     grid-config.ts      – MAP_CONFIG, GRID_OBJECTS, GridObject interface, worldSize()
     agents-config.ts    – AGENTS array (AgentDef definitions, no pixi.js dep)
     agent-logic.ts      – Pure agent state functions (no pixi.js dep, fully testable)
@@ -33,7 +33,8 @@ tests/
   grid.test.ts              – Unit tests for config, worldSize(), and objects
   agents.test.ts            – Unit tests for agent logic, hit testing, and rect selection
   controls.test.ts          – Unit tests for click-threshold and coord-conversion helpers
-  agent-panel.test.tsx      – Unit tests for AgentPanel component (Run mode, Edit mode, tabs)
+  agent-panel.test.tsx      – Unit tests for AgentPanel component (Run / Edit / History modes)
+  agent-history.test.ts     – Unit tests for useAgentHistory hook (addEntry, updateEntry, clearAgentHistory, localStorage)
   run-engine.test.ts        – Unit tests for RunEngine lifecycle, events, delays, querying
   run-engine-dispatch.test.ts – Unit tests for RunEngine.dispatch() convenience method
   run-engine-executor.test.ts – Unit tests for RunEngine executor (real LLM) path
@@ -166,15 +167,13 @@ The grid supports two ways to select agents:
 
 ### Agent Panel
 
-A unified dialog panel opens when the user clicks a single agent. It has three focused modes switchable via tabs:
+A unified dialog panel opens when the user clicks a single agent. It has three modes switchable via tabs:
 
-| Mode | Contents | Purpose |
-|---|---|---|
-| **Run** | Textarea + Doručení toggle (Počkat / Inbox) + Spustit button | Submit a task to the agent — nothing else. |
-| **Edit** | Jméno input + Goal textarea + Persona textarea + Uložit button | Change the agent's identity and configuration. |
-| **Log** | Chat-style history of past interactions | Browse previous tasks and their outcomes. |
-
-**Design principle:** each mode does exactly one thing. The Run tab is intentionally minimal — it does not show or edit agent properties. Agent properties (name, goal, persona) are exclusively edited via the Edit tab. The Log tab is read-only and shows a chronological conversation-style view.
+| Mode | Purpose |
+|---|---|
+| **Run** | Enter a task description (textarea), choose delivery method (Počkat / Inbox), click Spustit to submit. |
+| **Edit** | Edit the agent's name, goal, and persona inline; click Uložit to apply. |
+| **Historie** | Scrollable chat-style log of all past interactions with this agent. Tasks appear as user bubbles (right), responses as agent bubbles (left). Persisted in `localStorage`. |
 
 The panel is a centered fixed overlay (`AgentPanel` component). Clicking the backdrop or the × button dismisses it. On dismiss, selection is cleared.
 
@@ -185,63 +184,25 @@ The panel is a centered fixed overlay (`AgentPanel` component). Clicking the bac
 - `agentDefs: AgentDef[]` (React state in `Grid2D`) — mutable copy of agent definitions updated by Edit saves.
 - On `handleEditSave`, both `agentDefs` state and the live `agentsRef` entry are updated.
 - On `handleRunTask`, the payload is forwarded to `runEngineRef.current` via `createRun()` + `startRun()`. The resulting run events drive visual effects on the agent (see Run-State Visual Effects below).
+- History is managed by `useAgentHistory()` in `Grid2D` and passed to `AgentPanel` as `history` prop.
 
 **File:** `app/components/AgentPanel.tsx`
 
 **Exports:**
 - `AgentPanel` — default export, the panel component.
-- `PanelMode` — `'run' | 'edit' | 'log'`
+- `PanelMode` — `'run' | 'edit' | 'history'`
 - `DeliveryMode` — `'wait' | 'inbox'`
 - `WaitRunPhase` — `'idle' | 'running' | 'done' | 'error'`
 - `RunTaskPayload` — `{ agentId, task, delivery }`
 - `EditSavePayload` — `{ agentId, name, goal, persona }`
 - `AgentPanelProps` — props interface
 
-**Key types:**
-
-```ts
-type DeliveryMode = 'wait' | 'inbox'
-type WaitRunPhase = 'idle' | 'running' | 'done' | 'error'
-interface RunTaskPayload { agentId: string; task: string; delivery: DeliveryMode }
-interface EditSavePayload { agentId: string; name: string; goal: string; persona: string }
-```
-
 ### Agent History
 
-Each agent maintains a chronological log of past interactions, displayed in the Log tab of the agent panel as a chat-style conversation.
+Per-agent interaction history is managed by `useAgentHistory` (`app/components/use-agent-history.ts`).
+Entries are stored in `localStorage` under key `agent-verse:history` and survive page refreshes.
 
-**Hook: `useAgentHistory` (`app/components/use-agent-history.ts`)**
-
-Manages a `Map<agentId, HistoryEntry[]>` in React state. Pure state — no side effects. The parent (`Grid2D`) calls `addEntry()` when run terminal events fire.
-
-```ts
-interface HistoryEntry {
-  id: string              // unique generated ID
-  agentId: string         // which agent
-  task: string            // user's task description (user bubble)
-  type: 'done' | 'question' | 'error'  // run outcome
-  result: string          // agent response text (agent bubble)
-  timestamp: number       // Unix ms — used for relative time labels
-}
-```
-
-**API:**
-- `getHistory(agentId)` — returns entries for an agent (oldest first)
-- `addEntry(entry)` — appends a new entry, auto-assigns a unique `id`
-- `clearHistory(agentId)` — removes all entries for an agent
-
-**When entries are added (in `Grid2D.handleRunTask`):**
-- `done` — on `run:completed` for both wait and inbox delivery
-- `error` — on `run:failed` for both wait and inbox delivery
-- `question` — on `run:awaiting` for both wait and inbox delivery
-
-**Chat-style display (`AgentHistoryView` inside `AgentPanel.tsx`):**
-- Task description rendered as a right-aligned user bubble (slate background)
-- Agent response rendered as a left-aligned agent bubble (color-tinted by outcome type)
-- Type badge: ✓ Hotovo (emerald), ? Otázka (indigo), ✕ Chyba (red)
-- Relative timestamp shown alongside the type badge
-- "Vymazat" button clears the history for that agent
-- Log tab badge shows entry count when non-empty: `Log (3)`
+See `docs/agent-history.md` for full documentation.
 
 ### Selection UI
 
